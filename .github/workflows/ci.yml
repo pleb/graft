@@ -23,7 +23,7 @@ jobs:
 
       - run: npm ci
 
-      # Unpinned so validation tracks the Claude Code release users install. Validation needs no login.
+      # Unpinned so CI validates against the latest release users install. `claude plugin validate` needs no login or secret.
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
 

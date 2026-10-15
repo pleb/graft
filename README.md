@@ -2,7 +2,7 @@
 
 An opinionated Claude Code software engineer plugin, built around a dev flow: plan → implement → ship.
 
-Krew currently covers the implement step. Plan and ship are not included yet.
+Krew currently covers only the implement step. Plan and ship are not included yet.
 
 ## Installing
 
@@ -33,7 +33,7 @@ Krew currently covers the implement step. Plan and ship are not included yet.
 
 ## Local development
 
-To install the plugin from a local checkout, add the checkout as a marketplace, then install the plugin:
+Install from a local checkout:
 
 ```bash
 claude plugin marketplace add /path/to/krew
