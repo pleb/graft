@@ -21,14 +21,18 @@ Ask when no work is found, or when the conversation holds more than one candidat
 
 ## Start
 
+Find the default branch with `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. If `gh` is unavailable or fails, use `git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'`.
+
 On the default branch, create a feature branch. On any other branch, stay on it.
+
+Check the commit style once: read the last 10 commit subjects on the default branch (`git log -10 --format=%s <default branch>`). If most start with a conventional-commit prefix (`fix(scope): …`, `feat(scope): …`, `chore: …`), every commit uses one, with a type and scope the repo already uses. Otherwise write a plain imperative subject with no prefix.
 
 ## Execute
 
 - Use `krew:worker` agents on Opus for all implementation. Each brief is self-contained: the goal, the files, the decisions already made, and how to verify.
 - Run workers in parallel only when their work is independent and touches different files.
 - At key milestones, use a `krew:reviewer` agent on the reviewer model. Point it at the milestone's changes and what they are meant to do, not at your conclusions. Decide which findings to act on, and send fixes to a worker.
-- Commit after each milestone. You commit, not the agents.
+- Commit after each milestone, in the repo's commit style. You commit, not the agents.
 
 ## Clean up
 
