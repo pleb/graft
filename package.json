@@ -1,0 +1,16 @@
+{
+  "name": "@pleb/krew",
+  "private": true,
+  "scripts": {
+    "format": "oxfmt",
+    "check": "npm run check:format && npm run check:plugin",
+    "check:format": "oxfmt --check",
+    "check:plugin": "claude plugin validate --strict . && claude plugin validate --strict .claude-plugin/plugin.json && claude plugin validate --strict agents && claude plugin validate --strict skills"
+  },
+  "devDependencies": {
+    "oxfmt": "0.72.0"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
