@@ -76,7 +76,7 @@ Each milestone names the files, the change, and how to verify it. Milestones bec
 
 ## Review
 
-A review pass runs `krew:reviewer` and `krew:adversarial-reviewer` in parallel on the plan file, both on the reviewer model. Give them the plan and the repo, not your conclusions. Fix factual errors directly, bring decisions to the user as one more round, and dismiss the rest with a reason.
+A review pass runs `krew:reviewer` and `krew:adversarial-reviewer` in parallel on the plan file, both on the reviewer model. Give them the plan and the repo, not your conclusions. On a later pass, also name the sections revised since the last pass and what drove each change (a review finding or a user decision). Reviewers still review the whole plan. Fix factual errors directly, bring decisions to the user as one more round, and dismiss the rest with a reason.
 
 - Required: one pass on the complete plan before finishing, and another if its findings change the approach.
 - Suggested: on a larger plan, offer a pass at a natural point, such as once the approach is settled or a large section is drafted. Run one whenever the user asks. Each pass costs two agents, so run no others.
