@@ -1,6 +1,6 @@
 # Krew
 
-A minimal software engineering flow for Claude Code (plan → implement → ship) that you fork and make your own.
+A minimal software engineering flow for Claude Code (plan → implement → ship) that lives in your own private copy.
 
 ## Install
 
@@ -8,7 +8,7 @@ A minimal software engineering flow for Claude Code (plan → implement → ship
 Claude, install krew https://raw.githubusercontent.com/pleb/krew/main/agent-install.md
 ```
 
-That's it!
+That's it! Install creates (or reuses) a private `<login>/my-krew` repo holding krew's history. Your mods live there, and `/krew:update` merges new krew releases into it.
 
 ## Flow commands
 
@@ -62,3 +62,10 @@ Install from a local checkout:
 claude plugin marketplace add /path/to/krew
 claude plugin install krew@krew
 ```
+
+## Acknowledgements
+
+Inspired by:
+
+- [staff0rd/assist](https://github.com/staff0rd/assist)
+- [openai/codex-plugin-cc](https://github.com/openai/codex-plugin-cc)
