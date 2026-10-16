@@ -1,25 +1,42 @@
 ---
 name: modify
-description: Changes your krew fork. Settles the change with you, implements and reviews it, records it in the fork's mod registry, and pushes it.
+description: Changes your krew repo. Settles the change with you, implements and reviews it, records it in the repo's mod registry, and pushes it.
 argument-hint: "[change]"
 disable-model-invocation: true
 ---
 
-You change the user's krew fork. Each change is one mod: settled, built, reviewed, recorded, and pushed.
+You change the user's krew repo. Each change is one mod: settled, built, reviewed, recorded, and pushed.
 
 **Arguments:** $ARGUMENTS
 
 ## Find the clone
 
-Read `claude plugin marketplace list --json` and take the entry named `krew`. When its `source` is `directory`, its `path` is the clone. With no `krew` entry, or one with another source, krew was not installed from a fork.
+Read `claude plugin marketplace list --json` and take the entry named `krew`. When its `source` is `directory`, its `path` is the clone. With no `krew` entry, or one with another source, krew was not installed from a clone.
 
-Run git in the clone with `git -C <clone>`. `gh repo view "$(git -C <clone> remote get-url origin)" --json isFork,defaultBranchRef` says whether the clone is a fork and names its default branch, `<branch>`.
+Run git in the clone with `git -C "<clone>"`. `<repo>` is the last two path segments of `git -C "<clone>" remote get-url origin`, splitting on both `/` and `:`, with a trailing `.git` removed. The host and any user part are ignored, so `https://github.com/o/r.git`, `git@github.com:o/r.git` and `git@github-personal:o/r.git` all give `o/r`. When the URL has no `owner/name` path, say so and stop.
 
-When krew was not installed from a fork, point the user to the install guide at https://raw.githubusercontent.com/pleb/krew/main/agent-install.md and stop. If the clone is not a fork, stop and point to `/krew:plan` and `/krew:orchestrate` instead. A registry row in upstream would ship to every fork.
+Classify the clone, in this order:
+
+1. `<repo>` is `pleb/krew` (compared case-insensitively): the upstream owner's dev checkout. Stop and point to `/krew:plan` and `/krew:orchestrate` instead. A registry row in upstream would ship to every copy.
+2. `git -C "<clone>" config --local --type=bool --get krew.copy` prints `true`: a user's copy. Continue below.
+3. Anything else: not a copy.
+
+When krew was not installed from a clone, or the clone is not a copy, point the user to the install guide at https://raw.githubusercontent.com/pleb/krew/main/agent-install.md and stop.
+
+`<branch>` is the `ref: refs/heads/<branch>` line of `git -C "<clone>" ls-remote --symref origin HEAD`. When `ls-remote` fails, report that git cannot reach `origin`. Suggest `! gh auth setup-git`, or checking the active gh account when gh is git's credential helper. Then stop.
+
+A push or fetch that fails on credentials follows the section `## Credential failures` in `<clone>/agent-install.md`.
 
 ## Sync
 
-The tree is clean (`git -C <clone> status --porcelain` is empty) and on `<branch>` (`git -C <clone> rev-parse --abbrev-ref HEAD` prints `<branch>`). If either is not so, stop and ask. Then `git -C <clone> pull --ff-only origin <branch>` brings in mods made on another machine. If the pull cannot fast-forward, stop and ask.
+The tree is clean (`git -C "<clone>" status --porcelain` is empty) and on `<branch>` (`git -C "<clone>" rev-parse --abbrev-ref HEAD` prints `<branch>`). If either is not so, stop and ask. Then:
+
+1. If the clone has no `upstream` remote, add one in the same URL form as `origin`: `git@github.com:pleb/krew.git` when `origin` uses SSH, `https://github.com/pleb/krew.git` when it uses HTTPS. Leave an existing one as it is.
+2. Run `git -C "<clone>" fetch origin`. If it fails, stop and give the guidance from Credential failures. Then run `git -C "<clone>" fetch upstream`. If that fails, say so and carry on; modify needs `upstream` only for the incoming list.
+3. When `git -C "<clone>" log --oneline origin/<branch>..HEAD` lists commits, report them first, with the likely cause: an earlier push was rejected, for example for the `workflow` scope. Commit and push includes them.
+4. List the incoming commits with `git -C "<clone>" log --format='%h %an <%ae> %s' HEAD..origin/<branch> --not upstream/main`, leaving out `--not upstream/main` when `upstream/main` does not exist. Show those whose author email differs from `git -C "<clone>" config user.email` under "Incoming from `<repo>`". This is information, not a check; do not ask about it.
+5. Run `git -C "<clone>" pull --ff-only origin <branch>`, with no question. This brings in mods made on another machine or by teammates.
+6. When the pull cannot fast-forward (`origin` moved on since the commits from step 3), offer to merge `origin/<branch>`; never rebase. On a no, stop. On a yes, run `git -C "<clone>" merge origin/<branch>`. If it conflicts, ask; to stop, run `git -C "<clone>" merge --abort` and stop.
 
 ## Read the registry
 
@@ -47,7 +64,7 @@ Read `<clone>/skills/orchestrate/SKILL.md` and follow its section `## Execute`. 
 Add or revise the mod's row in `<clone>/MODS.md`. If the file is missing, create it with an intro line and the table header:
 
 ```markdown
-Changes this fork makes to krew. `/krew:update` keeps each one when it merges upstream.
+Changes this copy makes to krew. `/krew:update` keeps each one when it merges upstream.
 
 | Change | Intent |
 | ------ | ------ |
@@ -57,15 +74,18 @@ Change is a short imperative name, and also the commit subject. A revision keeps
 
 ## Validate
 
-Run `claude plugin validate --strict <clone>`. It checks the marketplace, the plugin manifest, and every agent and skill. Send any finding to a worker before committing.
+Run `claude plugin validate --strict "<clone>"`. It checks the marketplace, the plugin manifest, and every agent and skill. Send any finding to a worker before committing.
 
 ## Commit and push
 
-Make one commit whose subject is the Change name, with the registry row included. Then run `git -C <clone> push origin <branch>`, always: a mod is done only once the fork has it. If the push fails, report the mod as not done and say why.
+Make one commit whose subject is the Change name, with the registry row included. Then run `git -C "<clone>" push origin <branch>`, always: a mod is done only once `<repo>` has it. The push also carries any unpushed commits Sync reported.
+
+If the push is rejected for the `workflow` scope, ask the user to run `! gh auth refresh -h github.com -s workflow` when gh is git's credential helper, then push again. If the push still fails, report the mod as not done, say why, and give the guidance from Credential failures. The commit stays in the clone, and the next update or modify reports and pushes it.
 
 ## Report
 
 - The registry row.
 - The commit.
+- The "Incoming from `<repo>`" list, if any.
 - Anything left undone.
 - Ask the user to run `/reload-plugins`. A skill cannot run slash commands.
