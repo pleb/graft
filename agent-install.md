@@ -38,11 +38,11 @@ Then check the location:
 
 - **Missing or empty**: run `gh repo clone <fork> <path>`. For a fork, `gh` adds an `upstream` remote for `pleb/krew`. GitHub creates forks asynchronously, so a clone straight after `gh repo fork` can fail. Retry up to 5 times, waiting about 10 seconds between tries, before reporting the error.
 - **Already a clone of the fork** (its `origin` names the fork): reuse it, then run `git -C <path> pull --ff-only`.
-- **Anything else**: ask for another location. Never clear or delete a folder.
+- **Anything else**: ask for another location.
 
 ## 5. Install
 
-`<path>` is absolute and native to the OS. On Windows, use `C:\Users\<name>\.krew`, not the Git Bash form `/c/Users/<name>/.krew`. Claude Code on Windows runs Bash through Git Bash, where `~` expands to the Git Bash form.
+`<path>` is absolute and native to the OS. On Windows, Claude Code runs commands through Git Bash, which writes the home folder as `/c/Users/<name>`. Do not build `<path>` from `~` or `$HOME`; use the Windows form, `C:\Users\<name>\.krew`.
 
 If a `krew` marketplace exists with another source (such as the `pleb/krew` GitHub marketplace from the old install instructions), tell the user it will be replaced, then run `claude plugin marketplace remove krew`. This also uninstalls `krew@krew`.
 
