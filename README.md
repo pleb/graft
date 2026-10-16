@@ -1,35 +1,58 @@
 # Krew
 
-An opinionated Claude Code software engineer plugin, built around a dev flow: plan → implement → ship.
+A minimal software engineering flow for Claude Code (plan → implement → ship) that you fork and make your own.
 
-Krew currently covers only the implement step. Plan and ship are not included yet.
+## Install
 
-## Installing
+```text
+Claude, install krew https://raw.githubusercontent.com/pleb/krew/main/agent-install.md
+```
 
-1. Start Claude Code: `claude`
-2. Add the marketplace:
+That's it!
 
-   ```text
-   /plugin marketplace add pleb/krew
-   ```
+## Flow commands
 
-3. Install the plugin, then choose a scope in the panel that opens:
+```text
+/krew:plan [plan path | plan name | topic] [reviewer model: default opus]
+/krew:orchestrate [plan path | plan name] [reviewer model: default opus]
+/krew:pr [ready-state] [guidance]
+```
 
-   ```text
-   /plugin install krew@krew
-   ```
+_How does it work?_
 
-4. Restart Claude Code to load the plugin.
+Start by creating a plan. Plans are automatically saved to `.claude/plans` in the repo. The first time, krew asks whether to ignore them.
 
-## Contents
+The plan can be a task with any level of initial detail. Krew will help build enough context for successful plan execution.
 
-| Component | Name                  | What it does                                                                                                                                                                     |
-| --------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Skill     | `/krew:orchestrate`   | Executes a plan or task list as the coordinator. Workers implement, reviewers check milestones, and comment-editor and docs-editor clean up at the end.                          |
-| Agent     | `krew:worker`         | Implements a bounded, already-decided coding task end to end, then reports what changed and how it was verified.                                                                 |
-| Agent     | `krew:reviewer`       | Independent review of code changes for correctness, security, and contract breakage, with every finding backed by a concrete failure path.                                       |
-| Agent     | `krew:docs-editor`    | Edits documentation changes down to what readers need. Removes content that does not need documenting, and rewrites the rest as plain statements of what each thing is and does. |
-| Agent     | `krew:comment-editor` | Removes and rewrites code comments in a change so only comments that state what the code cannot remain. Edits comments only, never code.                                         |
+```text
+/krew:plan add dark mode for #123
+/krew:plan deployment of the static site under /web to an azure static website using bicep
+```
+
+Once the plan is ready to execute, use the orchestrator to implement the plan.
+
+```text
+/krew:orchestrate add-dark-mode
+/krew:orchestrate deploy-static-site-to-azure
+```
+
+And when you're ready to ship the changes:
+
+```text
+/krew:pr
+```
+
+Krew is designed so you can understand it. If you want to know more, start with [plan](./skills/plan/SKILL.md), [orchestrate](./skills/orchestrate/SKILL.md), [pr](./skills/pr/SKILL.md).
+
+## Utility commands
+
+```text
+/krew:update [auto: default ask]
+/krew:uninstall
+/krew:modify [change]
+```
+
+Make krew your own with `/krew:modify when ... do ...`. `/krew:update` keeps your mods when it brings in upstream changes.
 
 ## Local development
 
