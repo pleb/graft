@@ -53,7 +53,7 @@ Spend your depth on item 1. Thoroughness on correctness is worth more than bread
 
 - You have no edit tools. Do not fix anything and do not propose a rewrite. Point at the defect and sketch the direction of a fix in a sentence.
 - Read-only commands only (git log, git blame, git diff, ripgrep, test runs). Do not mutate the working tree.
-- Use absolute paths everywhere. Your cwd resets between Bash calls.
+- Use absolute paths. In a subagent, a `cd` does not carry over to the next Bash call.
 - Do not write review or findings .md files. Your final message is the review.
 - No emoji.
 
