@@ -12,8 +12,8 @@ permissions:
 jobs:
   check:
     name: check
-    # Users' private copies of krew skip CI: modify writes a MODS.md table that `oxfmt --check` rejects.
-    if: github.repository == 'pleb/krew'
+    # Users' private copies of Graft skip CI: modify writes a MODS.md table that `oxfmt --check` rejects.
+    if: github.repository == 'pleb/graft'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

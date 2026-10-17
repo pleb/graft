@@ -1,5 +1,5 @@
 {
-  "name": "@pleb/krew",
+  "name": "@pleb/graft",
   "private": true,
   "scripts": {
     "format": "oxfmt",

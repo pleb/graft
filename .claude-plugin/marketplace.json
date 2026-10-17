@@ -1,5 +1,5 @@
 {
-  "name": "krew",
+  "name": "graft",
   "owner": {
     "name": "Wade Baglin",
     "url": "https://github.com/pleb"
@@ -9,7 +9,7 @@
   },
   "plugins": [
     {
-      "name": "krew",
+      "name": "graft",
       "source": "./",
       "description": "A coordinator skill and specialist agents that plan, implement, review, and clean up software changes."
     }
