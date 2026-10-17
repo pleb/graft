@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Settles a solution with the user and writes it as a plan under .claude/plans. Talks through options, edge cases, and friction points, has the plan reviewed, and ends with open questions.
+description: Settles a solution with the user and writes it as a plan under .claude/plans as the conversation goes. Finds gaps the user may not have seen, reviews what changed at key points, and asks before finalising.
 argument-hint: "[plan path | plan name | topic] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
 ---
@@ -11,7 +11,7 @@ You are the planner. You settle the solution with the user and write it down. Yo
 
 ## Start
 
-If plan mode is active, ask the user to leave it before starting: plan mode blocks edits, and `.claude/` is a protected path. Outside plan mode, writes under `.claude/` still prompt for permission; that is expected.
+If plan mode is active, ask the user to leave it before starting: plan mode blocks edits, and `.claude/` is a protected path. Outside plan mode, writes under `.claude/` still prompt for permission. The plan is written after every round, so tell the user the first prompt can allow edits to the project's `.claude` folder for the session.
 
 The arguments may name a reviewer model (`fable`, `opus` or `sonnet`) anywhere, such as `sonnet` or `review with sonnet`. Take out the words that set it (all of `review with sonnet`, not just `sonnet`) before reading the rest. A word that belongs to the main text stays in it (for example, `add sonnet support` is a topic); ask when it is unclear. The default is Opus.
 
@@ -49,12 +49,18 @@ Work in rounds. Each round is one `AskUserQuestion` call with up to 3 questions,
 - Facts come from the code or a researcher, never from the user. Decisions are the user's.
 - Every question carries a recommendation. Each option states its trade-off, and the recommended option comes first.
 - State conventional defaults; do not ask them.
-- Raise an edge case or friction point as a question only when the answer changes the plan. Otherwise record it in the plan.
-- Stop when the remaining questions would not change the plan. Carry them as open questions.
+- Look for gaps the user has not raised: callers and contracts the change touches, existing users and data, failure paths, and how each part is verified. Raise a gap, edge case or friction point as a question only when the answer changes the plan. Otherwise record it in the plan.
+- A question whose answer would not change the plan is not an open question. Record it as a default or a risk.
+- When the user defers a question to implementation, record it where it applies, marked as decided during implementation. That closes it.
+- Keep going until no open question remains.
 
 ## Write the plan
 
+Write the plan once the goal is clear, usually after the first round. Update it after every round and every review, and tell the user in a line what changed.
+
 Revise a plan passed in at its own path. Otherwise write to `<root>/.claude/plans/<kebab-slug>.md`, where the slug says what the plan does (for example `add-plan-skill`), with no date prefix. If that file exists, ask whether to revise it or pick a new name.
+
+When the plan outgrows its name, rename it to a slug that covers what it now is, and tell the user the old and new names. Ask first when the new name is taken. Rename with `mv`, never while a review pass is running. A plan passed in at its own path keeps that path.
 
 ```markdown
 # <Title>
@@ -72,15 +78,28 @@ Revise a plan passed in at its own path. Otherwise write to `<root>/.claude/plan
 ## Open questions
 ```
 
-Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work, review, and commit. Open questions are numbered, each with a recommendation.
+Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work, review, and commit. Open questions are numbered, each with a recommendation, and are removed once answered.
 
 ## Review
 
-A review pass runs `krew:reviewer` and `krew:adversarial-reviewer` in parallel on the plan file, both on the reviewer model. Give them the plan and the repo, not your conclusions. On a later pass, also name the sections revised since the last pass and what drove each change (a review finding or a user decision). Reviewers still review the whole plan. Fix factual errors directly, bring decisions to the user as one more round, and dismiss the rest with a reason.
+Run a review pass at key points, when a large part of the plan has fallen into place, such as once the approach is settled or a large section is drafted. You decide when another pass is worth its cost. Run one whenever the user asks.
 
-- Required: one pass on the complete plan before finishing, and another if its findings change the approach.
-- Suggested: on a larger plan, offer a pass at a natural point, such as once the approach is settled or a large section is drafted. Run one whenever the user asks. Each pass costs two agents, so run no others.
+Reviewers run on the reviewer model. Give them the plan file and the repo, not your conclusions. Say in the brief whether the pass is a whole-plan review or a delta review.
+
+- **First pass**: the whole plan so far, with `krew:reviewer` and `krew:adversarial-reviewer` in parallel.
+- **Later passes**: a delta review. Name the sections changed since the last pass started, and what drove each change (a user decision or a review finding). Edits made while a pass runs belong to the next delta. Run both reviewers when the delta changes the approach (a new or reordered Milestones section counts), and `krew:reviewer` alone when it fills in detail. In a session that reopens a plan, the delta is what this session changed.
+- **Full pass**: the whole plan with both reviewers, from Finish or when the user asks for one.
+
+Fix factual errors directly. A decision a finding raises becomes an open question. Dismiss the rest with a reason.
 
 ## Finish
 
-Report the plan path, a few lines of summary, the open questions, and the next step: `/krew:orchestrate <kebab-slug>` for a plan under `.claude/plans/`, `/krew:orchestrate <path>` otherwise. Do not implement.
+Once no open question remains and no review pass is running, ask with `AskUserQuestion`:
+
+- **Review and finalise**: a full pass, then finalise.
+- **Finalise**.
+- **Continue planning**: ask the user what to change next.
+
+Recommend Review and finalise when any part of the plan has not been reviewed in this session (text from an earlier session counts as unreviewed; a fix applied from a review finding counts as reviewed), and Finalise otherwise. A decision the full pass raises becomes an open question. Once it is answered, review its edits with a delta pass, then ask this question again.
+
+To finalise, report the plan path, a few lines of summary, and the next step: `/krew:orchestrate <kebab-slug>` for a plan under `.claude/plans/`, `/krew:orchestrate <path>` otherwise. Do not implement.

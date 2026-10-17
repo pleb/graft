@@ -15,6 +15,7 @@ The brief names a plan file or a diff (a range, a branch, or files). With neithe
 
 - **Diff**: read past it. Open the changed functions in full, then their callers, then the tests that cover them. Most real defects live in the interaction between changed and unchanged code.
 - **Plan**: read the code each step will change, then review the steps against it. Check every claim the plan makes about the code. Cite the plan section and the `path:line` it relies on.
+- **Plan delta**: the brief says it is a delta review, and names a plan file and the sections changed since the last review. Review those sections as a plan, and read the rest only for context. Report on unchanged text only when the change makes it wrong, such as a renamed path the rest of the plan still uses.
 
 ## Independence
 
