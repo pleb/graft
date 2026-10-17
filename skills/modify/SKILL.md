@@ -11,19 +11,12 @@ You change the user's krew repo. Each change is one mod: settled, built, reviewe
 
 ## Find the clone
 
-Read `claude plugin marketplace list --json` and take the entry named `krew`. When its `source` is `directory`, its `path` is the clone. With no `krew` entry, or one with another source, krew was not installed from a clone.
+Run `claude plugin marketplace list --json`. The entry named `krew` with `"source": "directory"` has the clone's path, `<clone>`. Run git in it with `git -C "<clone>"`. `<repo>` is the `owner/name` in `git -C "<clone>" remote get-url origin`, and `<branch>` is `main`. Take the first that applies:
 
-Run git in the clone with `git -C "<clone>"`. `<repo>` is the last two path segments of `git -C "<clone>" remote get-url origin`, splitting on both `/` and `:`, with a trailing `.git` removed. The host and any user part are ignored, so `https://github.com/o/r.git`, `git@github.com:o/r.git` and `git@github-personal:o/r.git` all give `o/r`. When the URL has no `owner/name` path, say so and stop.
-
-Classify the clone, in this order:
-
-1. `<repo>` is `pleb/krew` (compared case-insensitively): the upstream owner's dev checkout. Stop and point to `/krew:plan` and `/krew:orchestrate` instead. A registry row in upstream would ship to every copy.
-2. `git -C "<clone>" config --local --type=bool --get krew.copy` prints `true`: a user's copy. Continue below.
-3. Anything else: not a copy.
-
-When krew was not installed from a clone, or the clone is not a copy, point the user to the install guide at https://raw.githubusercontent.com/pleb/krew/main/agent-install.md and stop.
-
-`<branch>` is the `ref: refs/heads/<branch>` line of `git -C "<clone>" ls-remote --symref origin HEAD`. When `ls-remote` fails, report that git cannot reach `origin`. Suggest `! gh auth setup-git`, or checking the active gh account when gh is git's credential helper. Then stop.
+1. `<repo>` is `pleb/krew`: the upstream owner's dev checkout. Stop and point to `/krew:plan` and `/krew:orchestrate` instead. A registry row in upstream would ship to every copy.
+2. `git -C "<clone>" config --local --get krew.copy` prints `true`: a user's copy. Continue below.
+3. With no such entry, krew was not installed from a clone. Point the user to the install guide at https://raw.githubusercontent.com/pleb/krew/main/agent-install.md and stop.
+4. Otherwise, the clone is not marked as a copy (a clone made by hand has no marker). Point the user to `/krew:uninstall`, then the install guide, and stop.
 
 A push or fetch that fails on credentials follows the section `## Credential failures` in `<clone>/agent-install.md`.
 
