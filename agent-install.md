@@ -12,7 +12,7 @@ If `gh auth status` shows gh is not logged in, ask the user to run `! gh auth lo
 
 Run `claude plugin marketplace list --json`. When it has an entry named `krew` with `"source": "directory"`, krew is already installed from a clone:
 
-- If `claude plugin list --json` has no `krew@krew` entry, run `claude plugin install krew@krew --scope user`. If its `enabled` is false, run `claude plugin enable krew@krew`.
+- If `claude plugin list --json` has no `krew@krew` entry, run `claude plugin install krew@krew --scope user`. If the entry's `enabled` is false, run `claude plugin enable krew@krew`.
 - Say krew is installed and point to `/krew:update`. If you installed or enabled it, ask the user to run `/reload-plugins` or restart Claude Code first. Then stop.
 
 Otherwise (no `krew` entry, or one with another source), continue.
@@ -37,7 +37,7 @@ gh repo create <repo> --private --source "<path>" --remote origin --description 
 git -C "<path>" push --set-upstream origin main
 ```
 
-On any other error, stop and report it. If the push fails, follow Credential failures, then push again. Repeat while each failure has a new cause. When a failure repeats, stop and report it; do not mark or register the clone.
+If the push fails, follow Credential failures, then push again. Repeat while each failure has a new cause. When a failure repeats, stop and report it; do not mark or register the clone. On any other error, stop and report it.
 
 Then mark the clone as a copy, for update, modify and uninstall:
 
