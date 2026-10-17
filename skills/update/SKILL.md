@@ -56,13 +56,13 @@ git -C ~/.my-krew merge --no-ff --no-commit upstream/main
 
 Merge, never rebase, so pushes never need force. `--no-commit` holds the commit until validation passes. `--no-ff` makes it hold even when the merge could fast-forward.
 
-For each conflicted file, find the mods behind it. This gives their Change names, and `~/.my-krew/MODS.md` gives their intent.
+For each conflicted file, list the mods that changed it.
 
 ```bash
 git -C ~/.my-krew log --no-merges --format=%s upstream/main..HEAD -- <file>
 ```
 
-Resolve the file so upstream's change lands and each mod's intent still holds. Ask when both cannot hold, when no mod explains the clone's side, or when upstream now does what a mod did (offer to drop the mod and its row). `auto` never skips these questions.
+This prints their Change names, and `~/.my-krew/MODS.md` gives their intent. Resolve the file so upstream's change lands and each mod's intent still holds. Ask when both cannot hold, when no mod explains the clone's side, or when upstream now does what a mod did (offer to drop the mod and its row). `auto` never skips these questions.
 
 To stop at any point before the commit, clear the merge and any fixes, including new files.
 
@@ -100,4 +100,4 @@ Staging everything puts resolved conflicts, validation fixes and `MODS.md` edits
 - What came in from upstream.
 - Each conflict and how it was resolved.
 - Mods revised or dropped, with their `MODS.md` rows.
-- Ask the user to run `/reload-plugins`; a skill cannot run slash commands.
+- Ask the user to run `/reload-plugins`. A skill cannot run slash commands.

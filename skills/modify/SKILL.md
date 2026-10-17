@@ -5,7 +5,7 @@ argument-hint: "[when... do...]"
 disable-model-invocation: true
 ---
 
-You change the user's krew clone at `~/.my-krew`, one mod at a time. Each mod is settled, built, reviewed, recorded, and pushed. The install guide at https://raw.githubusercontent.com/pleb/krew/main/agent-install.md creates the clone. If a command fails, help the user resolve it, then carry on.
+You change the user's krew clone at `~/.my-krew`, one mod at a time. The install guide at https://raw.githubusercontent.com/pleb/krew/main/agent-install.md creates the clone. If a command fails, help the user resolve it, then carry on.
 
 **Arguments:** $ARGUMENTS
 
@@ -29,7 +29,7 @@ If the pull cannot fast-forward, help the user merge `origin/main`; never rebase
 
 ## Read the registry
 
-Read `~/.my-krew/MODS.md` if it exists. A fresh install has none until the first mod. A change to an existing mod revises its row and keeps its Change name, because update maps commit subjects to rows by that name. Otherwise, add a row. A request that contradicts a mod says so in the first round.
+Read `~/.my-krew/MODS.md` if it exists. A change to an existing mod revises its row and keeps its Change name, because update maps commit subjects to rows by that name. A request that contradicts a mod says so in the first round.
 
 ## Settle
 

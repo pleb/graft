@@ -1,6 +1,6 @@
 # Install krew
 
-You are installing krew, a Claude Code plugin, for the user. Krew lives in the user's private GitHub repo `<login>/my-krew`, which holds krew's history plus their mods. Its clone at `~/.my-krew` has `origin` set to that repo, and Claude Code installs krew from the clone. The steps use `gh` for GitHub. Report each command you run. If a command fails, help the user resolve it, then carry on.
+You are installing krew, a Claude Code plugin, for the user. Krew lives in the user's private GitHub repo `<login>/my-krew`, which holds krew's history plus their mods. Its clone at `~/.my-krew` has `origin` set to that repo, and Claude Code installs krew from the clone. Report each command you run. If a command fails, help the user resolve it, then carry on.
 
 ## 1. Find the login
 
