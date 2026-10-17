@@ -1,7 +1,7 @@
 ---
 name: plan
 description: Settles a solution with the user and writes it as a plan under .claude/plans. Talks through options, edge cases, and friction points, has the plan reviewed, and ends with open questions.
-argument-hint: "[plan path | plan name | topic] [reviewer model]"
+argument-hint: "[plan path | plan name | topic] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
 ---
 
@@ -13,7 +13,7 @@ You are the planner. You settle the solution with the user and write it down. Yo
 
 If plan mode is active, ask the user to leave it before starting: plan mode blocks edits, and `.claude/` is a protected path. Outside plan mode, writes under `.claude/` still prompt for permission; that is expected.
 
-The last word of the arguments, when it is `fable`, `opus`, or `sonnet`, sets the reviewer model and is removed before the rest is read. A model name elsewhere is part of the text. The default is Opus.
+The arguments may name a reviewer model (`fable`, `opus` or `sonnet`) anywhere, such as `sonnet` or `review with sonnet`. Take out the words that set it (all of `review with sonnet`, not just `sonnet`) before reading the rest. A word that belongs to the main text stays in it (for example, `add sonnet support` is a topic); ask when it is unclear. The default is Opus.
 
 Find the root with `git rev-parse --show-toplevel`. Inside a repo, `.claude/plans` and `.gitignore` are relative to the root, not the cwd. Outside a repo (non-zero exit), use the cwd and skip the ignore check.
 

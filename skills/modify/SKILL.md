@@ -1,7 +1,7 @@
 ---
 name: modify
 description: Changes your krew repo. Settles the change with you, implements and reviews it, records it in the repo's mod registry, and pushes it.
-argument-hint: "[change]"
+argument-hint: "[when... do...]"
 disable-model-invocation: true
 ---
 

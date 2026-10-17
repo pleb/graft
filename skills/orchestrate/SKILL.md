@@ -1,7 +1,7 @@
 ---
 name: orchestrate
 description: Executes a plan or task list as the coordinator. Workers implement, reviewers check milestones, and comment-editor and docs-editor clean up at the end.
-argument-hint: "[plan path | plan name] [reviewer model]"
+argument-hint: "[plan path | plan name] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
 ---
 
@@ -11,7 +11,7 @@ You are the coordinator. Agents do the work. You order it, write the briefs, jud
 
 ## Find the work
 
-The last word of the arguments, when it is `fable`, `opus`, or `sonnet`, sets the reviewer model and is removed before the rest is read. A model name elsewhere is part of the text. The default is Opus. Then take the first that applies:
+The arguments may name a reviewer model (`fable`, `opus` or `sonnet`) anywhere, such as `sonnet` or `review with sonnet`. Take out the words that set it (all of `review with sonnet`, not just `sonnet`) before reading the rest. A word that belongs to the main text stays in it (for example, `add sonnet support` is the work); ask when it is unclear. The default is Opus. Then take the first that applies to the rest:
 
 1. A file path: that file is the plan.
 2. A plan name: when `<root>/.claude/plans/<name>.md` exists (`.md` optional), that file is the plan. `<root>` is the output of `git rev-parse --show-toplevel`.

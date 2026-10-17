@@ -1,7 +1,7 @@
 ---
 name: update
 description: Merges the latest krew from upstream into your clone, keeping your mods, and pushes it to your krew repo. Asks before merging unless auto is passed.
-argument-hint: "[auto]"
+argument-hint: "[mode: ask (default) | auto]"
 disable-model-invocation: true
 ---
 

@@ -13,9 +13,9 @@ That's it! Install creates (or reuses) a private `<login>/my-krew` repo holding 
 ## Flow commands
 
 ```text
-/krew:plan [plan path | plan name | topic] [reviewer model: default opus]
-/krew:orchestrate [plan path | plan name] [reviewer model: default opus]
-/krew:pr [ready-state] [guidance]
+/krew:plan [plan path | plan name | topic] [reviewer model: sonnet | opus (default) | fable]
+/krew:orchestrate [plan path | plan name] [reviewer model: sonnet | opus (default) | fable]
+/krew:pr [guidance] [state: draft (default) | ready-state]
 ```
 
 _How does it work?_
@@ -47,9 +47,9 @@ Krew is designed so you can understand it. If you want to know more, start with 
 ## Utility commands
 
 ```text
-/krew:update [auto: default ask]
+/krew:update [mode: ask (default) | auto]
 /krew:uninstall
-/krew:modify [change]
+/krew:modify [when... do...]
 ```
 
 Make krew your own with `/krew:modify when ... do ...`. `/krew:update` keeps your mods when it brings in upstream changes.
