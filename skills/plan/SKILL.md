@@ -34,12 +34,12 @@ Run git from the root (`git -C <root>`).
 - If `<root>/.claude/plans/` exists, the user has already answered. Do not ask again.
 - If `git ls-files .claude/plans` lists files, the repo tracks plans on purpose. Do not offer to ignore them.
 - Otherwise run `git check-ignore -q .claude/plans/.probe.md`. The probe is never tracked, so global excludes and every `.gitignore` level count. If it is not ignored, ask with `AskUserQuestion`: add `/.claude/plans/` to the root `.gitignore` (shared), add it to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names (this clone only, and correct in worktrees), or leave it.
-- After a `.gitignore` edit or "leave it", say that the uncommitted edit or the untracked plan files make the tree dirty, and `/krew:pr` refuses a dirty tree. Do not commit.
+- After a `.gitignore` edit or "leave it", say that the uncommitted edit or the untracked plan files make the tree dirty, and `/graft:pr` refuses a dirty tree. Do not commit.
 - Create the folder if it is missing.
 
 ## Understand
 
-Read the code the request touches. Send `krew:researcher` agents for facts that take more than a quick look, in the repo or online. Do not block on them: ask the questions they do not gate while they run.
+Read the code the request touches. Send `graft:researcher` agents for facts that take more than a quick look, in the repo or online. Do not block on them: ask the questions they do not gate while they run.
 
 ## Settle the solution
 
@@ -86,8 +86,8 @@ Run a review pass at key points, when a large part of the plan has fallen into p
 
 Reviewers run on the reviewer model. Give them the plan file and the repo, not your conclusions. Say in the brief whether the pass is a whole-plan review or a delta review.
 
-- **First pass**: the whole plan so far, with `krew:reviewer` and `krew:adversarial-reviewer` in parallel.
-- **Later passes**: a delta review. Name the sections changed since the last pass started, and what drove each change (a user decision or a review finding). Edits made while a pass runs belong to the next delta. Run both reviewers when the delta changes the approach (a new or reordered Milestones section counts), and `krew:reviewer` alone when it fills in detail. In a session that reopens a plan, the delta is what this session changed.
+- **First pass**: the whole plan so far, with `graft:reviewer` and `graft:adversarial-reviewer` in parallel.
+- **Later passes**: a delta review. Name the sections changed since the last pass started, and what drove each change (a user decision or a review finding). Edits made while a pass runs belong to the next delta. Run both reviewers when the delta changes the approach (a new or reordered Milestones section counts), and `graft:reviewer` alone when it fills in detail. In a session that reopens a plan, the delta is what this session changed.
 - **Full pass**: the whole plan with both reviewers, from Finish or when the user asks for one.
 
 Fix factual errors directly. A decision a finding raises becomes an open question. Dismiss the rest with a reason.
@@ -102,4 +102,4 @@ Once no open question remains and no review pass is running, ask with `AskUserQu
 
 Recommend Review and finalise when any part of the plan has not been reviewed in this session (text from an earlier session counts as unreviewed; a fix applied from a review finding counts as reviewed), and Finalise otherwise. A decision the full pass raises becomes an open question. Once it is answered, review its edits with a delta pass, then ask this question again.
 
-To finalise, report the plan path, a few lines of summary, and the next step: `/krew:orchestrate <kebab-slug>` for a plan under `.claude/plans/`, `/krew:orchestrate <path>` otherwise. Do not implement.
+To finalise, report the plan path, a few lines of summary, and the next step: `/graft:orchestrate <kebab-slug>` for a plan under `.claude/plans/`, `/graft:orchestrate <path>` otherwise. Do not implement.

@@ -31,16 +31,16 @@ Check the commit style once: read the last 10 commit subjects on the default bra
 
 ## Execute
 
-- Use `krew:worker` agents on Opus for all implementation. Each brief is self-contained: the goal, the files, the decisions already made, and how to verify.
+- Use `graft:worker` agents on Opus for all implementation. Each brief is self-contained: the goal, the files, the decisions already made, and how to verify.
 - Run workers in parallel only when their work is independent and touches different files.
-- At key milestones, run a `krew:reviewer` and a `krew:adversarial-reviewer` agent in parallel, both on the reviewer model. Give both the same brief: the milestone's changes and what they are meant to do, not your conclusions.
+- At key milestones, run a `graft:reviewer` and a `graft:adversarial-reviewer` agent in parallel, both on the reviewer model. Give both the same brief: the milestone's changes and what they are meant to do, not your conclusions.
 - Weigh the two reports together. A finding both agents raise carries more weight; a finding from either still needs its failure path to hold up. Decide which findings to act on, and send fixes to a worker.
 - Commit after each milestone, in the repo's commit style. You commit, not the agents.
 
 ## Clean up
 
-- Once all code changes are complete, use a `krew:comment-editor` agent on the branch's changes.
-- Once all documentation changes are complete, use a `krew:docs-editor` agent on the branch's changes.
+- Once all code changes are complete, use a `graft:comment-editor` agent on the branch's changes.
+- Once all documentation changes are complete, use a `graft:docs-editor` agent on the branch's changes.
 - They touch different files, so run them in parallel when both are ready.
 - Check their reports, restore anything they removed that you know is needed, then commit.
 
