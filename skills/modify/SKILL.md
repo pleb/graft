@@ -42,11 +42,11 @@ The Skill tool cannot run `/krew:plan`, so read `<clone>/skills/plan/SKILL.md` a
 - No plans folder, no plan file, and no plan review pass. The plan stays in the conversation.
 - The user approves the plan before any edit. Execution follows in this conversation.
 - Every agent brief (researchers here, workers and reviewers in Implement) names the clone by absolute path as the repo to work in. Agents start in the current project, not the clone.
-- Warn before a change that renames the plugin, the marketplace, or a section this skill follows (plan's Understand and Settle the solution, orchestrate's Execute).
+- Warn before a change that renames the plugin, the marketplace, or a section this skill follows (plan's Understand and Settle the solution, orchestrate's Execute and Ask, do not guess).
 
 ## Implement
 
-Read `<clone>/skills/orchestrate/SKILL.md` and follow its section `## Execute`. Differences:
+Read `<clone>/skills/orchestrate/SKILL.md` and follow its sections `## Execute` and `## Ask, do not guess`. Differences:
 
 - Work in the clone on `<branch>`, with no feature branch.
 - One commit for the whole mod, not one per milestone.
