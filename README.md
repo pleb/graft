@@ -25,14 +25,12 @@ Start by creating a plan. Plans are automatically saved to `.claude/plans` in th
 The plan can be a task with any level of initial detail. Krew will help build enough context for successful plan execution.
 
 ```text
-/krew:plan add dark mode for #123
 /krew:plan deployment of the static site under /web to an azure static website using bicep
 ```
 
 Once the plan is ready to execute, use the orchestrator to implement the plan.
 
 ```text
-/krew:orchestrate add-dark-mode
 /krew:orchestrate deploy-static-site-to-azure
 ```
 
@@ -54,7 +52,7 @@ Krew is designed so you can understand it. If you want to know more, start with 
 
 Make krew your own with `/krew:modify when ... do ...`. `/krew:update` keeps your mods when it brings in upstream changes.
 
-## Local development
+## Krew development
 
 Install from a local checkout:
 
