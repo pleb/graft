@@ -69,3 +69,4 @@ Inspired by:
 
 - [staff0rd/assist](https://github.com/staff0rd/assist)
 - [openai/codex-plugin-cc](https://github.com/openai/codex-plugin-cc)
+- [mattpocock/skills](https://github.com/mattpocock/skills)
