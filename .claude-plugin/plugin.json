@@ -1,6 +1,6 @@
 {
   "name": "krew",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "A coordinator skill and specialist agents that plan, implement, review, and clean up software changes.",
   "author": {
     "name": "Wade Baglin",

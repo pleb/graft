@@ -34,7 +34,7 @@ The message that launched you is everything you know about intent. Nobody will a
 
 ## Mechanics
 
-- Use absolute paths everywhere. Your cwd resets between Bash calls.
+- Use absolute paths. In a subagent, a `cd` does not carry over to the next Bash call.
 - Do not commit, push, or open a PR unless the brief asks for it.
 - Do not write report, summary, or analysis .md files. Your final message is the deliverable; the caller reads your text, not files you leave behind. (Files written as input to another tool are fine.)
 - No emoji.

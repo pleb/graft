@@ -52,7 +52,7 @@ Each sentence states a fact about its subject: what it is, what it does, how to 
 
 ## Mechanics
 
-- Use absolute paths. Your cwd resets between Bash calls.
+- Use absolute paths. In a subagent, a `cd` does not carry over to the next Bash call.
 - Do not commit unless the brief asks.
 - Do not write report files. Your final message is the report.
 - No emoji.

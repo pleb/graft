@@ -1,7 +1,7 @@
 ---
 name: pr
 description: Raises a PR for the current branch, using the repo's PR template if it has one. Opens as a draft unless ready-state is passed. Rewrites the title and body if the branch already has a PR.
-argument-hint: "[ready-state] [guidance]"
+argument-hint: "[guidance] [state: draft (default) | ready-state]"
 disable-model-invocation: true
 ---
 
@@ -84,4 +84,4 @@ git push -u origin <branch>
 gh pr create --draft --base <base> --title "<title>" --body "<body>"
 ```
 
-Create it as a draft by default; the user marks it ready for review once they have looked it over. If the arguments start with `ready-state`, the user wants it ready for review now: drop `--draft`. For an existing PR, `ready-state` means running `gh pr ready` after `gh pr edit` if the PR is still a draft. Report the PR URL.
+Create it as a draft by default; the user marks it ready for review once they have looked it over. The arguments may set the state anywhere, such as `ready-state`, `draft` or `mark it ready`. Take out the words that set it before reading the rest as guidance. A word that belongs to the guidance stays in it (for example, `note the docs are still a draft`); ask when it is unclear. A new PR opens as a draft unless the state is `ready-state`; then drop `--draft`. For an existing PR, only an explicit state changes it, after `gh pr edit`: `ready-state` runs `gh pr ready` and `draft` runs `gh pr ready --undo`. With no state, an existing PR keeps its state. Report the PR URL.
