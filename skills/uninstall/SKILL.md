@@ -43,7 +43,7 @@ claude plugin marketplace remove krew
 
 ## Local clone
 
-First list the ignored files that would be lost: the `!!` lines of `git -C "<clone>" status --porcelain --ignored`, such as plans kept out of git through `info/exclude`. Ask with `AskUserQuestion` whether to delete the clone, showing its path and that list. Ignored files do not block the delete (they may be just `node_modules/`); the user decides. Delete only on a yes. While there is unsaved work, refuse and say what would be lost.
+First list the ignored files that would be lost: the `!!` lines of `git -C "<clone>" status --porcelain --ignored`, such as plans kept out of git through `info/exclude`. Ask with `AskUserQuestion` whether to delete the clone, showing its path and that list. Ignored files do not block the delete (they may be just `node_modules/`); the user decides. Delete only on a yes. While there is unsaved work, refuse and say what would be lost. When the clone stays and `<clone>` is `~/.my-krew`, say that a reinstall stops while that folder is in use.
 
 Before deleting, check that the folder is a krew clone:
 
@@ -57,7 +57,7 @@ If any check fails, do not delete. Never delete a parent folder or the home dire
 
 Only a user's copy has a GitHub repo to handle here. For the dev checkout and an unmarked clone, leave the GitHub repo alone and offer no deletion.
 
-Leave `<repo>` by default. Report its URL (`https://github.com/<repo>`), and that a reinstall finds it on its own only when it is `<login>/my-krew` for the active gh account (`gh api user --jq .login`); otherwise the reinstall asks for its name.
+Leave `<repo>` by default. Report its URL (`https://github.com/<repo>`), and that a reinstall reuses it only when it is `<login>/my-krew` for the active gh account (`gh api user --jq .login`); otherwise a reinstall uses `<login>/my-krew` (creating it when missing), not this repo.
 
 If the user asks for help deleting it:
 
@@ -65,7 +65,7 @@ If the user asks for help deleting it:
 2. Ask the user to run `! gh auth refresh -h github.com -s delete_repo` and wait until they confirm.
 3. Ask the user to type the exact repo name, `<owner>/<name>`. Continue only when it matches `<repo>`.
 4. Run `gh repo delete <repo> --yes`.
-5. When that succeeds and the clone was kept, run `git -C "<clone>" config --local --unset krew.copy`, so a later install does not treat the clone as set up.
+5. When that succeeds and the clone was kept, run `git -C "<clone>" config --local --unset krew.copy`, so update and modify no longer treat the clone as a copy.
 
 Never delete `pleb/krew`.
 
