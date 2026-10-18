@@ -54,7 +54,7 @@ Merge Graft into the clone without committing.
 git -C ~/.my-graft merge --no-ff --no-commit upstream/main
 ```
 
-Merge, never rebase, so pushes never need force. `--no-commit` holds the commit until validation passes. `--no-ff` makes it hold even when the merge could fast-forward.
+Merge, never rebase.
 
 For the rest of the update, follow `~/.my-graft/AGENTS.md` (paths relative to the clone) if it exists, resolving it first if it is conflicted.
 
@@ -95,11 +95,11 @@ git -C ~/.my-graft commit --no-edit
 git -C ~/.my-graft push origin main
 ```
 
-Staging everything puts resolved conflicts, validation fixes and `MODS.md` edits in the merge commit. It is safe because Sync required a clean tree.
+It is safe because Sync required a clean tree.
 
 ## Report
 
 - What came in from upstream.
 - Each conflict and how it was resolved.
 - Mods revised or dropped, with their `MODS.md` rows.
-- Ask the user to run `/reload-plugins`. A skill cannot run slash commands.
+- Ask the user to run `/reload-plugins`.

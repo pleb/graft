@@ -14,11 +14,11 @@ When `~/.my-graft` exists, check it for work that is not on GitHub.
 git -C ~/.my-graft status --short --branch
 ```
 
-Always ask with `AskUserQuestion` whether to delete `~/.my-graft`, and show that output. It lists uncommitted files, and `[ahead N]` means N commits are not pushed. Ask even when the status is clean: it does not list stashes, other branches or ignored files.
+Always ask with `AskUserQuestion` whether to delete `~/.my-graft`, and show that output. It does not list stashes, other branches or ignored files.
 
-On no, stop before removing anything, so the user can push first.
+On no, stop before removing anything.
 
-When `~/.my-graft` does not exist (a Graft dev checkout), skip this step: ask nothing and carry on.
+When `~/.my-graft` does not exist, skip this step.
 
 ## Remove Graft
 
@@ -40,4 +40,4 @@ rm -rf ~/.my-graft
 
 Report what was removed. If `~/.my-graft` existed, say that the `my-graft` repo on GitHub stays: a reinstall reuses it, and the user can delete it on GitHub if they no longer want it.
 
-Ask the user to run `/reload-plugins` or restart Claude Code. A skill cannot run slash commands, so until then the session keeps the old Graft.
+Ask the user to run `/reload-plugins` or restart Claude Code.
