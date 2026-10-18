@@ -22,13 +22,12 @@
     </marker>
   </defs>
 
-  <!-- Edges, drawn first so the label pills sit on top of them -->
+  <!-- Edges come first so the label pills paint over them. -->
   <path class="edge" d="M140 110 V290 H303" marker-end="url(#arrow-end)"/>
   <path class="edge" d="M415 8 V248" marker-end="url(#arrow-end)"/>
   <path class="edge" d="M527 290 H690 V112" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)"/>
   <path class="edge" d="M415 330 V498" marker-end="url(#arrow-end)"/>
 
-  <!-- Nodes -->
   <g id="node-upstream">
     <rect class="node" x="30" y="40" width="220" height="70" rx="10"/>
     <text class="mono name" x="140" y="68" text-anchor="middle">pleb/graft</text>
@@ -55,7 +54,6 @@
     <text class="sans name" x="415" y="533" text-anchor="middle">Claude Code</text>
   </g>
 
-  <!-- Edge labels -->
   <g id="label-update">
     <rect class="pill" x="30" y="154" width="220" height="92" rx="12"/>
     <g id="label-update-cmd">

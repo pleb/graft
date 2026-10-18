@@ -14,7 +14,6 @@
     </marker>
   </defs>
 
-  <!-- /graft:plan -->
   <g>
     <rect x="1" y="1" width="214" height="370" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
     <g>
@@ -51,7 +50,6 @@
 
   <path class="arrow" d="M219,28 H244" marker-end="url(#arrowhead)"/>
 
-  <!-- /graft:orchestrate -->
   <g>
     <rect x="250" y="1" width="418" height="370" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
     <g>
@@ -103,7 +101,6 @@
 
   <path class="arrow" d="M672,28 H697" marker-end="url(#arrowhead)"/>
 
-  <!-- /graft:pr -->
   <g>
     <rect x="703" y="1" width="126" height="370" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
     <g>
