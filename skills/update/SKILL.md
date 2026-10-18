@@ -56,7 +56,7 @@ git -C ~/.my-graft merge --no-ff --no-commit upstream/main
 
 Merge, never rebase, so pushes never need force. `--no-commit` holds the commit until validation passes. `--no-ff` makes it hold even when the merge could fast-forward.
 
-Follow `~/.my-graft/AGENTS.md` if it exists for the rest of the update, resolving it first if it is conflicted.
+Follow `~/.my-graft/AGENTS.md` (paths relative to the clone) if it exists for the rest of the update, resolving it first if it is conflicted.
 
 For each conflicted file, list the mods that changed it.
 

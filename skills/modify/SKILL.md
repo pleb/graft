@@ -38,7 +38,7 @@ The Skill tool cannot run `/graft:plan`, so read `~/.my-graft/skills/plan/SKILL.
 - No plans folder, no plan file, and no plan review pass. The plan stays in the conversation.
 - The user approves the plan before any edit. Execution follows in this conversation.
 - Every agent brief (researchers here, workers and reviewers in Implement) names the clone by absolute path as the repo to work in, so expand `~/.my-graft` in the brief. Agents start in the current project, not the clone.
-- Follow `~/.my-graft/AGENTS.md` if it exists, and include its rules in every agent brief.
+- Follow `~/.my-graft/AGENTS.md` (paths relative to the clone) if it exists, and include its rules in every agent brief.
 
 ## Implement
 
