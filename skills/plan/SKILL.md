@@ -86,7 +86,7 @@ A risky part is one that changes a contract, data, a migration or security, or r
 
 You decide when to run a pass mid-planning, knowing that Finish will likely run a full pass.
 
-- **Review** when a large part of the plan is unreviewed and later rounds will build on it (for example, the approach has settled and milestones are about to be detailed), or when a risky part is drafted, unreviewed, and later rounds will build on it.
+- **Review** when a large part of the plan, or a drafted risky part, is unreviewed and later rounds will build on it (for example, the approach has settled and milestones are about to be detailed).
 - **Skip** when the plan is small, when the unreviewed change only fills in detail, or when no more rounds will build on it before Finish.
 
 Run one whenever the user asks.
