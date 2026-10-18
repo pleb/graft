@@ -2,7 +2,8 @@
 
 A minimal software engineering flow for Claude Code (plan → implement → ship) that lives in your own private copy.
 
-The name comes from grafting: your changes are joined onto Graft and grow with it.
+> [!NOTE]
+> These docs are minimal on purpose. Graft's skills and agents are short Markdown files written for people to read, so they describe themselves. Start with [plan](./skills/plan/SKILL.md), [orchestrate](./skills/orchestrate/SKILL.md) and [pr](./skills/pr/SKILL.md).
 
 ## Install
 
@@ -10,17 +11,11 @@ The name comes from grafting: your changes are joined onto Graft and grow with i
 Claude, install Graft https://raw.githubusercontent.com/pleb/graft/main/agent-install.md
 ```
 
-That's it! Install creates (or reuses) a private `<login>/my-graft` repo holding Graft's history. Your mods live there, and `/graft:update` merges new Graft releases into it.
+That's it! Install creates (or reuses) a private `<login>/my-graft` repo holding Graft's history. Your mods live there, and `/graft:update` merges the latest Graft into it.
 
-## Flow commands
+## How it works
 
-```text
-/graft:plan [plan path | plan name | topic] [reviewer model: sonnet | opus (default) | fable]
-/graft:orchestrate [plan path | plan name] [reviewer model: sonnet | opus (default) | fable]
-/graft:pr [guidance] [state: draft (default) | ready-state]
-```
-
-_How does it work?_
+![Graft's flow: /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
 
 Start by creating a plan. Plans are automatically saved to `.claude/plans` in the repo. The first time, Graft asks whether to ignore them.
 
@@ -42,7 +37,13 @@ And when you're ready to ship the changes:
 /graft:pr
 ```
 
-Graft is designed so you can understand it. If you want to know more, start with [plan](./skills/plan/SKILL.md), [orchestrate](./skills/orchestrate/SKILL.md), [pr](./skills/pr/SKILL.md).
+## Flow commands
+
+```text
+/graft:plan [plan path | plan name | topic] [reviewer model: sonnet | opus (default) | fable]
+/graft:orchestrate [plan path | plan name] [reviewer model: sonnet | opus (default) | fable]
+/graft:pr [guidance] [state: draft (default) | ready-state]
+```
 
 ## Utility commands
 
@@ -53,6 +54,8 @@ Graft is designed so you can understand it. If you want to know more, start with
 ```
 
 Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps your mods when it brings in upstream changes.
+
+![How your copy of Graft stays current: /graft:update merges the latest Graft from pleb/graft into your clone at ~/.my-graft, keeping your mods. /graft:modify commits mods there, recorded in MODS.md. The clone pushes to your private \<login\>/my-graft repo, and your other machines pull from it. Claude Code loads Graft from the clone, and /reload-plugins picks up changes.](./docs/update.svg)
 
 ## Graft development
 
