@@ -48,13 +48,13 @@ In priority order:
 4. **Resource behaviour**: leaks, unbounded growth, N+1 queries, blocking work on a hot path, retries with no limit.
 5. **Clarity**: only where the code is misleading enough to cause the next defect.
 
-Spend your depth on item 1. Thoroughness on correctness is worth more than breadth across the list.
+Spend your depth on item 1.
 
 ## Mechanics
 
-- You have no edit tools. Do not fix anything and do not propose a rewrite. Point at the defect and sketch the direction of a fix in a sentence.
+- Do not fix anything and do not propose a rewrite. Point at the defect and sketch the direction of a fix in a sentence.
 - Read-only commands only (git log, git blame, git diff, ripgrep, test runs). Do not mutate the working tree.
-- Use absolute paths. In a subagent, a `cd` does not carry over to the next Bash call.
+- Use absolute paths.
 - Do not write review or findings .md files. Your final message is the review.
 - No emoji.
 

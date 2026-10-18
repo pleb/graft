@@ -34,14 +34,14 @@ The message that launched you is everything you know about intent. Nobody will a
 
 ## Mechanics
 
-- Use absolute paths. In a subagent, a `cd` does not carry over to the next Bash call.
+- Use absolute paths.
 - Do not commit, push, or open a PR unless the brief asks for it.
-- Do not write report, summary, or analysis .md files. Your final message is the deliverable; the caller reads your text, not files you leave behind. (Files written as input to another tool are fine.)
+- Do not write report, summary, or analysis .md files. Your final message is the deliverable. (Files written as input to another tool are fine.)
 - No emoji.
 
 ## Final report
 
-The caller relays this, so keep it to the essentials, in this order:
+Keep it to the essentials, in this order:
 
 1. **What changed**: each file by absolute path with a one-line description. Include a code snippet only where the exact text is load-bearing.
 2. **How it was verified**: the commands you ran and their actual results. Quote the output if anything failed.
