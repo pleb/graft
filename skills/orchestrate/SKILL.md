@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: Executes a plan or task list as the coordinator. Workers implement, reviewers check milestones, and comment-editor and docs-editor clean up at the end.
+description: Executes a plan or task list as the coordinator. Workers implement, reviewers check batches of milestones, and comment-editor and docs-editor clean up at the end.
 argument-hint: "[plan path | plan name] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
 ---
@@ -33,9 +33,22 @@ Check the commit style once: read the last 10 commit subjects on the default bra
 
 - Use `graft:worker` agents on Opus for all implementation. Each brief is self-contained: the goal, the files, the decisions already made, and how to verify.
 - Run workers in parallel only when their work is independent and touches different files.
-- At key milestones, run a `graft:reviewer` and a `graft:adversarial-reviewer` agent in parallel, both on the reviewer model. Give both the same brief: the milestone's changes and what they are meant to do, not your conclusions.
-- Weigh the two reports together. A finding both agents raise carries more weight; a finding from either still needs its failure path to hold up. Decide which findings to act on, and send fixes to a worker.
-- Commit after each milestone, in the repo's commit style. You commit, not the agents.
+
+### Commit and review
+
+A risky change is one that changes a contract, a schema, stored data, security, or existing code with callers outside the plan. A later milestone using code an earlier one added does not make that code risky by itself; milestones that build on each other in sequence are the normal case and batch like any others. The same test decides when to review and which reviewers run.
+
+- Record HEAD when Execute starts. It is the base of the first review pass. When the branch already has commits ahead of the default branch at that point (a second plan, a parent branch, or an interrupted run), ask the user whether the first pass should include them, since an interrupted run can leave batched commits that were never reviewed.
+- Commit each milestone once its worker reports it verified, before any review, in the repo's commit style. You commit, not the agents.
+- After each commit, decide whether to review now or go on. Go on while the unreviewed commits are small. Review when the unreviewed change is substantial, or before starting a milestone that builds on an unreviewed risky change.
+- After the last milestone, review the commits not yet reviewed, before clean-up, so every commit is reviewed once. No pass at the end repeats the whole branch.
+- A pass and its fixes finish before the next milestone starts, and no pass starts while any worker is running. Reviewers read files in the working tree, so a worker changing them mid-pass could make a review report on half-made edits.
+
+### Each pass
+
+- Review from the commit the previous pass ended at (the recorded start for the first pass) to HEAD. The intent is the milestones the range covers and the findings each fix commit addresses. Fix commits from the previous pass fall in the next range, so nothing committed during or after a pass is skipped. Check the fixes from the last pass yourself.
+- Run a `graft:reviewer` agent on every pass. When the range holds a risky change, run a `graft:adversarial-reviewer` agent in parallel as well. Each runs on the reviewer model. `graft:adversarial-reviewer` never runs alone here, since every batch of code needs its correctness checked. Give every reviewer the same brief: the range and what it is meant to do, not your conclusions.
+- Weigh the reports and decide which findings to act on, and send fixes to a worker. When both reviewers ran, a finding both raise carries more weight; a finding from either still needs its failure path to hold up. Commit fixes separately, in the repo's commit style.
 
 ## Clean up
 
@@ -51,6 +64,7 @@ Ask the user when something is ambiguous, needs more than a straightforward deci
 ## Report
 
 - The branch and its commits.
-- Findings from both reviewers acted on, and those dismissed with the reason.
+- The commit ranges reviewed, and which reviewers ran on each.
+- Review findings acted on, and those dismissed with the reason.
 - Items the cleanup agents flagged for a decision.
 - Anything left undone.

@@ -46,7 +46,8 @@ Read `~/.my-graft/skills/orchestrate/SKILL.md` and follow its sections `## Execu
 
 - Work in the clone on `main`, with no feature branch.
 - One commit for the whole mod, not one per milestone.
-- Review the whole mod once before Record: `graft:reviewer` and `graft:adversarial-reviewer` in parallel, both on Opus. The target is the clone's uncommitted changes, by absolute path; the approved plan is the intent. Act on findings as Execute says.
+- Review the whole mod once before Record: `graft:reviewer` and `graft:adversarial-reviewer` in parallel, both on Opus. This single review replaces Execute's review cadence. The target is the clone's uncommitted changes, by absolute path; the approved plan is the intent. Act on findings as Execute says.
+- Put review fixes in the uncommitted mod and its one commit, not a separate fix commit. `/graft:update` maps commit subjects to `MODS.md` rows by Change name, so a fix commit's subject would have no row.
 
 ## Record
 
