@@ -2,8 +2,6 @@
 
 A minimal software engineering flow for Claude Code (plan → implement → ship) that lives in your own private copy.
 
-The name comes from grafting: your changes are joined onto Graft and grow with it.
-
 > [!NOTE]
 > These docs are minimal on purpose. Graft's skills and agents are short Markdown files written for people to read, so they describe themselves. Start with [plan](./skills/plan/SKILL.md), [orchestrate](./skills/orchestrate/SKILL.md) and [pr](./skills/pr/SKILL.md).
 
