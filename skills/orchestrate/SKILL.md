@@ -21,6 +21,13 @@ The arguments may name a reviewer model (`fable`, `opus` or `sonnet`) anywhere, 
 
 Ask when no work is found, or when the conversation holds more than one candidate.
 
+When the work is a plan file (including a plan in this conversation that was written to or read from one), check for the Graft footer: a `Plan by Graft.` line after a thematic break, outside any code fence, not always the last line. Skip the check for a plan without it. Otherwise warn when either holds:
+
+- Its `status` is not `finalised`.
+- Its `## Open questions` section lists questions.
+
+Say which holds, list any open questions, and ask whether to continue or stop. On continue, go on as normal. On stop, change nothing and name `/graft:plan <name>` as the next step (`/graft:plan <path>` for a plan outside `.claude/plans/`). Never edit the plan.
+
 ## Start
 
 Find the default branch with `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. If `gh` is unavailable or fails, use `git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'`.
