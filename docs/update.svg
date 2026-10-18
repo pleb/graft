@@ -11,18 +11,15 @@
     .node { fill: #f6f8fa; stroke: #d0d7de; stroke-width: 1; }
     .pill { fill: #ffffff; stroke: #d0d7de; stroke-width: 1; }
     .cmd { fill: #ddf4ff; stroke: #54aeff; stroke-width: 1; }
-    .edge { fill: none; stroke: #8c959f; stroke-width: 2; }
+    .edge { fill: none; stroke: #6e7781; stroke-width: 2; }
   </style>
   <defs>
     <marker id="arrow-end" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" markerUnits="strokeWidth" orient="auto">
-      <path d="M0,0 L10,5 L0,10 z" fill="#8c959f"/>
+      <path d="M0,0 L10,5 L0,10 z" fill="#6e7781"/>
     </marker>
     <marker id="arrow-start" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="5" markerHeight="5" markerUnits="strokeWidth" orient="auto">
-      <path d="M10,0 L0,5 L10,10 z" fill="#8c959f"/>
+      <path d="M10,0 L0,5 L10,10 z" fill="#6e7781"/>
     </marker>
-    <clipPath id="clone-shape">
-      <rect x="305" y="250" width="220" height="80" rx="10"/>
-    </clipPath>
   </defs>
 
   <!-- Edges, drawn first so the label pills sit on top of them -->
@@ -47,10 +44,10 @@
   <g id="node-clone">
     <rect class="node" x="305" y="250" width="220" height="80" rx="10"/>
     <g id="node-clone-header">
-      <rect x="305" y="250" width="220" height="34" fill="#0969da" clip-path="url(#clone-shape)"/>
-      <text class="mono head" x="415" y="272" text-anchor="middle">~/.my-graft</text>
+      <rect x="315" y="260" width="200" height="34" rx="6" fill="#0969da"/>
+      <text class="mono head" x="415" y="282" text-anchor="middle">~/.my-graft</text>
     </g>
-    <text class="sans sub" x="415" y="312" text-anchor="middle">your clone</text>
+    <text class="sans sub" x="415" y="317" text-anchor="middle">your clone</text>
   </g>
 
   <g id="node-claude">

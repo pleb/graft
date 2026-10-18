@@ -15,7 +15,7 @@ That's it! Install creates (or reuses) a private `<login>/my-graft` repo holding
 
 ## How it works
 
-![Graft's flow: /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate loops over its milestones, a worker implementing and committing each with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
+![Graft's flow: /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
 
 Start by creating a plan. Plans are automatically saved to `.claude/plans` in the repo. The first time, Graft asks whether to ignore them.
 
@@ -55,7 +55,7 @@ And when you're ready to ship the changes:
 
 Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps your mods when it brings in upstream changes.
 
-![How your copy of Graft stays current: /graft:update merges the latest Graft from pleb/graft into your clone at ~/.my-graft, keeping your mods. /graft:modify commits mods there, recorded in MODS.md. The clone pushes to and pulls from your private <login>/my-graft repo. Claude Code loads Graft from the clone, and /reload-plugins picks up changes.](./docs/update.svg)
+![How your copy of Graft stays current: /graft:update merges the latest Graft from pleb/graft into your clone at ~/.my-graft, keeping your mods. /graft:modify commits mods there, recorded in MODS.md. The clone pushes to your private \<login\>/my-graft repo, and your other machines pull from it. Claude Code loads Graft from the clone, and /reload-plugins picks up changes.](./docs/update.svg)
 
 ## Graft development
 
