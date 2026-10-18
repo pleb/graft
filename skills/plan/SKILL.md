@@ -63,6 +63,10 @@ Revise a plan passed in at its own path. Otherwise write to `<root>/.claude/plan
 When the plan outgrows its name, rename it to a slug that covers what it now is, and tell the user the old and new names. Ask first when the new name is taken. Rename with `mv`, never while a review pass is running. A plan passed in at its own path keeps that path.
 
 ```markdown
+---
+status: draft
+---
+
 # <Title>
 
 ## Goal
@@ -76,9 +80,15 @@ When the plan outgrows its name, rename it to a slug that covers what it now is,
 ## Edge cases and risks
 
 ## Open questions
+
+---
+
+Plan by Graft.
 ```
 
 Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work and commit, and orchestrate reviews one or several at a time. Open questions are numbered, each with a recommendation, and are removed once answered.
+
+Every plan starts as `status: draft`. It ends with a thematic break and the footer `Plan by Graft.`, which marks the file as a Graft plan and is not part of `## Open questions`. Revising a finalised plan sets it back to `draft` with the first edit. A plan reopened and left unchanged stays `finalised`.
 
 ## Review
 
@@ -111,4 +121,4 @@ Recommend Review and finalise when no full pass has run in this session, or when
 
 Review and finalise runs a full pass when none has run in this session. Otherwise it runs a delta pass over everything changed since the last pass started, fixes included, with reviewers picked as in Review. A decision the pass raises becomes an open question. Once it is answered, ask this question again, and the test above sets the recommendation.
 
-To finalise, report the plan path, a few lines of summary, and the next step: `/graft:orchestrate <kebab-slug>` for a plan under `.claude/plans/`, `/graft:orchestrate <path>` otherwise. Do not implement.
+To finalise, set `status: finalised`, then report the plan path, a few lines of summary, and the next step: `/graft:orchestrate <kebab-slug>` for a plan under `.claude/plans/`, `/graft:orchestrate <path>` otherwise. Do not implement.
