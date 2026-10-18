@@ -29,11 +29,10 @@ Take the first that applies:
 
 ## Check the plans folder
 
-Run git from the root (`git -C <root>`).
+Skip this section when `<root>/.claude/plans/` exists. Otherwise run git from the root (`git -C <root>`):
 
-- If `<root>/.claude/plans/` exists, do not ask.
-- Otherwise run `git check-ignore -q .claude/plans/.probe.md`. If it is not ignored, ask with `AskUserQuestion`: add `/.claude/plans/` to the root `.gitignore` (shared; commit the edit before `/graft:pr`), add it to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names (this clone only), or leave it (untracked plans keep the tree dirty, and `/graft:pr` refuses a dirty tree). Do not commit.
-- Create the folder if it is missing.
+- Run `git check-ignore -q .claude/plans/.probe.md`. If it is not ignored, ask with `AskUserQuestion`: add `/.claude/plans/` to the root `.gitignore` (shared; the user commits the edit before `/graft:pr`), add it to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names (this clone only), or leave it (untracked plans keep the tree dirty, and `/graft:pr` refuses a dirty tree). Do not commit.
+- Create the folder.
 
 ## Understand
 
@@ -56,9 +55,9 @@ Work in rounds. Each round is one `AskUserQuestion` call with up to 3 questions,
 
 Write the plan once the goal is clear, usually after the first round. Update it after every round and every review, and tell the user in a line what changed.
 
-Revise a plan passed in at its own path. Otherwise write to `<root>/.claude/plans/<kebab-slug>.md`, where the slug says what the plan does (for example `add-plan-skill`), with no date prefix. If that file exists, ask whether to revise it or pick a new name.
+A plan from Find the work is revised in place. For a new topic, write to `<root>/.claude/plans/<name>.md`, where the name says what the plan does in kebab case (for example `add-plan-skill`), with no date prefix. If that file exists, ask whether to revise it or pick a new name.
 
-When the plan outgrows its name, rename it to a slug that covers what it now is, and tell the user the old and new names. Ask first when the new name is taken. Rename with `mv`, never while a review pass is running. A plan passed in at its own path keeps that path.
+When the plan outgrows its name, rename it to a name that covers what it now is, and tell the user the old and new names. Ask first when the new name is taken. Rename with `mv`, never while a review pass is running. A plan given by file path keeps that path.
 
 ```markdown
 ---
@@ -86,11 +85,11 @@ Plan by Graft.
 
 Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work and commit. Open questions are numbered, each with a recommendation, and are removed once answered.
 
-Every plan starts as `status: draft`. It ends with a thematic break and the footer `Plan by Graft.`, which is not part of `## Open questions`. A plan without them gains both with its first edit. Revising a finalised plan sets it back to `draft` with the first edit.
+Every plan starts as `status: draft`. It ends with a thematic break and the footer `Plan by Graft.`, which is not part of `## Open questions`. A plan missing the status or the footer gains what it lacks with its first edit. Revising a finalised plan sets it back to `draft` with the first edit.
 
 ## Review
 
-A risky part is one that changes a contract, data, a migration or security, or relies on code you are unsure of.
+A risky part is one that changes a contract, a schema, stored data or security, involves a migration, or relies on code you are unsure of.
 
 You decide when to run a pass mid-planning, knowing that Finish will likely run a full pass.
 
@@ -119,4 +118,4 @@ Recommend Review and finalise when no full pass has run in this session, or when
 
 Review and finalise runs a full pass when none has run in this session. Otherwise it runs a delta pass over everything changed since the last pass started, fixes included, with reviewers picked as in Review. A decision the pass raises becomes an open question. Once it is answered, ask this question again, and the test above sets the recommendation.
 
-To finalise, set `status: finalised`, then report the plan path, a few lines of summary, and the next step: `/graft:orchestrate <kebab-slug>` for a plan under `.claude/plans/`, `/graft:orchestrate <path>` otherwise. Do not implement.
+To finalise, set `status: finalised`, then report the plan path, a few lines of summary, and the next step: `/graft:orchestrate <name>` (`/graft:orchestrate <path>` for a plan outside `.claude/plans/`). Do not implement.

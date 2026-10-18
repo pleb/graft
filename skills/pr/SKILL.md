@@ -11,6 +11,10 @@ Compose a short PR from the repo template, push, and create it.
 
 **Arguments:** $ARGUMENTS
 
+## Start
+
+The arguments may set the state anywhere, such as `ready-state`, `draft` or `mark it ready`. Take out the words that set it (all of `mark it ready`, not just `ready`) before reading the rest as guidance. A word that belongs to the guidance stays in it (for example, `note the docs are still a draft`); ask when it is unclear.
+
 ## Preconditions
 
 - Working tree clean, every change committed. If not, stop and say what is uncommitted.
@@ -84,4 +88,4 @@ git push -u origin <branch>
 gh pr create --draft --base <base> --title "<title>" --body "<body>"
 ```
 
-The arguments may set the state anywhere, such as `ready-state`, `draft` or `mark it ready`. Take out the words that set it before reading the rest as guidance. A word that belongs to the guidance stays in it (for example, `note the docs are still a draft`); ask when it is unclear. A new PR opens as a draft unless the state is `ready-state`; then drop `--draft`. For an existing PR, only an explicit state changes it, after `gh pr edit`: `ready-state` runs `gh pr ready` and `draft` runs `gh pr ready --undo`. With no state, an existing PR keeps its state. Report the PR URL.
+A new PR opens as a draft unless the state is `ready-state`; then drop `--draft`. For an existing PR, only an explicit state changes it, after `gh pr edit`: `ready-state` runs `gh pr ready` and `draft` runs `gh pr ready --undo`. With no state, an existing PR keeps its state. Report the PR URL.

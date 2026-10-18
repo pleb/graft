@@ -41,7 +41,7 @@ And when you're ready to ship the changes:
 
 ```text
 /graft:plan [plan path | plan name | topic] [reviewer model: sonnet | opus (default) | fable]
-/graft:orchestrate [plan path | plan name] [reviewer model: sonnet | opus (default) | fable]
+/graft:orchestrate [plan path | plan name | task] [reviewer model: sonnet | opus (default) | fable]
 /graft:pr [guidance] [state: draft (default) | ready-state]
 ```
 
