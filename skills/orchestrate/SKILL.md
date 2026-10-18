@@ -1,7 +1,7 @@
 ---
 name: orchestrate
 description: Executes a plan or task list as the coordinator. Workers implement, reviewers check batches of milestones, and comment-editor and docs-editor clean up at the end.
-argument-hint: "[plan path | plan name] [reviewer model: sonnet | opus (default) | fable]"
+argument-hint: "[plan path | plan name | task] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
 ---
 
@@ -9,17 +9,21 @@ You are the coordinator. Agents do the work. You order it, write the briefs, jud
 
 **Arguments:** $ARGUMENTS
 
+## Start
+
+The arguments may name a reviewer model (`fable`, `opus` or `sonnet`) anywhere, such as `sonnet` or `review with sonnet`. Take out the words that set it (all of `review with sonnet`, not just `sonnet`) before reading the rest. A word that belongs to the main text stays in it (for example, `add sonnet support` is the work); ask when it is unclear. The default is Opus.
+
+Find the root with `git rev-parse --show-toplevel`.
+
 ## Find the work
 
-The arguments may name a reviewer model (`fable`, `opus` or `sonnet`) anywhere, such as `sonnet` or `review with sonnet`. Take out the words that set it (all of `review with sonnet`, not just `sonnet`) before reading the rest. A word that belongs to the main text stays in it (for example, `add sonnet support` is the work); ask when it is unclear. The default is Opus. Then take the first that applies to the rest:
+Take the first that applies:
 
 1. A file path: that file is the plan.
-2. A plan name: when `<root>/.claude/plans/<name>.md` exists (`.md` optional), that file is the plan. `<root>` is the output of `git rev-parse --show-toplevel`.
-3. A single kebab-case word with no matching plan: list the files in `<root>/.claude/plans/` and ask which one is meant.
+2. A plan name: the arguments match `<root>/.claude/plans/<name>.md` (`.md` optional). That file is the plan.
+3. A single kebab-case word with no matching plan: list the plans and ask whether it names one of them or is the work.
 4. Other text: that text is the work.
-5. Nothing: the plan or task list in this conversation.
-
-Ask when no work is found, or when the conversation holds more than one candidate.
+5. Nothing: the plan or task list in this conversation. Ask when there is none, or more than one.
 
 When the work is a plan file (including a plan in this conversation written to or read from one), check for the Graft footer: a `Plan by Graft.` line after a thematic break, outside any code fence. It need not be the last line. Skip the check for a plan without it. Otherwise warn when either holds:
 
@@ -28,7 +32,7 @@ When the work is a plan file (including a plan in this conversation written to o
 
 Say which holds, list any open questions, and ask whether to continue or stop. On stop, name `/graft:plan <name>` as the next step (`/graft:plan <path>` for a plan outside `.claude/plans/`). Never edit the plan.
 
-## Start
+## Branch
 
 Find the default branch with `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. If `gh` is unavailable or fails, use `git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'`.
 
