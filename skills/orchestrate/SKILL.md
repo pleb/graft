@@ -21,7 +21,7 @@ The arguments may name a reviewer model (`fable`, `opus` or `sonnet`) anywhere, 
 
 Ask when no work is found, or when the conversation holds more than one candidate.
 
-When the work is a plan file (including a plan in this conversation that was written to or read from one), check for the Graft footer: a `Plan by Graft.` line after a thematic break, outside any code fence. It need not be the last line. Skip the check for a plan without it. Otherwise warn when either holds:
+When the work is a plan file (including a plan in this conversation written to or read from one), check for the Graft footer: a `Plan by Graft.` line after a thematic break, outside any code fence. It need not be the last line. Skip the check for a plan without it. Otherwise warn when either holds:
 
 - Its `status` is not `finalised`.
 - Its `## Open questions` section lists questions.
