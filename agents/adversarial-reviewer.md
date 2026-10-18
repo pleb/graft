@@ -1,6 +1,6 @@
 ---
 name: adversarial-reviewer
-description: Adversarial review of a plan or code change that looks for the strongest reasons it should not go ahead. Use alongside reviewer, and give it the plan or code rather than your conclusion.
+description: Adversarial review of a plan or code change that looks for the strongest reasons it should not go ahead. Use alongside reviewer or on its own, and give it the plan or code rather than your conclusion.
 disallowedTools: Edit, Write, NotebookEdit
 model: inherit
 effort: xhigh

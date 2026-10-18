@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Settles a solution with the user and writes it as a plan under .claude/plans as the conversation goes. Finds gaps the user may not have seen, reviews what changed at key points, and asks before finalising.
+description: Settles a solution with the user and writes it as a plan under .claude/plans as the conversation goes. Finds gaps the user may not have seen, reviews when it is worth it, and asks before finalising.
 argument-hint: "[plan path | plan name | topic] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
 ---
@@ -78,17 +78,24 @@ When the plan outgrows its name, rename it to a slug that covers what it now is,
 ## Open questions
 ```
 
-Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work, review, and commit. Open questions are numbered, each with a recommendation, and are removed once answered.
+Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work and commit, and orchestrate reviews one or several at a time. Open questions are numbered, each with a recommendation, and are removed once answered.
 
 ## Review
 
-Run a review pass at key points, when a large part of the plan has fallen into place, such as once the approach is settled or a large section is drafted. You decide when another pass is worth its cost. Run one whenever the user asks.
+A risky part is one that changes a contract, data, a migration or security, or relies on code you are unsure of.
 
-Reviewers run on the reviewer model. Give them the plan file and the repo, not your conclusions. Say in the brief whether the pass is a whole-plan review or a delta review.
+You decide when to run a pass mid-planning, knowing that Finish will likely run a full pass.
 
-- **First pass**: the whole plan so far, with `graft:reviewer` and `graft:adversarial-reviewer` in parallel.
-- **Later passes**: a delta review. Name the sections changed since the last pass started, and what drove each change (a user decision or a review finding). Edits made while a pass runs belong to the next delta. Run both reviewers when the delta changes the approach (a new or reordered Milestones section counts), and `graft:reviewer` alone when it fills in detail. In a session that reopens a plan, the delta is what this session changed.
-- **Full pass**: the whole plan with both reviewers, from Finish or when the user asks for one.
+- **Review** when a large part of the plan, or a drafted risky part, is unreviewed and later rounds will build on it (for example, the approach has settled and milestones are about to be detailed).
+- **Skip** when the plan is small, when the unreviewed change only fills in detail, or when no more rounds will build on it before Finish.
+
+Run one whenever the user asks.
+
+Pick the reviewers for each pass: `graft:adversarial-reviewer` when the question is whether the approach or a risky part holds, `graft:reviewer` when it is whether the detail is right against the code, and both when both. Reviewers run on the reviewer model. Give them the plan file and the repo, not your conclusions. Say in the brief whether the pass is a whole-plan review or a delta review.
+
+- **First pass**: the whole plan so far.
+- **Later passes**: a delta review, unless it is a full pass. Name the sections changed since the last pass started, and what drove each change (a user decision or a review finding). Edits made while a pass runs belong to the next delta. In a session that reopens a plan, the delta is what this session changed.
+- **Full pass**: the whole plan with both reviewers, only from Finish or when the user asks for one. A pass you start on your own mid-planning is never a full pass, even when it covers the whole plan with both reviewers.
 
 Fix factual errors directly. A decision a finding raises becomes an open question. Dismiss the rest with a reason.
 
@@ -96,10 +103,12 @@ Fix factual errors directly. A decision a finding raises becomes an open questio
 
 Once no open question remains and no review pass is running, ask with `AskUserQuestion`:
 
-- **Review and finalise**: a full pass, then finalise.
+- **Review and finalise**: a review pass, then finalise.
 - **Finalise**.
 - **Continue planning**: ask the user what to change next.
 
-Recommend Review and finalise when any part of the plan has not been reviewed in this session (text from an earlier session counts as unreviewed; a fix applied from a review finding counts as reviewed), and Finalise otherwise. A decision the full pass raises becomes an open question. Once it is answered, review its edits with a delta pass, then ask this question again.
+Recommend Review and finalise when no full pass has run in this session, or when the plan has changed since the last pass started beyond small detail (the approach, the milestones, or a risky part). Recommend Finalise otherwise. For this recommendation, factual fixes applied from findings do not count as change; answers to open questions do. Text from an earlier session counts as unreviewed.
+
+Review and finalise runs a full pass when none has run in this session. Otherwise it runs a delta pass over everything changed since the last pass started, fixes included, with reviewers picked as in Review. A decision the pass raises becomes an open question. Once it is answered, ask this question again, and the test above sets the recommendation.
 
 To finalise, report the plan path, a few lines of summary, and the next step: `/graft:orchestrate <kebab-slug>` for a plan under `.claude/plans/`, `/graft:orchestrate <path>` otherwise. Do not implement.

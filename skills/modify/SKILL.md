@@ -45,8 +45,9 @@ The Skill tool cannot run `/graft:plan`, so read `~/.my-graft/skills/plan/SKILL.
 Read `~/.my-graft/skills/orchestrate/SKILL.md` and follow its sections `## Execute` and `## Ask, do not guess`. Differences:
 
 - Work in the clone on `main`, with no feature branch.
-- One commit for the whole mod, not one per milestone.
-- Review the whole mod once before Record: `graft:reviewer` and `graft:adversarial-reviewer` in parallel, both on Opus. The target is the clone's uncommitted changes, by absolute path; the approved plan is the intent. Act on findings as Execute says.
+- One commit for the whole mod, not one per milestone, made in Commit and push after the review, Record and Validate.
+- Review the whole mod once before Record: `graft:reviewer` and `graft:adversarial-reviewer` in parallel, both on Opus. This single review replaces Execute's review cadence. The target is the clone's uncommitted changes, by absolute path; the approved plan is the intent. Act on findings as Execute says.
+- Put review fixes in the uncommitted mod, not a separate fix commit. A fix commit's subject has no `MODS.md` row for update to map.
 
 ## Record
 
