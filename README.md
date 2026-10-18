@@ -57,6 +57,8 @@ And when you're ready to ship the changes:
 
 Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps your mods when it brings in upstream changes.
 
+![How your copy of Graft stays current: /graft:update merges the latest Graft from pleb/graft into your clone at ~/.my-graft, keeping your mods. /graft:modify commits mods there, recorded in MODS.md. The clone pushes to and pulls from your private <login>/my-graft repo. Claude Code loads Graft from the clone, and /reload-plugins picks up changes.](./docs/update.svg)
+
 ## Graft development
 
 Install from a local checkout:
