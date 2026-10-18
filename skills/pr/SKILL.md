@@ -43,7 +43,7 @@ Resolves #<issue number>
 
 `## Notes` goes between How and the Resolves line, only if earned. No other headings: no summary, testing, dependencies or security section.
 
-**Resolves line.** Candidate issues come from the arguments, the session, the branch's commit trailers (`Fixes #N`, `Closes #N`, `Resolves #N`) and the branch name. Link a candidate only once `gh issue view` (with `-R owner/repo` for a cross-repo issue) shows it is open; drop the rest. With none confirmed, leave the line out rather than asking or guessing. Write one line per confirmed issue, last in the body: `Resolves #123` for a same-repo issue or `Resolves owner/repo#123` for a cross-repo one, so GitHub links the issue and closes it on merge.
+**Resolves line.** Candidate issues come from the arguments, the session, the branch's commit trailers (`Fixes #N`, `Closes #N`, `Resolves #N`) and the branch name. Link a candidate only once `gh issue view` (with `-R owner/repo` for a cross-repo issue) shows it is open; drop the rest. With none confirmed, leave the line out rather than asking or guessing. Write one line per confirmed issue, last in the body: `Resolves #123` for a same-repo issue or `Resolves owner/repo#123` for a cross-repo one.
 
 **One section, one question.**
 
@@ -84,4 +84,4 @@ git push -u origin <branch>
 gh pr create --draft --base <base> --title "<title>" --body "<body>"
 ```
 
-Create it as a draft by default; the user marks it ready for review once they have looked it over. The arguments may set the state anywhere, such as `ready-state`, `draft` or `mark it ready`. Take out the words that set it before reading the rest as guidance. A word that belongs to the guidance stays in it (for example, `note the docs are still a draft`); ask when it is unclear. A new PR opens as a draft unless the state is `ready-state`; then drop `--draft`. For an existing PR, only an explicit state changes it, after `gh pr edit`: `ready-state` runs `gh pr ready` and `draft` runs `gh pr ready --undo`. With no state, an existing PR keeps its state. Report the PR URL.
+The arguments may set the state anywhere, such as `ready-state`, `draft` or `mark it ready`. Take out the words that set it before reading the rest as guidance. A word that belongs to the guidance stays in it (for example, `note the docs are still a draft`); ask when it is unclear. A new PR opens as a draft unless the state is `ready-state`; then drop `--draft`. For an existing PR, only an explicit state changes it, after `gh pr edit`: `ready-state` runs `gh pr ready` and `draft` runs `gh pr ready --undo`. With no state, an existing PR keeps its state. Report the PR URL.
