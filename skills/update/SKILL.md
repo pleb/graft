@@ -95,7 +95,7 @@ git -C ~/.my-graft commit --no-edit
 git -C ~/.my-graft push origin main
 ```
 
-It is safe because Sync required a clean tree.
+Staging everything is safe because Sync required a clean tree.
 
 ## Report
 
