@@ -1,6 +1,6 @@
 {
   "name": "graft",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "A coordinator skill and specialist agents that plan, implement, review, and clean up software changes.",
   "author": {
     "name": "Wade Baglin",
