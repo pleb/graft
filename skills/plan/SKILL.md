@@ -107,8 +107,8 @@ Once no open question remains and no review pass is running, ask with `AskUserQu
 - **Finalise**.
 - **Continue planning**: ask the user what to change next.
 
-Recommend Review and finalise when no full pass has run in this session, or when the plan has changed since the last pass beyond small detail (the approach, the milestones, or a risky part). Recommend Finalise otherwise. Factual fixes applied from findings do not count as change; answers to open questions do. Text from an earlier session counts as unreviewed.
+Recommend Review and finalise when no full pass has run in this session, or when the plan has changed since the last pass started beyond small detail (the approach, the milestones, or a risky part). Recommend Finalise otherwise. For this recommendation, factual fixes applied from findings do not count as change; answers to open questions do. Text from an earlier session counts as unreviewed.
 
-Review and finalise runs a full pass when none has run in this session. Otherwise it runs a delta pass over what changed since the last pass, with reviewers picked as in Review. A decision the pass raises becomes an open question. Once it is answered, ask this question again, and the test above sets the recommendation.
+Review and finalise runs a full pass when none has run in this session. Otherwise it runs a delta pass over everything changed since the last pass started, fixes included, with reviewers picked as in Review. A decision the pass raises becomes an open question. Once it is answered, ask this question again, and the test above sets the recommendation.
 
 To finalise, report the plan path, a few lines of summary, and the next step: `/graft:orchestrate <kebab-slug>` for a plan under `.claude/plans/`, `/graft:orchestrate <path>` otherwise. Do not implement.
