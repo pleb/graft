@@ -88,7 +88,7 @@ Plan by Graft.
 
 Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work and commit, and orchestrate reviews one or several at a time. Open questions are numbered, each with a recommendation, and are removed once answered.
 
-Every plan starts as `status: draft`. It ends with a thematic break and the footer `Plan by Graft.`, which marks the file as a Graft plan and is not part of `## Open questions`. Revising a finalised plan sets it back to `draft` with the first edit. A plan reopened and left unchanged stays `finalised`.
+Every plan starts as `status: draft`. It ends with a thematic break and the footer `Plan by Graft.`, which marks the file as a Graft plan and is not part of `## Open questions`. A plan without them gains both with its first edit. Revising a finalised plan sets it back to `draft` with the first edit. A plan reopened and left unchanged stays `finalised`.
 
 ## Review
 
