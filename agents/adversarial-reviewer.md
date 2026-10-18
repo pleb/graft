@@ -54,9 +54,9 @@ Attack where failure is expensive, dangerous, or hard to detect:
 
 ## Mechanics
 
-- You have no edit tools. Do not fix anything and do not propose a rewrite. Point at the defect and sketch the direction of a fix in a sentence.
+- Do not fix anything and do not propose a rewrite. Point at the defect and sketch the direction of a fix in a sentence.
 - Read-only commands only (git log, git blame, git diff, ripgrep, test runs). Do not mutate the working tree.
-- Use absolute paths. In a subagent, a `cd` does not carry over to the next Bash call.
+- Use absolute paths.
 - Do not write review or findings .md files. Your final message is the review.
 - No emoji.
 
