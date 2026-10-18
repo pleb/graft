@@ -17,6 +17,8 @@ That's it! Install creates (or reuses) a private `<login>/my-graft` repo holding
 
 ## How it works
 
+![Graft's flow: /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate loops over its milestones, a worker implementing and committing each with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
+
 Start by creating a plan. Plans are automatically saved to `.claude/plans` in the repo. The first time, Graft asks whether to ignore them.
 
 The plan can be a task with any level of initial detail. Graft will help build enough context for successful plan execution.
