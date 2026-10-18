@@ -11,11 +11,11 @@ You are the planner. You settle the solution with the user and write it down. Yo
 
 ## Start
 
-If plan mode is active, ask the user to leave it before starting: plan mode blocks edits, and `.claude/` is a protected path. Outside plan mode, writes under `.claude/` still prompt for permission. The plan is written after every round, so tell the user the first prompt can allow edits to the project's `.claude` folder for the session.
+If plan mode is active, ask the user to leave it before starting: plan mode blocks edits.
 
 The arguments may name a reviewer model (`fable`, `opus` or `sonnet`) anywhere, such as `sonnet` or `review with sonnet`. Take out the words that set it (all of `review with sonnet`, not just `sonnet`) before reading the rest. A word that belongs to the main text stays in it (for example, `add sonnet support` is a topic); ask when it is unclear. The default is Opus.
 
-Find the root with `git rev-parse --show-toplevel`. Inside a repo, `.claude/plans` and `.gitignore` are relative to the root, not the cwd. Outside a repo (non-zero exit), use the cwd and skip the ignore check.
+Find the root with `git rev-parse --show-toplevel`. Outside a repo (non-zero exit), use the cwd and skip the ignore check.
 
 ## Find the work
 
@@ -31,10 +31,8 @@ Take the first that applies:
 
 Run git from the root (`git -C <root>`).
 
-- If `<root>/.claude/plans/` exists, the user has already answered. Do not ask again.
-- If `git ls-files .claude/plans` lists files, the repo tracks plans on purpose. Do not offer to ignore them.
-- Otherwise run `git check-ignore -q .claude/plans/.probe.md`. The probe is never tracked, so global excludes and every `.gitignore` level count. If it is not ignored, ask with `AskUserQuestion`: add `/.claude/plans/` to the root `.gitignore` (shared), add it to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names (this clone only, and correct in worktrees), or leave it.
-- After a `.gitignore` edit or "leave it", say that the uncommitted edit or the untracked plan files make the tree dirty, and `/graft:pr` refuses a dirty tree. Do not commit.
+- If `<root>/.claude/plans/` exists, do not ask.
+- Otherwise run `git check-ignore -q .claude/plans/.probe.md`. If it is not ignored, ask with `AskUserQuestion`: add `/.claude/plans/` to the root `.gitignore` (shared; commit the edit before `/graft:pr`), add it to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names (this clone only), or leave it (untracked plans keep the tree dirty, and `/graft:pr` refuses a dirty tree). Do not commit.
 - Create the folder if it is missing.
 
 ## Understand
@@ -49,7 +47,7 @@ Work in rounds. Each round is one `AskUserQuestion` call with up to 3 questions,
 - Facts come from the code or a researcher, never from the user. Decisions are the user's.
 - Every question carries a recommendation. Each option states its trade-off, and the recommended option comes first.
 - State conventional defaults; do not ask them.
-- Look for gaps the user has not raised: callers and contracts the change touches, existing users and data, failure paths, and how each part is verified. Raise a gap, edge case or friction point as a question only when the answer changes the plan. Otherwise record it in the plan.
+- Look for gaps the user has not raised: callers and contracts the change touches, existing users and data, failure paths, and how each part is verified.
 - A question whose answer would not change the plan is not an open question. Record it as a default or a risk.
 - When the user defers a question to implementation, record it where it applies, marked as decided during implementation. That closes it.
 - Keep going until no open question remains.
@@ -86,9 +84,9 @@ status: draft
 Plan by Graft.
 ```
 
-Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work and commit, and orchestrate reviews one or several at a time. Open questions are numbered, each with a recommendation, and are removed once answered.
+Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work and commit. Open questions are numbered, each with a recommendation, and are removed once answered.
 
-Every plan starts as `status: draft`. It ends with a thematic break and the footer `Plan by Graft.`, which marks the file as a Graft plan and is not part of `## Open questions`. A plan without them gains both with its first edit. Revising a finalised plan sets it back to `draft` with the first edit. A plan reopened and left unchanged stays `finalised`.
+Every plan starts as `status: draft`. It ends with a thematic break and the footer `Plan by Graft.`, which is not part of `## Open questions`. A plan without them gains both with its first edit. Revising a finalised plan sets it back to `draft` with the first edit.
 
 ## Review
 
@@ -101,7 +99,7 @@ You decide when to run a pass mid-planning, knowing that Finish will likely run 
 
 Run one whenever the user asks.
 
-Pick the reviewers for each pass: `graft:adversarial-reviewer` when the question is whether the approach or a risky part holds, `graft:reviewer` when it is whether the detail is right against the code, and both when both. Reviewers run on the reviewer model. Give them the plan file and the repo, not your conclusions. Say in the brief whether the pass is a whole-plan review or a delta review.
+Pick the reviewers for each pass: `graft:adversarial-reviewer` when the question is whether the approach or a risky part holds, `graft:reviewer` when it is whether the detail is right against the code, and both when both. Reviewers run on the reviewer model. Give them the plan file and the repo. Say in the brief whether the pass is a whole-plan review or a delta review.
 
 - **First pass**: the whole plan so far.
 - **Later passes**: a delta review, unless it is a full pass. Name the sections changed since the last pass started, and what drove each change (a user decision or a review finding). Edits made while a pass runs belong to the next delta. In a session that reopens a plan, the delta is what this session changed.
