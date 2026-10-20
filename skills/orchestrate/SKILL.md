@@ -71,7 +71,7 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 
 ## Raise a PR
 
-When the plan or the user asks for a PR, raise it after Clean up, never from a milestone's brief. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it. Its arguments are the plan's PR request and the user's, the user's winning where they differ. Its brief also carries the plan file or the work you were given, and any issue numbers and motivation from this conversation. Where pr says to ask, the worker stops and reports the question; ask the user and send it again. If no PR is raised, say why in Report.
+When the plan or the user asks for a PR, raise it after Clean up, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it. Its arguments are the plan's PR request and the user's, the user's winning where they differ. Its brief also carries the plan file or the work you were given, and any issue numbers and motivation from this conversation. Where pr says to ask, the worker stops and reports the question; ask the user and send it again. If no PR is raised, say why in Report.
 
 ## Ask, do not guess
 
