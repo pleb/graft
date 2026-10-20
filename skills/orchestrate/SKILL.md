@@ -71,13 +71,7 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 
 ## Raise a PR
 
-Raise a PR only for a PR milestone or when the user asks for one. A PR the user asks for is a PR milestone after the last milestone; when the last milestone already is one, the user's words join its request instead. A milestone that also asks for a PR is its work, then a PR milestone. No worker gets a PR milestone.
-
-A PR milestone ends the work before it: run the final pass and Clean up on the work since the previous PR milestone, as after the last milestone. When it is the last milestone, nothing runs after it. No milestone after it starts until its PR is raised.
-
-Each PR milestone after the first needs a branch and base of its own. Before Execute starts, ask the user for any it does not name.
-
-Read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with the PR request as its arguments: the milestone's request (not its verification) and any words the user gave for it, which win where they differ. A branch, base or repo the request names wins over pr's and over `## Branch`, from the first milestone that PR ships: that PR's work goes on the named branch, and a new branch is cut from the named base. If pr stops, say why in Report.
+When the plan or the user asks for a PR, raise it after Clean up, never from a milestone's brief. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it. Its arguments are the plan's PR request and the user's, the user's winning where they differ. Its brief also carries the plan file or the work you were given, and any issue numbers and motivation from this conversation. Where pr says to ask, the worker stops and reports the question; ask the user and send it again. If no PR is raised, say why in Report.
 
 ## Ask, do not guess
 
@@ -85,7 +79,7 @@ Ask the user when something is ambiguous, needs more than a straightforward deci
 
 ## Report
 
-- Each branch, its commits, and its PR URL when one was raised.
+- The branch, its commits, and the PR URL when one was raised.
 - The commit ranges reviewed, and which reviewers ran on each.
 - Review findings acted on, and those dismissed with the reason.
 - Items the cleanup agents flagged for a decision.
