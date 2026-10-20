@@ -13,6 +13,8 @@ You are the coordinator. Agents do the work. You order it, write the briefs, jud
 
 The arguments may name a reviewer model (`fable`, `opus` or `sonnet`) anywhere, such as `sonnet` or `review with sonnet`. Take out the words that set it (all of `review with sonnet`, not just `sonnet`) before reading the rest. A word that belongs to the main text stays in it (for example, `add sonnet support` is the work); ask when it is unclear. The default is Opus.
 
+The arguments may also ask for a PR, such as `open a pr` or `raise a ready pr that resolves #42`. Take out the whole request, including any guidance for the PR, the same way, and keep it for `## Raise a PR`.
+
 Find the root with `git rev-parse --show-toplevel`.
 
 ## Find the work
@@ -67,13 +69,17 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 - Run them in parallel when both are ready.
 - Check their reports, restore anything they removed that you know is needed, then commit.
 
+## Raise a PR
+
+When the plan or the user asks for a PR, raise it after Clean up, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it. Its arguments are the plan's PR request and the user's, the user's winning where they differ. Its brief also carries the plan file or the work you were given, and any issue numbers and motivation from this conversation. Where pr says to ask, the worker stops and reports the question; ask the user and send it again. If no PR is raised, say why in Report.
+
 ## Ask, do not guess
 
 Ask the user when something is ambiguous, needs more than a straightforward decision, or could materially change functionality or the intended outcome.
 
 ## Report
 
-- The branch and its commits.
+- The branch, its commits, and the PR URL when one was raised.
 - The commit ranges reviewed, and which reviewers ran on each.
 - Review findings acted on, and those dismissed with the reason.
 - Items the cleanup agents flagged for a decision.
