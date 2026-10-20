@@ -31,7 +31,7 @@ Take the first that applies:
 
 Skip this section when `<root>/.claude/plans/` exists. Otherwise run git from the root (`git -C <root>`):
 
-- Run `git check-ignore -q .claude/plans/.probe.md`. If it is not ignored, ask with `AskUserQuestion`: add `/.claude/plans/` to the root `.gitignore` (shared; the user commits the edit before `/graft:pr`), add it to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names (this clone only), or leave it (untracked plans keep the tree dirty, and `/graft:pr` refuses a dirty tree). Do not commit.
+- Run `git check-ignore -q .claude/plans/.probe.md`. If it is not ignored, ask with `AskUserQuestion`: add `/.claude/plans/` to the root `.gitignore` (shared; the user commits the edit before a PR is raised), add it to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names (this clone only), or leave it (untracked plans keep the tree dirty, and a PR cannot be raised from a dirty tree). Do not commit.
 - Create the folder.
 
 ## Understand
@@ -84,6 +84,8 @@ Plan by Graft.
 ```
 
 Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work and commit. Open questions are numbered, each with a recommendation, and are removed once answered.
+
+Plan a PR only when the user asks for one, as a milestone of its own. It names a state only when the user does.
 
 Every plan starts as `status: draft`. It ends with a thematic break and the footer `Plan by Graft.`, which is not part of `## Open questions`. A plan missing the status or the footer gains what it lacks with its first edit. Revising a finalised plan sets it back to `draft` with the first edit.
 
