@@ -13,6 +13,8 @@ You are the coordinator. Agents do the work. You order it, write the briefs, jud
 
 The arguments may name a reviewer model (`fable`, `opus` or `sonnet`) anywhere, such as `sonnet` or `review with sonnet`. Take out the words that set it (all of `review with sonnet`, not just `sonnet`) before reading the rest. A word that belongs to the main text stays in it (for example, `add sonnet support` is the work); ask when it is unclear. The default is Opus.
 
+The arguments may also ask for a PR, such as `open a pr` or `raise a ready pr that resolves #42`. Take out the whole request, including any guidance for the PR, the same way, and keep it for `## Raise a PR`.
+
 Find the root with `git rev-parse --show-toplevel`.
 
 ## Find the work
@@ -67,13 +69,21 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 - Run them in parallel when both are ready.
 - Check their reports, restore anything they removed that you know is needed, then commit.
 
+## Raise a PR
+
+Raise a PR only for a PR milestone or when the user asks for one. A PR the user asks for is a PR milestone after the last milestone. A milestone that also asks for a PR is its work, then a PR milestone. No worker gets a PR milestone.
+
+A PR milestone ends the work before it: run the final pass and Clean up on the work since the previous PR milestone, as after the last milestone. When it is the last milestone, nothing runs after it. No milestone after it starts until its PR is raised.
+
+Read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with the PR request as its arguments: the milestone's request (not its verification), or the user's words, which win where they differ. A branch, base or repo the request names wins over pr's, and applies from the first milestone that PR ships. If pr stops, say why in Report.
+
 ## Ask, do not guess
 
 Ask the user when something is ambiguous, needs more than a straightforward decision, or could materially change functionality or the intended outcome.
 
 ## Report
 
-- The branch and its commits.
+- Each branch, its commits, and its PR URL when one was raised.
 - The commit ranges reviewed, and which reviewers ran on each.
 - Review findings acted on, and those dismissed with the reason.
 - Items the cleanup agents flagged for a decision.
