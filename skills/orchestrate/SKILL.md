@@ -71,11 +71,13 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 
 ## Raise a PR
 
-Raise a PR only for a PR milestone or when the user asks for one. A PR the user asks for is a PR milestone after the last milestone. A milestone that also asks for a PR is its work, then a PR milestone. No worker gets a PR milestone.
+Raise a PR only for a PR milestone or when the user asks for one. A PR the user asks for is a PR milestone after the last milestone; when the last milestone already is one, the user's words join its request instead. A milestone that also asks for a PR is its work, then a PR milestone. No worker gets a PR milestone.
 
 A PR milestone ends the work before it: run the final pass and Clean up on the work since the previous PR milestone, as after the last milestone. When it is the last milestone, nothing runs after it. No milestone after it starts until its PR is raised.
 
-Read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with the PR request as its arguments: the milestone's request (not its verification), or the user's words, which win where they differ. A branch, base or repo the request names wins over pr's, and applies from the first milestone that PR ships. If pr stops, say why in Report.
+Each PR milestone after the first needs a branch and base of its own. Before Execute starts, ask the user for any it does not name.
+
+Read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with the PR request as its arguments: the milestone's request (not its verification) and any words the user gave for it, which win where they differ. A branch, base or repo the request names wins over pr's and over `## Branch`, from the first milestone that PR ships: that PR's work goes on the named branch, and a new branch is cut from the named base. If pr stops, say why in Report.
 
 ## Ask, do not guess
 
