@@ -24,10 +24,10 @@ node ${CLAUDE_SKILL_DIR}/extract.mjs --days <n>
 
 If `node` is not found, say tune needs Node and stop.
 
-The `Wrote` line names the candidates file. Every exit from here on deletes the directory holding it (its name starts `graft-tune-`).
+The `Wrote` line names the candidates file. Every exit from here on removes its directory, with that path. When it exits 1, show the user its message.
 
 ```bash
-rm -rf <directory>
+node ${CLAUDE_SKILL_DIR}/extract.mjs --clean <path>
 ```
 
 Show the user the lines after `Wrote`, including any `Warning:` line (a likely transcript format change). With `Runs: 0`, stop.

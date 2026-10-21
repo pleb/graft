@@ -1,9 +1,13 @@
 import {
   createReadStream,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  realpathSync,
+  rmdirSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -33,16 +37,59 @@ const TRAILING_IDE = /<(ide_\w+)>(?:(?!<\/?ide_)[\s\S])*<\/\1>\s*$/;
 const CLARIFY_FEEDBACK = "The user wants to clarify these questions.";
 const CLARIFY_QUESTIONS = "Questions asked:";
 const FEEDBACK_MARKER = "the user said:\n";
+const RUN_PREFIX = "graft-tune-";
+const CANDIDATES_FILE = "candidates.json";
 const roots = new Map();
 
+function usage() {
+  console.error("Usage: node extract.mjs --days <n> [--out <file>] | --clean <path>");
+  process.exit(1);
+}
+
 function parseCli() {
-  const { values } = parseArgs({ options: { days: { type: "string" }, out: { type: "string" } } });
-  const days = Number(values.days);
-  if (!values.days || !Number.isFinite(days) || days <= 0) {
-    console.error("Usage: node extract.mjs --days <n> [--out <file>]");
-    process.exit(1);
+  let values;
+  try {
+    ({ values } = parseArgs({
+      options: { days: { type: "string" }, out: { type: "string" }, clean: { type: "string" } },
+    }));
+  } catch {
+    usage();
   }
+  if (values.clean !== undefined) {
+    if (!values.clean || values.days !== undefined || values.out !== undefined) usage();
+    return { clean: values.clean };
+  }
+  const days = Number(values.days);
+  if (!values.days || !Number.isFinite(days) || days <= 0) usage();
   return { days, out: values.out };
+}
+
+function removeRunDir(path) {
+  const given = resolve(path);
+  const named = basename(given) === CANDIDATES_FILE ? dirname(given) : given;
+  let stat;
+  try {
+    stat = lstatSync(named);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    console.log(`${named} is already clean`);
+    return;
+  }
+  if (stat.isSymbolicLink()) throw new Error(`${named} is a symlink`);
+  if (!stat.isDirectory()) throw new Error(`${named} is not a directory`);
+  const dir = join(realpathSync(dirname(named)), basename(named));
+  const temp = realpathSync(tmpdir());
+  if (dirname(dir) !== temp) throw new Error(`${dir} is not directly in ${temp}`);
+  if (!basename(dir).startsWith(RUN_PREFIX)) {
+    throw new Error(`${dir} does not start with ${RUN_PREFIX}`);
+  }
+  const entries = readdirSync(dir, { withFileTypes: true });
+  const other = entries.find((entry) => entry.name !== CANDIDATES_FILE || !entry.isFile());
+  if (other)
+    throw new Error(`${dir} holds ${other.name}, which is not a regular ${CANDIDATES_FILE} file`);
+  if (entries.length) rmSync(join(dir, CANDIDATES_FILE));
+  rmdirSync(dir);
+  console.log(`Removed ${dir}`);
 }
 
 function projectsDir() {
@@ -716,11 +763,20 @@ function outputPath(out) {
     mkdirSync(dirname(path), { recursive: true });
     return path;
   }
-  return join(mkdtempSync(join(tmpdir(), "graft-tune-")), "candidates.json");
+  return join(mkdtempSync(join(tmpdir(), RUN_PREFIX)), CANDIDATES_FILE);
 }
 
 async function main() {
-  const { days, out } = parseCli();
+  const { days, out, clean } = parseCli();
+  if (clean) {
+    try {
+      removeRunDir(clean);
+    } catch (error) {
+      console.error(`Not removed: ${error.message}`);
+      process.exit(1);
+    }
+    return;
+  }
   const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
   const dir = projectsDir();
   const stats = {
