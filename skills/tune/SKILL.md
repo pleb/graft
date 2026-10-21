@@ -36,15 +36,30 @@ Show the user the lines after `Wrote`, including any `Warning:` line (a likely t
 
 Send one `graft:researcher` the candidates file and the clone, with every path absolute (expand `~/.my-graft`): the clone's current `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/pr/SKILL.md`, `agents/*.md` and, when it exists, `MODS.md`. Its brief carries the user's guidance and these rules:
 
-- Apply the user's guidance first (for example, skip the runs it excludes).
-- A correction is a typed redirection: a free-text answer or per-option note on a question, a typed or queued message, a rejected tool call, or an interrupt. Picking a listed option is a decision, not a correction. A correction counts when it is about how a skill or agent worked, not about the task's content.
-- Drop corrections that only apply to one repo (a project convention rather than Graft's process).
-- Keep a correction only when the same correction appears in at least 2 different tasks from at least 2 sessions. A task is a repo plus its plan, from each run's `planFiles`: runs that share a plan file they write, edit or take as an argument (`write`, `edit`, `multiedit`, `argument`) are one task, so a plan run and the orchestrate run of the same plan are one task. A run with none of those belongs to the task of the plan it reads when it reads one, and is a task of its own when it reads several or none. A run with `copyOf` counts as the run it copies.
-- For coverage, read `git -C <clone> log --first-parent -p --format='%h %cI' -- <target file>` and judge when the covering meaning first reached the clone, by meaning rather than exact wording. Compare in UTC with the latest correction's `skillTime`, or the start of its run when it has none. Drop a finding the current text covers when the covering text reached the clone after that time. When the text was already there, keep the finding as a rule that is not holding (to strengthen or move).
-- A rule that is not holding although a mod already strengthened it (per `MODS.md` and the log) gets a different change (move it, or change how the step works), not more emphasis.
-- Pick the target file from each run's agent launches and the correction's time and `skill` (the skill typed most recently, when not the run's own): `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/pr/SKILL.md` (the worker that raises a PR follows it) or an `agents/*.md` file. A correction about how a skill other than plan, orchestrate or pr worked does not count.
-- Do not open transcripts; the candidates file is the only evidence.
-- For each finding, report the rule in general terms, the target file, any existing line it strengthens or moves, the commit its coverage judgement rests on, and the runs it came from (date, repo, a short quote).
+- **Guidance**: apply the user's guidance first (for example, skip the runs it excludes).
+- **Evidence**: the candidates file is the only evidence. Do not open transcripts.
+- **Corrections**: a correction is a free-text answer or per-option note on a question, a typed or queued message, a rejected tool call, or an interrupt. Picking a listed option is a decision, not a correction. A correction counts only when it is about how a skill or agent worked, not about the task's content. Drop corrections that:
+  - only apply to one repo (a project convention rather than Graft's process);
+  - are about how a skill other than plan, orchestrate or pr worked.
+- **Tasks**: a task is a repo plus its plan, from each run's `planFiles`.
+  - Runs that share a plan file they write, edit or take as an argument (`write`, `edit`, `multiedit`, `argument`) are one task. So a plan run and the orchestrate run of the same plan are one task.
+  - A run with none of those belongs to the task of the plan it reads, when it reads one. When it reads several or none, it is a task of its own.
+  - A run with `copyOf` counts as the run it copies.
+- **Recurrence**: keep a correction only when the same correction appears in at least 2 different tasks from at least 2 sessions. Each kept correction is a finding.
+- **Target file**: pick it from each run's agent launches, the correction's time and its `skill` (the skill typed most recently, when not the run's own). The target is `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/pr/SKILL.md` (the worker that raises a PR follows it) or an `agents/*.md` file.
+- **Coverage**: read the target file's history.
+
+  ```bash
+  git -C <clone> log --first-parent -p --format='%h %cI' -- <target file>
+  ```
+
+  - Judge when the covering meaning first reached the clone, by meaning rather than exact wording.
+  - Compare that time in UTC with the latest correction's `skillTime`, or the start of its run when it has none.
+  - When the current text covers a finding and the covering text reached the clone after that time, drop the finding.
+  - When the covering text was already there, keep the finding as a rule that is not holding (to strengthen or move).
+  - A rule that is not holding although a mod already strengthened it (per `MODS.md` and the log) gets a different change (move it, or change how the step works), not more emphasis.
+
+- **Report**: for each finding, the rule in general terms, the target file, any existing line it strengthens or moves, the commit its coverage judgement rests on, and the runs it came from (date, repo, a short quote).
 
 ## Pick
 
