@@ -431,6 +431,7 @@ class FileReader {
     this.tools = new Map();
     this.run = null;
     this.skill = null;
+    this.skillTime = null;
     this.runs = [];
     this.candidates = [];
     this.lastAssistantText = "";
@@ -469,14 +470,17 @@ class FileReader {
     });
     const run = this.run;
     if (!run) return;
-    const root = repoRoot(run.cwd);
+    const own = this.skill === run.skill;
     if (block.name === "Agent") {
       run.agents.push({
         subagentType: input.subagent_type ?? null,
         description: input.description ?? null,
+        ...(!own && { skill: this.skill }),
         time: line.timestamp ?? null,
       });
     }
+    if (!own) return;
+    const root = repoRoot(run.cwd);
     if (FILE_TOOLS.has(block.name) && typeof input.file_path === "string") {
       const path = resolve(root ?? "/", input.file_path);
       if (PLAN_FILE.test(path)) addPlanFile(run, path, block.name.toLowerCase());
@@ -534,7 +538,10 @@ class FileReader {
   handleCommand(line, content) {
     if (line.origin?.kind !== "human") return;
     const skill = content.match(/<command-name>([^<]*)<\/command-name>/)?.[1]?.trim();
-    if (skill) this.skill = skill;
+    if (skill) {
+      this.skill = skill;
+      this.skillTime = line.timestamp ?? null;
+    }
     if (!SKILLS.has(skill)) return;
     const args = content.match(/<command-args>([\s\S]*?)<\/command-args>/)?.[1]?.trim() ?? "";
     const run = {
@@ -599,7 +606,7 @@ class FileReader {
       ...(source && { source }),
       sessionId: run.sessionId,
       run: run.id,
-      ...(this.skill !== run.skill && { skill: this.skill }),
+      ...(this.skill !== run.skill && { skill: this.skill, skillTime: this.skillTime }),
       time: line.timestamp ?? null,
       uuid: line.uuid ?? null,
       text: text == null ? null : truncate(text, TEXT_LIMIT),
