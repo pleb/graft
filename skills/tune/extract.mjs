@@ -494,7 +494,7 @@ class FileReader {
     this.lastRejection = null;
 
     if (typeof content === "string" && content.startsWith("<command-message>")) {
-      this.startRun(line, content);
+      this.handleCommand(line, content);
       return;
     }
     if (line.toolDenialKind === "user-rejected") {
@@ -531,7 +531,7 @@ class FileReader {
     this.addCandidate({ ...line, timestamp }, "message", { text, queued: true });
   }
 
-  startRun(line, content) {
+  handleCommand(line, content) {
     if (line.origin?.kind !== "human") return;
     const skill = content.match(/<command-name>([^<]*)<\/command-name>/)?.[1]?.trim();
     if (skill) this.skill = skill;
