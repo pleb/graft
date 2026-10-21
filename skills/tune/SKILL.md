@@ -22,7 +22,7 @@ Pull the candidates out of the user's sessions, with the window in days.
 node ${CLAUDE_SKILL_DIR}/extract.ts --days <n>
 ```
 
-If `node` is not found, or the command fails with `tune needs Node 24 or later`, `ERR_UNKNOWN_FILE_EXTENSION` or a SyntaxError, say tune needs Node 24 or later and stop. Show any other failure to the user as it is.
+If `node` is not found, or the command fails with `tune needs Node 24 or later`, `ERR_UNKNOWN_FILE_EXTENSION` or a SyntaxError, say tune needs Node 24 or later and stop. Show the user any other failure as it is.
 
 The `Wrote` line names the candidates file. Every exit from here on removes its directory, with that path. When it exits 1, show the user its message.
 

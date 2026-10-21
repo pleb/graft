@@ -219,7 +219,6 @@ export interface CleanResult {
   removed: boolean;
 }
 
-// The run directory lost candidates.json but is still there.
 export class PartialRemovalError extends Error {}
 
 export function isSupportedNode(version: string): boolean {
@@ -600,7 +599,7 @@ export function clarifyCorrections(feedback: string, questions: unknown): Correc
       i += header.split("\n").length - 1;
       continue;
     }
-    // `field` is only set once `question` is, so the `question` checks below never fail.
+    // The `question != null` checks only narrow the type; `field` and `value` are set only once `question` is.
     const value = question == null ? null : line.match(/^ {2}(Answer|User notes): (.*)$/);
     if (value && question != null) {
       field = value[1] === "Answer" ? answers : notes;
@@ -622,7 +621,7 @@ export function clarifyCorrections(feedback: string, questions: unknown): Correc
 function rejectionFeedback(line: Line): string {
   let feedback = typeof line.userFeedback === "string" ? line.userFeedback : null;
   if (feedback == null) {
-    // `content` may be a string or anything else; `?.find?.` reads it as the old script did.
+    // The cast is unchecked: `content` may be any JSON value, and `?.find?.` reads only one with a `find` method.
     const content = (line.message?.content as Findable | undefined)?.find?.(
       (block) => block?.type === "tool_result",
     )?.content;
