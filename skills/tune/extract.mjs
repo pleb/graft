@@ -470,6 +470,7 @@ class FileReader {
     });
     const run = this.run;
     if (!run) return;
+    // A run stays open across other skills' commands; plan files they touch are not this run's.
     const own = this.skill === run.skill;
     if (block.name === "Agent") {
       run.agents.push({
