@@ -24,9 +24,16 @@ const INTERRUPTS = new Set([
 ]);
 const PLAN_FILE = /\/\.claude\/plans\/[^/]+\.md$/;
 const PLAN_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const BASH_PLAN = /(?:[\w.~@+-]*\/)*\.claude\/plans\/[\w@+-][\w.@+-]*\.md(?![\w.@+-])/g;
+// A plan path after any other character is the tail of a word such as `$root/.claude/plans/x.md`.
+const WORD_START = /[\s'"`=:;|&<>(]/;
+const LEADING_IDE = /^\s*<(ide_\w+)>(?:(?!<\/?ide_)[\s\S])*<\/\1>/;
+const TRAILING_IDE = /<(ide_\w+)>(?:(?!<\/?ide_)[\s\S])*<\/\1>\s*$/;
 // Written by the "chat about this" choice on AskUserQuestion; not typed by the user.
 const CLARIFY_FEEDBACK = "The user wants to clarify these questions.";
+const CLARIFY_QUESTIONS = "Questions asked:";
 const FEEDBACK_MARKER = "the user said:\n";
+const roots = new Map();
 
 function parseCli() {
   const { values } = parseArgs({ options: { days: { type: "string" }, out: { type: "string" } } });
@@ -43,7 +50,7 @@ function projectsDir() {
   return join(configDir, "projects");
 }
 
-function listFiles(dir, cutoffMs) {
+function listFiles(dir, cutoffMs, stats) {
   const files = [];
   for (const project of safeReaddir(dir)) {
     if (!project.isDirectory()) continue;
@@ -51,7 +58,13 @@ function listFiles(dir, cutoffMs) {
     for (const entry of safeReaddir(projectDir)) {
       if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
       const path = join(projectDir, entry.name);
-      const stat = statSync(path);
+      let stat;
+      try {
+        stat = statSync(path);
+      } catch {
+        stats.filesSkipped++;
+        continue;
+      }
       if (stat.mtimeMs < cutoffMs) continue;
       files.push({
         path,
@@ -79,12 +92,25 @@ function truncateStart(text, limit) {
   return text.length > limit ? `...${text.slice(-limit)}` : text;
 }
 
+function stripIde(text) {
+  let rest = text;
+  for (let previous; rest !== previous;) {
+    previous = rest;
+    rest = rest.replace(LEADING_IDE, "").replace(TRAILING_IDE, "");
+  }
+  return rest.trim();
+}
+
 function textOf(content) {
-  if (typeof content === "string") return content.trim();
+  if (typeof content === "string") return stripIde(content);
   if (!Array.isArray(content)) return "";
   return content
     .map((block) =>
-      block?.type === "text" ? block.text : block?.type === "image" ? "[image]" : "",
+      block?.type === "text" && typeof block.text === "string"
+        ? stripIde(block.text)
+        : block?.type === "image"
+          ? "[image]"
+          : "",
     )
     .filter(Boolean)
     .join("\n")
@@ -121,17 +147,63 @@ function noteVersion(stats, version) {
     stats.maxVersion = version;
 }
 
-function planFromArgs(args, cwd) {
-  const token = args
-    .trim()
-    .split(/\s+/)[0]
-    ?.replace(/^["']|["']$/g, "");
-  if (!token || !cwd) return null;
-  if (token.includes("/")) return resolve(cwd, token.replace(/^~(?=\/)/, homedir()));
-  const name = token.replace(/\.md$/, "");
-  if (!PLAN_NAME.test(name)) return null;
-  const path = join(cwd, ".claude", "plans", `${name}.md`);
-  return name.includes("-") || existsSync(path) ? path : null;
+function repoRoot(cwd) {
+  if (!cwd) return null;
+  if (!roots.has(cwd)) {
+    let root = cwd;
+    for (let dir = resolve(cwd); ; dir = dirname(dir)) {
+      if (existsSync(join(dir, ".git"))) {
+        root = dir;
+        break;
+      }
+      if (dirname(dir) === dir) break;
+    }
+    roots.set(cwd, root);
+  }
+  return roots.get(cwd);
+}
+
+function expandHome(path) {
+  return path.replace(/^~(?=\/)/, homedir());
+}
+
+function planFromArgs(args, root, recorded) {
+  if (!root) return null;
+  const candidates = [];
+  for (const word of args.split(/\s+/)) {
+    const token = word
+      .replace(/^["'`(]+/, "")
+      .replace(/^@/, "")
+      .replace(/[)"'`.,;:!?]+$/, "");
+    if (token.includes("/")) {
+      if (token.endsWith(".md"))
+        candidates.push({ path: resolve(root, expandHome(token)), fallback: true });
+      continue;
+    }
+    const name = token.replace(/\.md$/, "");
+    if (!PLAN_NAME.test(name)) continue;
+    candidates.push({
+      path: join(root, ".claude", "plans", `${name}.md`),
+      fallback: name.includes("-") || token.endsWith(".md"),
+    });
+  }
+  return (
+    candidates.find(({ path }) => existsSync(path)) ??
+    candidates.find(({ path }) => recorded.has(path)) ??
+    candidates.find(({ fallback }) => fallback)
+  )?.path;
+}
+
+function bashPlanPaths(command, root) {
+  return [...command.matchAll(BASH_PLAN)].map((match) => {
+    const before = command[match.index - 1];
+    const whole = before === undefined || WORD_START.test(before);
+    const path =
+      whole && !match[0].startsWith("/.claude/")
+        ? match[0]
+        : match[0].slice(match[0].indexOf(".claude/plans/"));
+    return resolve(root ?? "/", expandHome(path));
+  });
 }
 
 function addPlanFile(run, path, action) {
@@ -144,9 +216,54 @@ function addPlanFile(run, path, action) {
   if (!entry.actions.includes(action)) entry.actions.push(action);
 }
 
+// Claude Code joins multi-select elements with ", " and JSON-quotes each one holding ", " or '"'.
+function answerElements(answer) {
+  const elements = [];
+  let at = 0;
+  while (at <= answer.length) {
+    let end = -1;
+    if (answer[at] === '"') {
+      for (let i = at + 1; i < answer.length; i++) {
+        if (answer[i] === "\\") i++;
+        else if (answer[i] === '"') {
+          end = i + 1;
+          break;
+        }
+      }
+      if (end > 0 && end < answer.length && !answer.startsWith(", ", end)) end = -1;
+    }
+    if (end < 0) {
+      end = answer.indexOf(", ", at);
+      if (end < 0) end = answer.length;
+    }
+    const raw = answer.slice(at, end);
+    let element = raw;
+    if (raw.length > 1 && raw.startsWith('"') && raw.endsWith('"')) {
+      try {
+        element = JSON.parse(raw);
+      } catch {}
+    }
+    elements.push(element);
+    at = end + 2;
+  }
+  return elements;
+}
+
 function splitAnswer(answer, labels, multiSelect) {
   if (labels.includes(answer)) return { selected: [answer], freeText: "" };
   if (!multiSelect) return { selected: [], freeText: answer.trim() };
+  const elements = answerElements(answer);
+  const selected = elements.filter((element) => labels.includes(element));
+  const prefixed = selected.length > 0 ? null : prefixSplit(answer, labels);
+  if (prefixed?.selected.length) return prefixed;
+  const freeText = elements
+    .filter((element) => !labels.includes(element))
+    .join(", ")
+    .trim();
+  return { selected, freeText };
+}
+
+function prefixSplit(answer, labels) {
   const selected = [];
   let rest = answer;
   for (;;) {
@@ -166,50 +283,101 @@ function unquote(text) {
     : text;
 }
 
-function answerCorrections(result) {
+function optionLabels(question) {
+  return (Array.isArray(question?.options) ? question.options : [])
+    .map((option) => option?.label)
+    .filter((label) => typeof label === "string");
+}
+
+// With labels null (the question's options are unknown), the whole answer counts as free text.
+function questionCorrections(text, labels, multiSelect, answer, note) {
   const corrections = [];
-  for (const question of Array.isArray(result?.questions) ? result.questions : []) {
-    const text = question?.question;
-    if (typeof text !== "string") continue;
-    const labels = (Array.isArray(question.options) ? question.options : [])
-      .map((option) => option?.label)
-      .filter((label) => typeof label === "string");
-    const answer = result.answers?.[text];
-    const context = { question: truncate(text, CONTEXT_LIMIT), options: labels };
-    if (answer != null) {
-      const { selected, freeText } = splitAnswer(
-        String(answer),
-        labels,
-        question.multiSelect === true,
-      );
-      context.selected = selected;
-      if (freeText) corrections.push({ source: "other", question: text, text: freeText, context });
-    }
-    const note = result.annotations?.[text]?.notes;
-    if (typeof note === "string" && note.trim()) {
-      corrections.push({ source: "note", question: text, text: note.trim(), context });
-    }
+  const context = { question: truncate(text, CONTEXT_LIMIT), options: labels };
+  if (typeof answer === "string") {
+    const { selected, freeText } = labels
+      ? splitAnswer(answer, labels, multiSelect)
+      : { selected: [], freeText: answer.trim() };
+    context.selected = selected;
+    if (freeText && labels?.length !== 0)
+      corrections.push({ source: "other", question: text, text: freeText, context });
+  }
+  if (typeof note === "string" && note.trim()) {
+    corrections.push({ source: "note", question: text, text: note.trim(), context });
   }
   return corrections;
 }
 
-function hasParsedAnswers(result) {
-  const answers = result?.answers;
-  return !!answers && typeof answers === "object" && Object.keys(answers).length > 0;
+function answerCorrections(result) {
+  return (Array.isArray(result?.questions) ? result.questions : []).flatMap((question) => {
+    const text = question?.question;
+    if (typeof text !== "string") return [];
+    return questionCorrections(
+      text,
+      optionLabels(question),
+      question.multiSelect === true,
+      result.answers?.[text],
+      result.annotations?.[text]?.notes,
+    );
+  });
 }
 
-function rejectionReason(line) {
-  let reason = typeof line.userFeedback === "string" ? line.userFeedback : null;
-  if (reason == null) {
+function hasParsedAnswers(result) {
+  return (Array.isArray(result?.questions) ? result.questions : []).some(
+    (question) =>
+      typeof question?.question === "string" &&
+      (typeof result.answers?.[question.question] === "string" ||
+        typeof result.annotations?.[question.question]?.notes === "string"),
+  );
+}
+
+function clarifyCorrections(feedback, questions) {
+  const answers = {};
+  const notes = {};
+  let question = null;
+  let field = null;
+  const at = feedback.indexOf(CLARIFY_QUESTIONS);
+  if (at < 0) return [];
+  for (const line of feedback.slice(at + CLARIFY_QUESTIONS.length).split("\n")) {
+    const asked = line.match(/^- "(.*)"$/);
+    if (asked) {
+      question = asked[1];
+      field = null;
+      continue;
+    }
+    const value = question == null ? null : line.match(/^ {2}(Answer|User notes): (.*)$/);
+    if (value) {
+      field = value[1] === "Answer" ? answers : notes;
+      field[question] = value[2];
+    } else if (field) field[question] += `\n${line}`;
+  }
+  const asked = Array.isArray(questions) ? questions : [];
+  return [...new Set([...Object.keys(answers), ...Object.keys(notes)])].flatMap((text) => {
+    const input = asked.find((candidate) => candidate?.question === text);
+    return questionCorrections(
+      text,
+      input ? optionLabels(input) : null,
+      input?.multiSelect === true,
+      answers[text]?.trim(),
+      notes[text],
+    );
+  });
+}
+
+function rejectionFeedback(line) {
+  let feedback = typeof line.userFeedback === "string" ? line.userFeedback : null;
+  if (feedback == null) {
     const content = line.message?.content?.find?.(
       (block) => block?.type === "tool_result",
     )?.content;
     const text = textOf(content);
     const at = text.indexOf(FEEDBACK_MARKER);
-    if (at >= 0) reason = text.slice(at + FEEDBACK_MARKER.length);
+    if (at >= 0) feedback = text.slice(at + FEEDBACK_MARKER.length);
   }
-  reason = reason?.trim();
-  return reason && !reason.startsWith(CLARIFY_FEEDBACK) ? truncate(reason, TEXT_LIMIT) : null;
+  return feedback?.trim() ?? "";
+}
+
+function rejectionReason(feedback) {
+  return feedback && !feedback.startsWith(CLARIFY_FEEDBACK) ? truncate(feedback, TEXT_LIMIT) : null;
 }
 
 function isInterrupt(content) {
@@ -217,8 +385,15 @@ function isInterrupt(content) {
     Array.isArray(content) &&
     content.length === 1 &&
     content[0]?.type === "text" &&
-    INTERRUPTS.has(content[0].text?.trim())
+    typeof content[0].text === "string" &&
+    INTERRUPTS.has(content[0].text.trim())
   );
+}
+
+function isQueuedCommand(text) {
+  const [first, ...rest] = text.split(/\s+/);
+  const command = first.match(/^\/[\w-]+(:[\w-]+)?$/);
+  return !!command && (rest.length === 0 || !!command[1]);
 }
 
 function isTypedMessage(line) {
@@ -263,16 +438,22 @@ class FileReader {
     this.lastRejection = null;
     const blocks = Array.isArray(line.message?.content) ? line.message.content : [];
     for (const block of blocks) {
-      if (block?.type === "text" && block.text?.trim()) this.lastAssistantText = block.text.trim();
+      if (block?.type === "text" && typeof block.text === "string" && block.text.trim())
+        this.lastAssistantText = block.text.trim();
       if (block?.type === "tool_use") this.handleToolUse(line, block);
     }
   }
 
   handleToolUse(line, block) {
-    this.tools.set(block.id, { name: block.name, input: shortInput(block.input) });
+    const input = block.input ?? {};
+    this.tools.set(block.id, {
+      name: block.name,
+      input: shortInput(block.input),
+      ...(block.name === "AskUserQuestion" && { questions: input.questions }),
+    });
     const run = this.run;
     if (!run) return;
-    const input = block.input ?? {};
+    const root = repoRoot(run.cwd);
     if (block.name === "Agent") {
       run.agents.push({
         subagentType: input.subagent_type ?? null,
@@ -281,14 +462,17 @@ class FileReader {
       });
     }
     if (FILE_TOOLS.has(block.name) && typeof input.file_path === "string") {
-      const path = resolve(run.cwd ?? "/", input.file_path);
+      const path = resolve(root ?? "/", input.file_path);
       if (PLAN_FILE.test(path)) addPlanFile(run, path, block.name.toLowerCase());
+    }
+    if (block.name === "Bash" && typeof input.command === "string") {
+      for (const path of bashPlanPaths(input.command, root)) addPlanFile(run, path, "read");
     }
   }
 
   handleUser(line) {
     this.stats.userLines++;
-    if (line.origin) this.stats.userLinesWithOrigin++;
+    if (line.origin?.kind === "human") this.stats.humanUserLines++;
     const content = line.message?.content;
     const afterRejection = this.lastRejection;
     this.lastRejection = null;
@@ -323,7 +507,7 @@ class FileReader {
     if (attachment?.type !== "queued_command" || attachment.origin?.kind !== "human") return;
     if (attachment.commandMode && attachment.commandMode !== "prompt") return;
     const text = textOf(attachment.prompt);
-    if (!text || /^\/[\w:-]+(\s|$)/.test(text)) return;
+    if (!text || isQueuedCommand(text)) return;
     const timestamp = line.timestamp ?? attachment.timestamp;
     this.addCandidate({ ...line, timestamp }, "message", { text, queued: true });
   }
@@ -337,7 +521,8 @@ class FileReader {
     const run = {
       id: `${this.file.sessionId}#${this.runs.length + 1}`,
       sessionId: this.file.sessionId,
-      cwd: line.cwd ?? null,
+      commandUuid: typeof line.uuid === "string" ? line.uuid : null,
+      cwd: typeof line.cwd === "string" ? line.cwd : null,
       gitBranch: line.gitBranch ?? null,
       skill,
       args,
@@ -346,7 +531,12 @@ class FileReader {
       agents: [],
       planFiles: [],
     };
-    if (skill === "/graft:orchestrate") addPlanFile(run, planFromArgs(args, run.cwd), "argument");
+    if (skill === "/graft:orchestrate") {
+      const recorded = new Set(
+        this.runs.flatMap(({ planFiles }) => planFiles.map(({ path }) => path)),
+      );
+      addPlanFile(run, planFromArgs(args, repoRoot(run.cwd), recorded), "argument");
+    }
     this.run = run;
     this.runs.push(run);
   }
@@ -366,10 +556,20 @@ class FileReader {
       ? content.find((item) => item?.type === "tool_result")
       : null;
     const tool = this.tools.get(block?.tool_use_id);
-    return this.addCandidate(line, "rejection", {
-      text: rejectionReason(line),
+    const feedback = rejectionFeedback(line);
+    const rejection = this.addCandidate(line, "rejection", {
+      text: rejectionReason(feedback),
       context: { tool: tool?.name ?? null, toolInput: tool?.input ?? null },
     });
+    if (feedback.startsWith(CLARIFY_FEEDBACK)) {
+      for (const { source, question, text, context } of clarifyCorrections(
+        feedback,
+        tool?.questions,
+      )) {
+        this.addCandidate(line, "answer", { source, question, text, context });
+      }
+    }
+    return rejection;
   }
 
   addCandidate(line, kind, { source, question, text, context = {}, queued }) {
@@ -402,14 +602,18 @@ class FileReader {
 async function readFile(file, cutoffMs, stats) {
   const reader = new FileReader(file, cutoffMs, stats);
   const lines = createInterface({ input: createReadStream(file.path), crlfDelay: Infinity });
-  for await (const text of lines) {
-    let line;
-    try {
-      line = JSON.parse(text);
-    } catch {
-      continue;
+  try {
+    for await (const text of lines) {
+      let line;
+      try {
+        line = JSON.parse(text);
+      } catch {
+        continue;
+      }
+      if (line && typeof line === "object") reader.handle(line);
     }
-    if (line && typeof line === "object") reader.handle(line);
+  } catch {
+    return null;
   }
   return reader;
 }
@@ -445,6 +649,19 @@ function byTime(a, b) {
   return (Date.parse(a) || 0) - (Date.parse(b) || 0);
 }
 
+function markCopies(runs, bornMs) {
+  const originals = new Map();
+  const ordered = [...runs].sort(
+    (a, b) => byTime(a.startTime, b.startTime) || bornMs.get(a) - bornMs.get(b),
+  );
+  for (const run of ordered) {
+    if (!run.commandUuid) continue;
+    const original = originals.get(run.commandUuid);
+    if (original) run.copyOf = original.id;
+    else originals.set(run.commandUuid, run);
+  }
+}
+
 function formatWarnings(stats) {
   const warnings = [];
   if (stats.askResults > 0 && stats.askResultsParsed === 0) {
@@ -452,9 +669,9 @@ function formatWarnings(stats) {
       `${stats.askResults} AskUserQuestion results were read but no answer parsed; the transcript format may have changed.`,
     );
   }
-  if (stats.userLines > 0 && stats.userLinesWithOrigin === 0) {
+  if (stats.userLines > 0 && stats.humanUserLines === 0) {
     warnings.push(
-      "No user line has an origin, so typed messages cannot be told apart; the transcript format may have changed.",
+      "No user line has a human origin, so typed messages cannot be told apart; the transcript format may have changed.",
     );
   }
   return warnings;
@@ -473,25 +690,46 @@ async function main() {
   const { days, out } = parseCli();
   const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
   const dir = projectsDir();
-  const stats = { userLines: 0, userLinesWithOrigin: 0, askResults: 0, askResultsParsed: 0 };
-  const files = listFiles(dir, cutoffMs);
+  const stats = {
+    filesSkipped: 0,
+    userLines: 0,
+    humanUserLines: 0,
+    askResults: 0,
+    askResultsParsed: 0,
+  };
+  const files = listFiles(dir, cutoffMs, stats);
 
   const runs = [];
   const entries = [];
+  const bornMs = new Map();
+  let filesRead = 0;
   for (const file of files) {
     const reader = await readFile(file, cutoffMs, stats);
-    runs.push(...reader.runs.filter((run) => !(Date.parse(run.endTime) < cutoffMs)));
+    if (!reader) {
+      stats.filesSkipped++;
+      continue;
+    }
+    filesRead++;
+    for (const run of reader.runs) {
+      if (Date.parse(run.endTime) < cutoffMs) continue;
+      runs.push(run);
+      bornMs.set(run, file.bornMs);
+    }
     entries.push(...reader.candidates);
   }
+  markCopies(runs, bornMs);
   runs.sort((a, b) => byTime(a.startTime, b.startTime));
   const candidates = dedupe(entries).sort((a, b) => byTime(a.time, b.time));
 
   const counts = Object.fromEntries(KINDS.map((kind) => [kind, 0]));
   for (const candidate of candidates) counts[candidate.kind]++;
+  const originals = runs.filter((run) => !run.copyOf);
   const summary = {
-    filesRead: files.length,
-    runs: runs.length,
-    sessions: new Set(runs.map((run) => run.sessionId)).size,
+    filesRead,
+    filesSkipped: stats.filesSkipped,
+    runs: originals.length,
+    sessions: new Set(originals.map((run) => run.sessionId)).size,
+    forkCopies: runs.length - originals.length,
     candidates: counts,
     versions: { min: stats.minVersion ?? null, max: stats.maxVersion ?? null },
     warnings: formatWarnings(stats),
@@ -511,7 +749,9 @@ async function main() {
 
   console.log(`Wrote ${path}`);
   console.log(`Files read: ${summary.filesRead}`);
+  if (summary.filesSkipped) console.log(`Files skipped (unreadable): ${summary.filesSkipped}`);
   console.log(`Runs: ${summary.runs} in ${summary.sessions} sessions`);
+  console.log(`Fork copies folded: ${summary.forkCopies}`);
   console.log(`Candidates: ${KINDS.map((kind) => `${counts[kind]} ${kind}`).join(", ")}`);
   console.log(
     `Claude Code versions: ${summary.versions.min ?? "none"} to ${summary.versions.max ?? "none"}`,
