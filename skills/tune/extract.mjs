@@ -430,6 +430,7 @@ class FileReader {
     this.seen = new Set();
     this.tools = new Map();
     this.run = null;
+    this.skill = null;
     this.runs = [];
     this.candidates = [];
     this.lastAssistantText = "";
@@ -531,9 +532,9 @@ class FileReader {
   }
 
   startRun(line, content) {
-    this.run = null;
     if (line.origin?.kind !== "human") return;
     const skill = content.match(/<command-name>([^<]*)<\/command-name>/)?.[1]?.trim();
+    if (skill) this.skill = skill;
     if (!SKILLS.has(skill)) return;
     const args = content.match(/<command-args>([\s\S]*?)<\/command-args>/)?.[1]?.trim() ?? "";
     const run = {
@@ -598,6 +599,7 @@ class FileReader {
       ...(source && { source }),
       sessionId: run.sessionId,
       run: run.id,
+      ...(this.skill !== run.skill && { skill: this.skill }),
       time: line.timestamp ?? null,
       uuid: line.uuid ?? null,
       text: text == null ? null : truncate(text, TEXT_LIMIT),
