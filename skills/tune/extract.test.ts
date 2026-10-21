@@ -277,6 +277,91 @@ function copyLines(): Line[] {
   ];
 }
 
+function rejection(hours: number, uuid: string, text: string): Line {
+  return {
+    type: "user",
+    uuid,
+    timestamp: hoursAgo(hours),
+    toolDenialKind: "user-rejected",
+    message: {
+      content: [
+        {
+          type: "tool_result",
+          tool_use_id: "tool-x",
+          is_error: true,
+          content: `${REJECTED}${text}`,
+        },
+      ],
+    },
+  };
+}
+
+function interrupt(hours: number, uuid: string): Line {
+  return {
+    type: "user",
+    uuid,
+    timestamp: hoursAgo(hours),
+    message: { content: [{ type: "text", text: "[Request interrupted by user]" }] },
+  };
+}
+
+function interruptLines(): Line[] {
+  return [
+    command("/graft:plan", "interrupts", 3, "int-cmd"),
+    assistant(2.9, "int-as-1", [{ type: "text", text: "Working." }]),
+    interrupt(2.8, "int-alone"),
+    rejection(2.5, "int-rej-1", "Not that"),
+    assistant(2.4, "int-as-2", [{ type: "text", text: "Trying again." }]),
+    interrupt(2.3, "int-after-assistant"),
+    rejection(2.2, "int-rej-2", "Not that either"),
+    typed("Go on", 2.1, "int-typed"),
+    interrupt(2, "int-after-user"),
+  ];
+}
+
+function staleLines(): Line[] {
+  return [command("/graft:plan", "stale", 72, "stale-cmd"), typed("Old news", 60, "stale-msg")];
+}
+
+function queuedLines(): Line[] {
+  return [
+    command("/graft:plan", "queued", 3, "q-cmd"),
+    queued("Typed while working", 2, "q-human"),
+    {
+      type: "attachment",
+      uuid: "q-agent",
+      timestamp: hoursAgo(2),
+      attachment: {
+        type: "queued_command",
+        prompt: '<agent-message from="a1">Report</agent-message>',
+        commandMode: "prompt",
+      },
+    },
+  ];
+}
+
+function repeatLines(): Line[] {
+  const opening = command("/graft:plan", "repeat", 3, "rep-cmd");
+  const message = typed("Say it once", 2, "rep-msg");
+  return [opening, message, opening, message];
+}
+
+function orchestrateLines(cwd: string): Line[] {
+  return [command("/graft:orchestrate", "ship-it", 1, "orch-cmd", { cwd })];
+}
+
+function warningLines(): Line[] {
+  return [
+    command("/graft:plan", "warn", 1, "warn-cmd"),
+    {
+      type: "user",
+      uuid: "warn-ask",
+      timestamp: hoursAgo(0.5),
+      toolUseResult: { questions: [{}] },
+    },
+  ];
+}
+
 const tempDirs: string[] = [];
 
 function tempDir(prefix = "tune-test-"): string {
@@ -489,6 +574,8 @@ describe("compareVersions", () => {
     expect(compareVersions("2.1.10", "2.1.9")).toBeGreaterThan(0);
     expect(compareVersions("1.0.0", "1.0.1")).toBeLessThan(0);
     expect(compareVersions("2.1", "2.1.0")).toBe(0);
+    expect(compareVersions("2.1", "2.1.1")).toBeLessThan(0);
+    expect(compareVersions("2.1.1", "2.1")).toBeGreaterThan(0);
   });
 });
 
@@ -752,6 +839,73 @@ describe("buildReport", () => {
       { sessionId: "copy-original", run: "copy-original#1", uuid: "copy-msg" },
     ]);
   });
+
+  it("drops a run that ends before the cutoff", async () => {
+    const { summary, runs, candidates } = await report([transcript("stale", staleLines())]);
+    expect(summary.runs).toBe(0);
+    expect(runs).toEqual([]);
+    expect(candidates).toEqual([]);
+  });
+
+  it("marks only the rejection an interrupt directly follows", async () => {
+    const { candidates } = await report([transcript("interrupts", interruptLines())]);
+    expect(
+      candidates.map(({ kind, uuid, text, interrupted }) => ({ kind, uuid, text, interrupted })),
+    ).toEqual([
+      {
+        kind: "interrupt",
+        uuid: "int-alone",
+        text: "[Request interrupted by user]",
+        interrupted: undefined,
+      },
+      { kind: "rejection", uuid: "int-rej-1", text: "Not that", interrupted: undefined },
+      {
+        kind: "interrupt",
+        uuid: "int-after-assistant",
+        text: "[Request interrupted by user]",
+        interrupted: undefined,
+      },
+      { kind: "rejection", uuid: "int-rej-2", text: "Not that either", interrupted: undefined },
+      { kind: "message", uuid: "int-typed", text: "Go on", interrupted: undefined },
+      {
+        kind: "interrupt",
+        uuid: "int-after-user",
+        text: "[Request interrupted by user]",
+        interrupted: undefined,
+      },
+    ]);
+  });
+
+  it("skips a queued message without a human origin", async () => {
+    const { candidates } = await report([transcript("queued", queuedLines())]);
+    expect(candidates.map(({ uuid, text, queued }) => ({ uuid, text, queued }))).toEqual([
+      { uuid: "q-human", text: "Typed while working", queued: true },
+    ]);
+  });
+
+  it("reads a line repeated in one file once", async () => {
+    const { runs, candidates } = await report([transcript("repeat", repeatLines())]);
+    expect(runs.map(({ id }) => id)).toEqual(["repeat#1"]);
+    expect(candidates.map(({ uuid, run }) => ({ uuid, run }))).toEqual([
+      { uuid: "rep-msg", run: "repeat#1" },
+    ]);
+  });
+
+  it("records the plan an orchestrate command names", async () => {
+    const root = tempDir("tune-orchestrate-");
+    mkdirSync(join(root, ".git"));
+    mkdirSync(join(root, ".claude", "plans"), { recursive: true });
+    writeFileSync(join(root, ".claude", "plans", "ship-it.md"), "");
+    mkdirSync(join(root, "sub"));
+    const { runs } = await report([transcript("orchestrate", orchestrateLines(join(root, "sub")))]);
+    expect(runs).toMatchObject([
+      {
+        skill: "/graft:orchestrate",
+        args: "ship-it",
+        planFiles: [{ path: join(root, ".claude", "plans", "ship-it.md"), actions: ["argument"] }],
+      },
+    ]);
+  });
 });
 
 describe("cleanRunDir", () => {
@@ -866,6 +1020,34 @@ describe("extract.ts", () => {
       generatedAt: "",
       cutoff: "",
     });
+  });
+
+  it("prints the format warnings", () => {
+    const config = tempDir();
+    writeTranscript(join(config, "projects", "-work-repo"), "warn", warningLines());
+    const out = join(tempDir(), "report.json");
+    const result = run(["--days", String(DAYS), "--out", out], config);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe(
+      [
+        `Wrote ${out}`,
+        "Files read: 1",
+        "Runs: 1 in 1 sessions",
+        "Fork copies folded: 0",
+        "Candidates: 0 answer, 0 message, 0 rejection, 0 interrupt",
+        `Claude Code versions: ${VERSION} to ${VERSION}`,
+        "Warning: 1 AskUserQuestion results were read but no answer parsed; the transcript format may have changed.",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("reports a run directory that is already clean", () => {
+    const dir = tempDir("graft-tune-");
+    rmSync(dir, { recursive: true });
+    const result = run(["--clean", dir]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe(`${join(realpathSync(tmpdir()), basename(dir))} is already clean\n`);
   });
 
   it("cleans a run directory", () => {
