@@ -1,3 +1,4 @@
+import type { Dirent } from "node:fs";
 import {
   createReadStream,
   existsSync,
@@ -14,13 +15,13 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
-import { parseArgs } from "node:util";
 
+const MIN_NODE_MAJOR = 24;
 const TEXT_LIMIT = 1500;
 const CONTEXT_LIMIT = 600;
 const INPUT_VALUE_LIMIT = 200;
 const SKILLS = new Set(["/graft:plan", "/graft:orchestrate"]);
-const KINDS = ["answer", "message", "rejection", "interrupt"];
+export const KINDS = ["answer", "message", "rejection", "interrupt"] as const;
 const FILE_TOOLS = new Set(["Write", "Edit", "MultiEdit", "Read"]);
 const INTERRUPTS = new Set([
   "[Request interrupted by user]",
@@ -39,32 +40,197 @@ const CLARIFY_QUESTIONS = "Questions asked:";
 const FEEDBACK_MARKER = "the user said:\n";
 const RUN_PREFIX = "graft-tune-";
 const CANDIDATES_FILE = "candidates.json";
-const roots = new Map();
+const roots = new Map<string, string>();
 
-function usage() {
-  console.error("Usage: node extract.mjs --days <n> [--out <file>] | --clean <path>");
-  process.exit(1);
+export type Kind = (typeof KINDS)[number];
+
+// Transcript lines are untrusted JSON, so every field is optional and typed only as far as the code checks it.
+interface Block {
+  type?: unknown;
+  text?: unknown;
+  id?: unknown;
+  name?: unknown;
+  input?: ToolInput | null;
+  tool_use_id?: unknown;
+  is_error?: unknown;
+  content?: unknown;
 }
 
-function parseCli() {
-  let values;
-  try {
-    ({ values } = parseArgs({
-      options: { days: { type: "string" }, out: { type: "string" }, clean: { type: "string" } },
-    }));
-  } catch {
-    usage();
-  }
-  if (values.clean !== undefined) {
-    if (!values.clean || values.days !== undefined || values.out !== undefined) usage();
-    return { clean: values.clean };
-  }
-  const days = Number(values.days);
-  if (!values.days || !Number.isFinite(days) || days <= 0) usage();
-  return { days, out: values.out };
+interface ToolInput {
+  questions?: unknown;
+  subagent_type?: unknown;
+  description?: unknown;
+  file_path?: unknown;
+  command?: unknown;
 }
 
-function removeRunDir(path) {
+interface Question {
+  question?: unknown;
+  options?: unknown;
+  multiSelect?: unknown;
+}
+
+export interface AskResult {
+  questions?: unknown;
+  answers?: Record<string, unknown> | null;
+  annotations?: Record<string, { notes?: unknown } | null> | null;
+}
+
+interface Origin {
+  kind?: unknown;
+}
+
+interface Attachment {
+  type?: unknown;
+  origin?: Origin | null;
+  commandMode?: unknown;
+  prompt?: unknown;
+  timestamp?: unknown;
+}
+
+export interface Line {
+  type?: unknown;
+  uuid?: unknown;
+  timestamp?: unknown;
+  version?: unknown;
+  cwd?: unknown;
+  gitBranch?: unknown;
+  isSidechain?: unknown;
+  isMeta?: unknown;
+  isCompactSummary?: unknown;
+  origin?: Origin | null;
+  message?: { content?: unknown } | null;
+  toolUseResult?: AskResult | null;
+  toolDenialKind?: unknown;
+  userFeedback?: unknown;
+  attachment?: Attachment | null;
+}
+
+type Findable = { find?: (predicate: (block: Block) => boolean) => Block | undefined } | null;
+
+export interface TranscriptFile {
+  path: string;
+  sessionId: string;
+  bornMs: number;
+}
+
+interface Stats {
+  filesSkipped: number;
+  userLines: number;
+  humanUserLines: number;
+  askResults: number;
+  askResultsParsed: number;
+  askResultsLabelled: number;
+  minVersion?: string;
+  maxVersion?: string;
+}
+
+interface PlanFile {
+  path: string;
+  actions: string[];
+}
+
+interface Agent {
+  subagentType: unknown;
+  description: unknown;
+  skill?: string | null;
+  time: unknown;
+}
+
+export interface Run {
+  id: string;
+  sessionId: string;
+  commandUuid: string | null;
+  cwd: string | null;
+  gitBranch: unknown;
+  skill: string;
+  args: string;
+  startTime: unknown;
+  endTime: unknown;
+  agents: Agent[];
+  planFiles: PlanFile[];
+  copyOf?: string;
+}
+
+interface QuestionContext {
+  question: string;
+  options: string[] | null;
+  selected?: string[];
+}
+
+export interface Correction {
+  source: "other" | "note";
+  question: string;
+  text: string;
+  context: QuestionContext;
+}
+
+export interface Candidate {
+  kind: Kind;
+  source?: string;
+  sessionId: string;
+  run: string;
+  skill?: string | null;
+  skillTime?: unknown;
+  time: unknown;
+  uuid: unknown;
+  text: string | null;
+  queued?: true;
+  context: object;
+  interrupted?: boolean;
+}
+
+interface CandidateEntry {
+  candidate: Candidate;
+  question: string;
+  runStart: unknown;
+  bornMs: number;
+}
+
+interface Tool {
+  name: unknown;
+  input: string | null;
+  questions?: unknown;
+}
+
+export interface Summary {
+  filesRead: number;
+  filesSkipped: number;
+  runs: number;
+  sessions: number;
+  forkCopies: number;
+  candidates: Record<Kind, number>;
+  versions: { min: string | null; max: string | null };
+  warnings: string[];
+}
+
+export interface Report {
+  generatedAt: string;
+  days: number;
+  cutoff: string;
+  projectsDir: string;
+  summary: Summary;
+  runs: Run[];
+  candidates: Candidate[];
+}
+
+export interface CleanResult {
+  dir: string;
+  removed: boolean;
+}
+
+// The run directory lost candidates.json but is still there.
+export class PartialRemovalError extends Error {}
+
+export function isSupportedNode(version: string): boolean {
+  return Number(version.split(".")[0]) >= MIN_NODE_MAJOR;
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function cleanRunDir(path: string): CleanResult {
   if (path.split(/[\\/]/).includes("..")) throw new Error(`${path} has a .. segment`);
   const given = resolve(path);
   const named = basename(given) === CANDIDATES_FILE ? dirname(given) : given;
@@ -72,7 +238,7 @@ function removeRunDir(path) {
   try {
     stat = lstatSync(named);
   } catch (error) {
-    if (error.code !== "ENOENT") throw error;
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
   }
   if (stat?.isSymbolicLink()) throw new Error(`${named} is a symlink`);
   if (stat && !stat.isDirectory()) throw new Error(`${named} is not a directory`);
@@ -82,10 +248,7 @@ function removeRunDir(path) {
   if (!basename(dir).startsWith(RUN_PREFIX)) {
     throw new Error(`${dir} does not start with ${RUN_PREFIX}`);
   }
-  if (!stat) {
-    console.log(`${dir} is already clean`);
-    return;
-  }
+  if (!stat) return { dir, removed: false };
   const entries = readdirSync(dir, { withFileTypes: true });
   const other = entries.find((entry) => entry.name !== CANDIDATES_FILE || !entry.isFile());
   if (other)
@@ -95,19 +258,22 @@ function removeRunDir(path) {
     rmdirSync(dir);
   } catch (error) {
     if (!entries.length) throw error;
-    console.error(`Removed ${CANDIDATES_FILE} but not ${dir}: ${error.message}`);
-    process.exit(1);
+    throw new PartialRemovalError(`Removed ${CANDIDATES_FILE} but not ${dir}: ${messageOf(error)}`);
   }
-  console.log(`Removed ${dir}`);
+  return { dir, removed: true };
 }
 
-function projectsDir() {
+export function projectsDir(): string {
   const configDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude");
   return join(configDir, "projects");
 }
 
-function listFiles(dir, cutoffMs, stats) {
-  const files = [];
+export function listFiles(
+  dir: string,
+  cutoffMs: number,
+): { files: TranscriptFile[]; skipped: number } {
+  const files: TranscriptFile[] = [];
+  let skipped = 0;
   for (const project of safeReaddir(dir)) {
     if (!project.isDirectory()) continue;
     const projectDir = join(dir, project.name);
@@ -118,7 +284,7 @@ function listFiles(dir, cutoffMs, stats) {
       try {
         stat = statSync(path);
       } catch {
-        stats.filesSkipped++;
+        skipped++;
         continue;
       }
       if (stat.mtimeMs < cutoffMs) continue;
@@ -129,10 +295,10 @@ function listFiles(dir, cutoffMs, stats) {
       });
     }
   }
-  return files;
+  return { files, skipped };
 }
 
-function safeReaddir(dir) {
+function safeReaddir(dir: string): Dirent[] {
   try {
     return readdirSync(dir, { withFileTypes: true });
   } catch {
@@ -140,15 +306,15 @@ function safeReaddir(dir) {
   }
 }
 
-function truncate(text, limit) {
+function truncate(text: string, limit: number): string {
   return text.length > limit ? `${text.slice(0, limit)}...` : text;
 }
 
-function truncateStart(text, limit) {
+function truncateStart(text: string, limit: number): string {
   return text.length > limit ? `...${text.slice(-limit)}` : text;
 }
 
-function stripIde(text) {
+export function stripIde(text: string): string {
   let rest = text;
   for (let previous; rest !== previous;) {
     previous = rest;
@@ -157,11 +323,11 @@ function stripIde(text) {
   return rest.trim();
 }
 
-function textOf(content) {
+function textOf(content: unknown): string {
   if (typeof content === "string") return stripIde(content);
   if (!Array.isArray(content)) return "";
   return content
-    .map((block) =>
+    .map((block: Block | null | undefined) =>
       block?.type === "text" && typeof block.text === "string"
         ? stripIde(block.text)
         : block?.type === "image"
@@ -173,11 +339,11 @@ function textOf(content) {
     .trim();
 }
 
-function shortInput(input) {
+function shortInput(input: unknown): string | null {
   if (!input || typeof input !== "object")
     return input == null ? null : truncate(String(input), CONTEXT_LIMIT);
   const short = Object.fromEntries(
-    Object.entries(input).map(([key, value]) => [
+    Object.entries(input).map(([key, value]: [string, unknown]) => [
       key,
       typeof value === "string" ? truncate(value, INPUT_VALUE_LIMIT) : value,
     ]),
@@ -185,7 +351,7 @@ function shortInput(input) {
   return truncate(JSON.stringify(short), CONTEXT_LIMIT);
 }
 
-function compareVersions(a, b) {
+export function compareVersions(a: string, b: string): number {
   const pa = a.split(".").map(Number);
   const pb = b.split(".").map(Number);
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
@@ -195,7 +361,7 @@ function compareVersions(a, b) {
   return 0;
 }
 
-function noteVersion(stats, version) {
+function noteVersion(stats: Stats, version: unknown): void {
   if (typeof version !== "string") return;
   if (!stats.minVersion || compareVersions(version, stats.minVersion) < 0)
     stats.minVersion = version;
@@ -203,10 +369,11 @@ function noteVersion(stats, version) {
     stats.maxVersion = version;
 }
 
-function repoRoot(cwd) {
+function repoRoot(cwd: string | null): string | null {
   if (!cwd) return null;
-  if (!roots.has(cwd)) {
-    let root = cwd;
+  let root = roots.get(cwd);
+  if (root === undefined) {
+    root = cwd;
     for (let dir = resolve(cwd); existsSync(dir); dir = dirname(dir)) {
       if (existsSync(join(dir, ".git"))) {
         root = dir;
@@ -216,16 +383,20 @@ function repoRoot(cwd) {
     }
     roots.set(cwd, root);
   }
-  return roots.get(cwd);
+  return root;
 }
 
-function expandHome(path) {
+function expandHome(path: string): string {
   return path.replace(/^~(?=\/)/, homedir());
 }
 
-function planFromArgs(args, root, recorded) {
+export function planFromArgs(
+  args: string,
+  root: string | null,
+  recorded: Set<string>,
+): string | null | undefined {
   if (!root) return null;
-  const candidates = [];
+  const candidates: { path: string; fallback: boolean }[] = [];
   for (const [index, word] of args.split(/\s+/).entries()) {
     const token = word
       .replace(/^["'`(]+/, "")
@@ -251,7 +422,7 @@ function planFromArgs(args, root, recorded) {
   )?.path;
 }
 
-function bashPlanPaths(command, root) {
+export function bashPlanPaths(command: string, root: string | null): string[] {
   return [...command.matchAll(BASH_PLAN)].map((match) => {
     const before = command[match.index - 1];
     const whole = before === undefined || WORD_START.test(before);
@@ -263,7 +434,7 @@ function bashPlanPaths(command, root) {
   });
 }
 
-function addPlanFile(run, path, action) {
+function addPlanFile(run: Run, path: string | null | undefined, action: string): void {
   if (!path) return;
   let entry = run.planFiles.find((plan) => plan.path === path);
   if (!entry) {
@@ -274,8 +445,8 @@ function addPlanFile(run, path, action) {
 }
 
 // Claude Code joins multi-select elements with ", " and JSON-quotes each one holding ", " or '"'.
-function answerElements(answer) {
-  const elements = [];
+function answerElements(answer: string): string[] {
+  const elements: string[] = [];
   let at = 0;
   while (at <= answer.length) {
     let end = -1;
@@ -306,7 +477,11 @@ function answerElements(answer) {
   return elements;
 }
 
-function splitAnswer(answer, labels, multiSelect) {
+function splitAnswer(
+  answer: string,
+  labels: string[],
+  multiSelect: boolean,
+): { selected: string[]; freeText: string } {
   if (labels.includes(answer)) return { selected: [answer], freeText: "" };
   if (!multiSelect) return { selected: [], freeText: answer.trim() };
   const elements = answerElements(answer);
@@ -320,8 +495,8 @@ function splitAnswer(answer, labels, multiSelect) {
   return { selected, freeText };
 }
 
-function prefixSplit(answer, labels) {
-  const selected = [];
+function prefixSplit(answer: string, labels: string[]): { selected: string[]; freeText: string } {
+  const selected: string[] = [];
   let rest = answer;
   for (;;) {
     const label = labels
@@ -334,21 +509,27 @@ function prefixSplit(answer, labels) {
   return { selected, freeText: unquote(rest.trim()) };
 }
 
-function unquote(text) {
+function unquote(text: string): string {
   return text.length > 1 && text.startsWith('"') && text.endsWith('"')
     ? text.slice(1, -1).trim()
     : text;
 }
 
-function optionLabels(question) {
+function optionLabels(question: Question | null | undefined): string[] {
   return (Array.isArray(question?.options) ? question.options : [])
-    .map((option) => option?.label)
-    .filter((label) => typeof label === "string");
+    .map((option: { label?: unknown } | null | undefined) => option?.label)
+    .filter((label): label is string => typeof label === "string");
 }
 
-function questionCorrections(text, labels, multiSelect, answer, note) {
-  const corrections = [];
-  const context = { question: truncate(text, CONTEXT_LIMIT), options: labels };
+function questionCorrections(
+  text: string,
+  labels: string[] | null,
+  multiSelect: boolean,
+  answer: unknown,
+  note: unknown,
+): Correction[] {
+  const corrections: Correction[] = [];
+  const context: QuestionContext = { question: truncate(text, CONTEXT_LIMIT), options: labels };
   if (typeof answer === "string") {
     const { selected, freeText } = labels
       ? splitAnswer(answer, labels, multiSelect)
@@ -363,10 +544,11 @@ function questionCorrections(text, labels, multiSelect, answer, note) {
   return corrections;
 }
 
-function answerCorrections(result) {
-  return (Array.isArray(result?.questions) ? result.questions : []).flatMap((question) => {
-    const text = question?.question;
-    if (typeof text !== "string") return [];
+export function answerCorrections(result: AskResult | null | undefined): Correction[] {
+  if (!Array.isArray(result?.questions)) return [];
+  return result.questions.flatMap((question: Question | null | undefined) => {
+    if (typeof question?.question !== "string") return [];
+    const text = question.question;
     return questionCorrections(
       text,
       optionLabels(question),
@@ -377,30 +559,32 @@ function answerCorrections(result) {
   });
 }
 
-function hasParsedAnswers(result) {
-  return (Array.isArray(result?.questions) ? result.questions : []).some(
-    (question) =>
+function hasParsedAnswers(result: AskResult | null | undefined): boolean {
+  if (!Array.isArray(result?.questions)) return false;
+  return result.questions.some(
+    (question: Question | null | undefined) =>
       typeof question?.question === "string" &&
       (typeof result.answers?.[question.question] === "string" ||
         typeof result.annotations?.[question.question]?.notes === "string"),
   );
 }
 
-function hasLabels(result) {
+function hasLabels(result: AskResult | null | undefined): boolean {
   return (Array.isArray(result?.questions) ? result.questions : []).some(
-    (question) => optionLabels(question).length > 0,
+    (question: Question | null | undefined) => optionLabels(question).length > 0,
   );
 }
 
-function clarifyCorrections(feedback, questions) {
-  const answers = {};
-  const notes = {};
-  let question = null;
-  let field = null;
+export function clarifyCorrections(feedback: string, questions: unknown): Correction[] {
+  const answers: Record<string, string> = {};
+  const notes: Record<string, string> = {};
+  let question: string | null = null;
+  let field: Record<string, string> | null = null;
   const at = feedback.indexOf(CLARIFY_QUESTIONS);
   if (at < 0) return [];
   const asked = (Array.isArray(questions) ? questions : []).filter(
-    (candidate) => typeof candidate?.question === "string",
+    (candidate: Question | null | undefined): candidate is Question & { question: string } =>
+      typeof candidate?.question === "string",
   );
   const lines = feedback.slice(at + CLARIFY_QUESTIONS.length).split("\n");
   for (let i = 0; i < lines.length; i++) {
@@ -416,11 +600,12 @@ function clarifyCorrections(feedback, questions) {
       i += header.split("\n").length - 1;
       continue;
     }
+    // `field` is only set once `question` is, so the `question` checks below never fail.
     const value = question == null ? null : line.match(/^ {2}(Answer|User notes): (.*)$/);
-    if (value) {
+    if (value && question != null) {
       field = value[1] === "Answer" ? answers : notes;
       field[question] = value[2];
-    } else if (field) field[question] += `\n${line}`;
+    } else if (field && question != null) field[question] += `\n${line}`;
   }
   return [...new Set([...Object.keys(answers), ...Object.keys(notes)])].flatMap((text) => {
     const input = asked.find((candidate) => candidate.question === text);
@@ -434,10 +619,11 @@ function clarifyCorrections(feedback, questions) {
   });
 }
 
-function rejectionFeedback(line) {
+function rejectionFeedback(line: Line): string {
   let feedback = typeof line.userFeedback === "string" ? line.userFeedback : null;
   if (feedback == null) {
-    const content = line.message?.content?.find?.(
+    // `content` may be a string or anything else; `?.find?.` reads it as the old script did.
+    const content = (line.message?.content as Findable | undefined)?.find?.(
       (block) => block?.type === "tool_result",
     )?.content;
     const text = textOf(content);
@@ -447,11 +633,11 @@ function rejectionFeedback(line) {
   return feedback?.trim() ?? "";
 }
 
-function rejectionReason(feedback) {
+function rejectionReason(feedback: string): string | null {
   return feedback && !feedback.startsWith(CLARIFY_FEEDBACK) ? truncate(feedback, TEXT_LIMIT) : null;
 }
 
-function isInterrupt(content) {
+function isInterrupt(content: unknown): content is [{ type: "text"; text: string }] {
   return (
     Array.isArray(content) &&
     content.length === 1 &&
@@ -461,25 +647,40 @@ function isInterrupt(content) {
   );
 }
 
-function isQueuedCommand(text) {
+export function isQueuedCommand(text: string): boolean {
   const [first, ...rest] = text.split(/\s+/);
   const command = first.match(/^\/[\w-]+(:[\w-]+)?$/);
   return !!command && (rest.length === 0 || !!command[1]);
 }
 
-function isTypedMessage(line) {
+export function isTypedMessage(line: Line): boolean {
   if (line.origin?.kind !== "human" || line.isMeta || line.isCompactSummary) return false;
   if (line.toolUseResult !== undefined) return false;
   const content = line.message?.content;
   if (typeof content === "string") return !content.trimStart().startsWith("<command-name>");
   return (
     Array.isArray(content) &&
-    content.every((block) => block?.type === "text" || block?.type === "image")
+    content.every(
+      (block: Block | null | undefined) => block?.type === "text" || block?.type === "image",
+    )
   );
 }
 
 class FileReader {
-  constructor(file, cutoffMs, stats) {
+  file: TranscriptFile;
+  cutoffMs: number;
+  stats: Stats;
+  seen: Set<string>;
+  tools: Map<unknown, Tool>;
+  run: Run | null;
+  skill: string | null;
+  skillTime: unknown;
+  runs: Run[];
+  candidates: CandidateEntry[];
+  lastAssistantText: string;
+  lastRejection: { interrupted?: boolean } | null;
+
+  constructor(file: TranscriptFile, cutoffMs: number, stats: Stats) {
     this.file = file;
     this.cutoffMs = cutoffMs;
     this.stats = stats;
@@ -494,7 +695,7 @@ class FileReader {
     this.lastRejection = null;
   }
 
-  handle(line) {
+  handle(line: Line): void {
     noteVersion(this.stats, line.version);
     if (typeof line.uuid === "string") {
       if (this.seen.has(line.uuid)) return;
@@ -507,9 +708,11 @@ class FileReader {
     if (this.run && typeof line.timestamp === "string") this.run.endTime = line.timestamp;
   }
 
-  handleAssistant(line) {
+  handleAssistant(line: Line): void {
     this.lastRejection = null;
-    const blocks = Array.isArray(line.message?.content) ? line.message.content : [];
+    const blocks: (Block | null | undefined)[] = Array.isArray(line.message?.content)
+      ? line.message.content
+      : [];
     for (const block of blocks) {
       if (block?.type === "text" && typeof block.text === "string" && block.text.trim())
         this.lastAssistantText = block.text.trim();
@@ -517,7 +720,7 @@ class FileReader {
     }
   }
 
-  handleToolUse(line, block) {
+  handleToolUse(line: Line, block: Block): void {
     const input = block.input ?? {};
     this.tools.set(block.id, {
       name: block.name,
@@ -538,7 +741,11 @@ class FileReader {
     }
     if (!own) return;
     const root = repoRoot(run.cwd);
-    if (FILE_TOOLS.has(block.name) && typeof input.file_path === "string") {
+    if (
+      typeof block.name === "string" &&
+      FILE_TOOLS.has(block.name) &&
+      typeof input.file_path === "string"
+    ) {
       const path = resolve(root ?? "/", input.file_path);
       if (PLAN_FILE.test(path)) addPlanFile(run, path, block.name.toLowerCase());
     }
@@ -547,7 +754,7 @@ class FileReader {
     }
   }
 
-  handleUser(line) {
+  handleUser(line: Line): void {
     this.stats.userLines++;
     if (line.origin?.kind === "human") this.stats.humanUserLines++;
     const content = line.message?.content;
@@ -582,7 +789,7 @@ class FileReader {
     if (text) this.addCandidate(line, "message", { text });
   }
 
-  handleAttachment(line) {
+  handleAttachment(line: Line): void {
     const attachment = line.attachment;
     if (attachment?.type !== "queued_command" || attachment.origin?.kind !== "human") return;
     if (attachment.commandMode && attachment.commandMode !== "prompt") return;
@@ -592,16 +799,16 @@ class FileReader {
     this.addCandidate({ ...line, timestamp }, "message", { text, queued: true });
   }
 
-  handleCommand(line, content) {
+  handleCommand(line: Line, content: string): void {
     if (line.origin?.kind !== "human") return;
     const skill = content.match(/<command-name>([^<]*)<\/command-name>/)?.[1]?.trim();
     if (skill) {
       this.skill = skill;
       this.skillTime = line.timestamp ?? null;
     }
-    if (!SKILLS.has(skill)) return;
+    if (skill === undefined || !SKILLS.has(skill)) return;
     const args = content.match(/<command-args>([\s\S]*?)<\/command-args>/)?.[1]?.trim() ?? "";
-    const run = {
+    const run: Run = {
       id: `${this.file.sessionId}#${this.runs.length + 1}`,
       sessionId: this.file.sessionId,
       commandUuid: typeof line.uuid === "string" ? line.uuid : null,
@@ -624,19 +831,19 @@ class FileReader {
     this.runs.push(run);
   }
 
-  isAskResult(line, content) {
+  isAskResult(line: Line, content: unknown): boolean {
     if (line.toolUseResult?.questions) return true;
-    const block = Array.isArray(content)
-      ? content.find((item) => item?.type === "tool_result")
+    const block: Block | null | undefined = Array.isArray(content)
+      ? content.find((item: Block | null | undefined) => item?.type === "tool_result")
       : null;
     return (
       !!block && !block.is_error && this.tools.get(block.tool_use_id)?.name === "AskUserQuestion"
     );
   }
 
-  addRejection(line, content) {
-    const block = Array.isArray(content)
-      ? content.find((item) => item?.type === "tool_result")
+  addRejection(line: Line, content: unknown): Candidate | null {
+    const block: Block | null | undefined = Array.isArray(content)
+      ? content.find((item: Block | null | undefined) => item?.type === "tool_result")
       : null;
     const tool = this.tools.get(block?.tool_use_id);
     const feedback = rejectionFeedback(line);
@@ -655,10 +862,26 @@ class FileReader {
     return rejection;
   }
 
-  addCandidate(line, kind, { source, question, text, context = {}, queued }) {
+  addCandidate(
+    line: Line,
+    kind: Kind,
+    {
+      source,
+      question,
+      text,
+      context = {},
+      queued,
+    }: {
+      source?: string;
+      question?: string;
+      text?: string | null;
+      context?: object;
+      queued?: boolean;
+    },
+  ): Candidate | null {
     const run = this.run;
-    if (!run || Date.parse(line.timestamp) < this.cutoffMs) return null;
-    const candidate = {
+    if (!run || Date.parse(String(line.timestamp)) < this.cutoffMs) return null;
+    const candidate: Candidate = {
       kind,
       ...(source && { source }),
       sessionId: run.sessionId,
@@ -683,12 +906,16 @@ class FileReader {
   }
 }
 
-async function readFile(file, cutoffMs, stats) {
+async function readFile(
+  file: TranscriptFile,
+  cutoffMs: number,
+  stats: Stats,
+): Promise<FileReader | null> {
   const reader = new FileReader(file, cutoffMs, stats);
   const lines = createInterface({ input: createReadStream(file.path), crlfDelay: Infinity });
   try {
     for await (const text of lines) {
-      let line;
+      let line: unknown;
       try {
         line = JSON.parse(text);
       } catch {
@@ -702,20 +929,20 @@ async function readFile(file, cutoffMs, stats) {
   return reader;
 }
 
-function isEarlier(a, b) {
+function isEarlier(a: CandidateEntry, b: CandidateEntry): boolean {
   const keys = [
     [a.runStart, b.runStart],
     [a.candidate.time, b.candidate.time],
   ];
   for (const [x, y] of keys) {
-    const diff = (Date.parse(x) || 0) - (Date.parse(y) || 0);
+    const diff = (Date.parse(String(x)) || 0) - (Date.parse(String(y)) || 0);
     if (diff) return diff < 0;
   }
   return a.bornMs < b.bornMs;
 }
 
-function dedupe(entries) {
-  const kept = new Map();
+function dedupe(entries: CandidateEntry[]): Candidate[] {
+  const kept = new Map<string | symbol, CandidateEntry>();
   for (const entry of entries) {
     const { kind, source, uuid } = entry.candidate;
     if (!uuid) {
@@ -729,16 +956,16 @@ function dedupe(entries) {
   return [...kept.values()].map((entry) => entry.candidate);
 }
 
-function byTime(a, b) {
-  return (Date.parse(a) || 0) - (Date.parse(b) || 0);
+function byTime(a: unknown, b: unknown): number {
+  return (Date.parse(String(a)) || 0) - (Date.parse(String(b)) || 0);
 }
 
-function markCopies(runs, bornMs) {
-  const originals = new Map();
-  const ordered = [...runs].sort(
-    (a, b) => byTime(a.startTime, b.startTime) || bornMs.get(a) - bornMs.get(b),
+function markCopies(found: { run: Run; bornMs: number }[]): void {
+  const originals = new Map<string, Run>();
+  const ordered = [...found].sort(
+    (a, b) => byTime(a.run.startTime, b.run.startTime) || a.bornMs - b.bornMs,
   );
-  for (const run of ordered) {
+  for (const { run } of ordered) {
     if (!run.commandUuid) continue;
     const original = originals.get(run.commandUuid);
     if (original) run.copyOf = original.id;
@@ -746,8 +973,14 @@ function markCopies(runs, bornMs) {
   }
 }
 
-function formatWarnings(stats) {
-  const warnings = [];
+export function formatWarnings(stats: {
+  userLines: number;
+  humanUserLines: number;
+  askResults: number;
+  askResultsParsed: number;
+  askResultsLabelled: number;
+}): string[] {
+  const warnings: string[] = [];
   if (stats.askResults > 0 && stats.askResultsParsed === 0) {
     warnings.push(
       `${stats.askResults} AskUserQuestion results were read but no answer parsed; the transcript format may have changed.`,
@@ -766,41 +999,22 @@ function formatWarnings(stats) {
   return warnings;
 }
 
-function outputPath(out) {
-  if (out) {
-    const path = resolve(out);
-    mkdirSync(dirname(path), { recursive: true });
-    return path;
-  }
-  return join(mkdtempSync(join(tmpdir(), RUN_PREFIX)), CANDIDATES_FILE);
-}
-
-async function main() {
-  const { days, out, clean } = parseCli();
-  if (clean) {
-    try {
-      removeRunDir(clean);
-    } catch (error) {
-      console.error(`Not removed: ${error.message}`);
-      process.exit(1);
-    }
-    return;
-  }
-  const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
-  const dir = projectsDir();
-  const stats = {
-    filesSkipped: 0,
+export async function buildReport(
+  files: TranscriptFile[],
+  options: { days: number; cutoffMs: number; projectsDir: string; filesSkipped: number },
+): Promise<Report> {
+  const { days, cutoffMs } = options;
+  const stats: Stats = {
+    filesSkipped: options.filesSkipped,
     userLines: 0,
     humanUserLines: 0,
     askResults: 0,
     askResultsParsed: 0,
     askResultsLabelled: 0,
   };
-  const files = listFiles(dir, cutoffMs, stats);
 
-  const runs = [];
-  const entries = [];
-  const bornMs = new Map();
+  const found: { run: Run; bornMs: number }[] = [];
+  const entries: CandidateEntry[] = [];
   let filesRead = 0;
   for (const file of files) {
     const reader = await readFile(file, cutoffMs, stats);
@@ -810,20 +1024,19 @@ async function main() {
     }
     filesRead++;
     for (const run of reader.runs) {
-      if (Date.parse(run.endTime) < cutoffMs) continue;
-      runs.push(run);
-      bornMs.set(run, file.bornMs);
+      if (Date.parse(String(run.endTime)) < cutoffMs) continue;
+      found.push({ run, bornMs: file.bornMs });
     }
     entries.push(...reader.candidates);
   }
-  markCopies(runs, bornMs);
-  runs.sort((a, b) => byTime(a.startTime, b.startTime));
+  markCopies(found);
+  const runs = found.map(({ run }) => run).sort((a, b) => byTime(a.startTime, b.startTime));
   const candidates = dedupe(entries).sort((a, b) => byTime(a.time, b.time));
 
-  const counts = Object.fromEntries(KINDS.map((kind) => [kind, 0]));
+  const counts = Object.fromEntries(KINDS.map((kind) => [kind, 0])) as Record<Kind, number>;
   for (const candidate of candidates) counts[candidate.kind]++;
   const originals = runs.filter((run) => !run.copyOf);
-  const summary = {
+  const summary: Summary = {
     filesRead,
     filesSkipped: stats.filesSkipped,
     runs: originals.length,
@@ -834,28 +1047,28 @@ async function main() {
     warnings: formatWarnings(stats),
   };
 
-  const path = outputPath(out);
-  const report = {
+  return {
     generatedAt: new Date().toISOString(),
     days,
     cutoff: new Date(cutoffMs).toISOString(),
-    projectsDir: dir,
+    projectsDir: options.projectsDir,
     summary,
     runs,
     candidates,
   };
-  writeFileSync(path, `${JSON.stringify(report, null, 2)}\n`);
-
-  console.log(`Wrote ${path}`);
-  console.log(`Files read: ${summary.filesRead}`);
-  if (summary.filesSkipped) console.log(`Files skipped (unreadable): ${summary.filesSkipped}`);
-  console.log(`Runs: ${summary.runs} in ${summary.sessions} sessions`);
-  console.log(`Fork copies folded: ${summary.forkCopies}`);
-  console.log(`Candidates: ${KINDS.map((kind) => `${counts[kind]} ${kind}`).join(", ")}`);
-  console.log(
-    `Claude Code versions: ${summary.versions.min ?? "none"} to ${summary.versions.max ?? "none"}`,
-  );
-  for (const warning of summary.warnings) console.log(`Warning: ${warning}`);
 }
 
-await main();
+export function writeReport(report: Report, out: string | undefined): string {
+  const path = outputPath(out);
+  writeFileSync(path, `${JSON.stringify(report, null, 2)}\n`);
+  return path;
+}
+
+function outputPath(out: string | undefined): string {
+  if (out) {
+    const path = resolve(out);
+    mkdirSync(dirname(path), { recursive: true });
+    return path;
+  }
+  return join(mkdtempSync(join(tmpdir(), RUN_PREFIX)), CANDIDATES_FILE);
+}

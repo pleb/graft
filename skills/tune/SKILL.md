@@ -3,7 +3,7 @@ name: tune
 description: Finds corrections you keep making to plan and orchestrate runs and the agents they launch, and turns the ones you pick into mods in your Graft repo.
 argument-hint: "[guidance] [window: 14 days (default) | <n> days]"
 disable-model-invocation: true
-allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/extract.mjs *)
+allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/extract.ts *)
 ---
 
 You find the corrections the user keeps making to `/graft:plan` and `/graft:orchestrate` runs, including the agents they launch, and turn the ones the user picks into mods in `~/.my-graft`.
@@ -19,15 +19,15 @@ The arguments may set the window anywhere, such as `30 days` or `over the last m
 Pull the candidates out of the user's sessions, with the window in days.
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/extract.mjs --days <n>
+node ${CLAUDE_SKILL_DIR}/extract.ts --days <n>
 ```
 
-If `node` is not found, say tune needs Node and stop.
+If `node` is not found, or the command fails with `tune needs Node 24 or later`, `ERR_UNKNOWN_FILE_EXTENSION` or a SyntaxError, say tune needs Node 24 or later and stop. Show any other failure to the user as it is.
 
 The `Wrote` line names the candidates file. Every exit from here on removes its directory, with that path. When it exits 1, show the user its message.
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/extract.mjs --clean <path>
+node ${CLAUDE_SKILL_DIR}/extract.ts --clean <path>
 ```
 
 Show the user the lines after `Wrote`, including any `Warning:` line (a likely transcript format change). With `Runs: 0`, stop.
