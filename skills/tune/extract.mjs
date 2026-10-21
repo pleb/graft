@@ -151,7 +151,7 @@ function repoRoot(cwd) {
   if (!cwd) return null;
   if (!roots.has(cwd)) {
     let root = cwd;
-    for (let dir = resolve(cwd); ; dir = dirname(dir)) {
+    for (let dir = resolve(cwd); existsSync(dir); dir = dirname(dir)) {
       if (existsSync(join(dir, ".git"))) {
         root = dir;
         break;
@@ -170,21 +170,22 @@ function expandHome(path) {
 function planFromArgs(args, root, recorded) {
   if (!root) return null;
   const candidates = [];
-  for (const word of args.split(/\s+/)) {
+  for (const [index, word] of args.split(/\s+/).entries()) {
     const token = word
       .replace(/^["'`(]+/, "")
       .replace(/^@/, "")
       .replace(/[)"'`.,;:!?]+$/, "");
+    const first = index === 0;
     if (token.includes("/")) {
       if (token.endsWith(".md"))
-        candidates.push({ path: resolve(root, expandHome(token)), fallback: true });
+        candidates.push({ path: resolve(root, expandHome(token)), fallback: first });
       continue;
     }
     const name = token.replace(/\.md$/, "");
     if (!PLAN_NAME.test(name)) continue;
     candidates.push({
       path: join(root, ".claude", "plans", `${name}.md`),
-      fallback: name.includes("-") || token.endsWith(".md"),
+      fallback: first && (name.includes("-") || token.endsWith(".md")),
     });
   }
   return (
@@ -254,8 +255,8 @@ function splitAnswer(answer, labels, multiSelect) {
   if (!multiSelect) return { selected: [], freeText: answer.trim() };
   const elements = answerElements(answer);
   const selected = elements.filter((element) => labels.includes(element));
-  const prefixed = selected.length > 0 ? null : prefixSplit(answer, labels);
-  if (prefixed?.selected.length) return prefixed;
+  const prefixed = prefixSplit(answer, labels);
+  if (prefixed.selected.length > selected.length) return prefixed;
   const freeText = elements
     .filter((element) => !labels.includes(element))
     .join(", ")
@@ -330,6 +331,12 @@ function hasParsedAnswers(result) {
   );
 }
 
+function hasLabels(result) {
+  return (Array.isArray(result?.questions) ? result.questions : []).some(
+    (question) => optionLabels(question).length > 0,
+  );
+}
+
 function clarifyCorrections(feedback, questions) {
   const answers = {};
   const notes = {};
@@ -337,11 +344,21 @@ function clarifyCorrections(feedback, questions) {
   let field = null;
   const at = feedback.indexOf(CLARIFY_QUESTIONS);
   if (at < 0) return [];
-  for (const line of feedback.slice(at + CLARIFY_QUESTIONS.length).split("\n")) {
-    const asked = line.match(/^- "(.*)"$/);
-    if (asked) {
-      question = asked[1];
+  const asked = (Array.isArray(questions) ? questions : []).filter(
+    (candidate) => typeof candidate?.question === "string",
+  );
+  const lines = feedback.slice(at + CLARIFY_QUESTIONS.length).split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const known = asked
+      .map(({ question: text }) => text)
+      .filter((text) => lines.slice(i, i + text.split("\n").length).join("\n") === `- "${text}"`)
+      .sort((a, b) => b.length - a.length)[0];
+    const header = known ?? line.match(/^- "(.*)"$/)?.[1];
+    if (header !== undefined) {
+      question = header;
       field = null;
+      i += header.split("\n").length - 1;
       continue;
     }
     const value = question == null ? null : line.match(/^ {2}(Answer|User notes): (.*)$/);
@@ -350,9 +367,8 @@ function clarifyCorrections(feedback, questions) {
       field[question] = value[2];
     } else if (field) field[question] += `\n${line}`;
   }
-  const asked = Array.isArray(questions) ? questions : [];
   return [...new Set([...Object.keys(answers), ...Object.keys(notes)])].flatMap((text) => {
-    const input = asked.find((candidate) => candidate?.question === text);
+    const input = asked.find((candidate) => candidate.question === text);
     return questionCorrections(
       text,
       input ? optionLabels(input) : null,
@@ -492,7 +508,10 @@ class FileReader {
     }
     if (this.isAskResult(line, content)) {
       this.stats.askResults++;
-      if (hasParsedAnswers(line.toolUseResult)) this.stats.askResultsParsed++;
+      if (hasParsedAnswers(line.toolUseResult)) {
+        this.stats.askResultsParsed++;
+        if (hasLabels(line.toolUseResult)) this.stats.askResultsLabelled++;
+      }
       for (const { source, question, text, context } of answerCorrections(line.toolUseResult)) {
         this.addCandidate(line, "answer", { source, question, text, context });
       }
@@ -669,6 +688,11 @@ function formatWarnings(stats) {
       `${stats.askResults} AskUserQuestion results were read but no answer parsed; the transcript format may have changed.`,
     );
   }
+  if (stats.askResultsParsed > 0 && stats.askResultsLabelled === 0) {
+    warnings.push(
+      `${stats.askResultsParsed} AskUserQuestion results had answers but no option labels; the transcript format may have changed.`,
+    );
+  }
   if (stats.userLines > 0 && stats.humanUserLines === 0) {
     warnings.push(
       "No user line has a human origin, so typed messages cannot be told apart; the transcript format may have changed.",
@@ -696,6 +720,7 @@ async function main() {
     humanUserLines: 0,
     askResults: 0,
     askResultsParsed: 0,
+    askResultsLabelled: 0,
   };
   const files = listFiles(dir, cutoffMs, stats);
 
