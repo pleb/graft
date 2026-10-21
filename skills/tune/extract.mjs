@@ -290,7 +290,6 @@ function optionLabels(question) {
     .filter((label) => typeof label === "string");
 }
 
-// With labels null (the question's options are unknown), the whole answer counts as free text.
 function questionCorrections(text, labels, multiSelect, answer, note) {
   const corrections = [];
   const context = { question: truncate(text, CONTEXT_LIMIT), options: labels };
