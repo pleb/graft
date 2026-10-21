@@ -65,6 +65,7 @@ function parseCli() {
 }
 
 function removeRunDir(path) {
+  if (path.split(/[\\/]/).includes("..")) throw new Error(`${path} has a .. segment`);
   const given = resolve(path);
   const named = basename(given) === CANDIDATES_FILE ? dirname(given) : given;
   let stat;
@@ -72,23 +73,31 @@ function removeRunDir(path) {
     stat = lstatSync(named);
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
-    console.log(`${named} is already clean`);
-    return;
   }
-  if (stat.isSymbolicLink()) throw new Error(`${named} is a symlink`);
-  if (!stat.isDirectory()) throw new Error(`${named} is not a directory`);
+  if (stat?.isSymbolicLink()) throw new Error(`${named} is a symlink`);
+  if (stat && !stat.isDirectory()) throw new Error(`${named} is not a directory`);
   const dir = join(realpathSync(dirname(named)), basename(named));
   const temp = realpathSync(tmpdir());
   if (dirname(dir) !== temp) throw new Error(`${dir} is not directly in ${temp}`);
   if (!basename(dir).startsWith(RUN_PREFIX)) {
     throw new Error(`${dir} does not start with ${RUN_PREFIX}`);
   }
+  if (!stat) {
+    console.log(`${dir} is already clean`);
+    return;
+  }
   const entries = readdirSync(dir, { withFileTypes: true });
   const other = entries.find((entry) => entry.name !== CANDIDATES_FILE || !entry.isFile());
   if (other)
     throw new Error(`${dir} holds ${other.name}, which is not a regular ${CANDIDATES_FILE} file`);
   if (entries.length) rmSync(join(dir, CANDIDATES_FILE));
-  rmdirSync(dir);
+  try {
+    rmdirSync(dir);
+  } catch (error) {
+    if (!entries.length) throw error;
+    console.error(`Removed ${CANDIDATES_FILE} but not ${dir}: ${error.message}`);
+    process.exit(1);
+  }
   console.log(`Removed ${dir}`);
 }
 
