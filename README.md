@@ -13,7 +13,7 @@ Claude, install Graft https://raw.githubusercontent.com/pleb/graft/main/agent-in
 
 That's it! Install creates (or reuses) a private `<login>/my-graft` repo holding Graft's history. Your mods live there, and `/graft:update` merges the latest Graft into it.
 
-To install Graft on another machine, or again after `/graft:uninstall`, run the same command. Install finds your `my-graft` repo and clones it, so your mods come with it.
+To install Graft on another machine, or again after `/graft:uninstall`, run the same command. Install clones your existing `my-graft` repo, so your mods come with it.
 
 ## How it works
 
