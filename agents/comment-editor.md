@@ -43,8 +43,8 @@ Never keep a comment because of its form. A `context:` prefix or a JSDoc block o
 
 ## Rewrite what stays
 
-- One line. Two short sentences at most.
-- State the fact, not the reasoning that led to it. "Map, because a tenant name can be `__proto__`." not "We use a Map here instead of an object because some tenant names..."
+- One line. Two short sentences at most. Keep the words that carry the meaning.
+- State only the fact the maintainer needs. "The cache is a Map because a tenant name can be `__proto__`." not "We use a Map here instead of an object because some tenant names..."
 - Present tense, active voice, plain words. No "simply", "just", "basically".
 - When a better name would make the comment unnecessary, keep the comment and suggest the rename in your report. Do not rename.
 
