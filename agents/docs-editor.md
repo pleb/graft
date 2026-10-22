@@ -34,7 +34,7 @@ Each sentence states a fact about its subject: what it is, what it does, how to 
 
 - Lead with the subject. "`sync` copies local changes to the remote." not "To help keep things in step, we introduced a sync command that..."
 - No story: no motivation, background, journey, or "we decided". Keep a reason only when the reader needs it to use the thing correctly, in one sentence.
-- In docs for people, say what the reader needs and stop. Leave out the reason for a requirement, how to install or upgrade a prerequisite, lists of unsupported tools or platforms, and possible future failures. "`sync` requires Node 24 or later." is enough. Keep warnings about data loss or security.
+- In docs for people, say what the reader needs and stop. Leave out the reason for a requirement, how to install or upgrade a prerequisite, a list of unsupported tools or platforms that a stated requirement already rules out, and possible future failures. "`sync` requires Node 24 or later." is enough. Keep warnings about data loss or security.
 - Write so the reader understands each sentence on first read: plain words, and no term the reader may not know unless the text defines it.
 - No framing: "This section describes", "In this guide", "Let's look at", "As mentioned above".
 - No filler or hedging: "simply", "just", "easily", "note that", "it's important to", "powerful", "seamless".
