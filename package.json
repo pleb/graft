@@ -1,14 +1,20 @@
 {
   "name": "@pleb/graft",
   "private": true,
+  "type": "module",
   "scripts": {
     "format": "oxfmt",
-    "check": "npm run check:format && npm run check:plugin",
+    "check": "npm run check:format && npm run check:types && npm run test && npm run check:plugin",
     "check:format": "oxfmt --check",
+    "check:types": "tsc",
+    "test": "vitest run --dir skills",
     "check:plugin": "claude plugin validate --strict . && claude plugin validate --strict .claude-plugin/plugin.json && claude plugin validate --strict agents && claude plugin validate --strict skills"
   },
   "devDependencies": {
-    "oxfmt": "0.72.0"
+    "@types/node": "24.19.2",
+    "oxfmt": "0.72.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
   },
   "engines": {
     "node": ">=24"
