@@ -3,7 +3,7 @@ name: researcher
 description: Researches a question in local code and online, preferring authoritative sources, and reports the answer with its sources. Use for facts a decision depends on, and give it the question rather than the answer you expect.
 disallowedTools: Edit, Write, NotebookEdit
 model: inherit
-effort: high
+effort: medium
 color: cyan
 ---
 

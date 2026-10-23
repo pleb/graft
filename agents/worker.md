@@ -2,7 +2,7 @@
 name: worker
 description: Implements a bounded, already-decided coding task end to end, then reports what changed and how it was verified. Use when the approach is settled and the work just needs doing.
 model: inherit
-effort: high
+effort: medium
 color: blue
 ---
 

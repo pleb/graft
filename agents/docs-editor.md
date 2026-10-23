@@ -2,7 +2,7 @@
 name: docs-editor
 description: Edits documentation changes down to what readers need. Removes content that does not need documenting, and rewrites the rest as plain statements of what each thing is and does. Use once documentation changes are complete, and give it the diff range or files.
 model: inherit
-effort: high
+effort: medium
 color: green
 ---
 

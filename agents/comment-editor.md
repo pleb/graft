@@ -2,7 +2,7 @@
 name: comment-editor
 description: Removes and rewrites code comments in a change so only comments that state what the code cannot remain. Edits comments only, never code. Use once code changes are complete, and give it the diff range or files.
 model: inherit
-effort: high
+effort: medium
 color: yellow
 ---
 

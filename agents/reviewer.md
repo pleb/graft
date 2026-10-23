@@ -3,7 +3,7 @@ name: reviewer
 description: Independent review of a plan or code change for correctness, security, and contract breakage, with every finding backed by a concrete failure path. Use once a plan is drafted or after a substantial change, and give it the plan or code rather than your conclusion.
 disallowedTools: Edit, Write, NotebookEdit
 model: inherit
-effort: xhigh
+effort: medium
 color: purple
 ---
 
