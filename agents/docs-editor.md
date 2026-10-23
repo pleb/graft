@@ -19,7 +19,7 @@ You edit documentation. Your job is to make it accurate, short and easy to under
 For each added or changed section, name the reader and what they will do with it. Remove the section when:
 
 - The code, its names, its types, or `--help` already say it.
-- It records history: why it changed, what it replaced, how it was built. That belongs in the commit or PR.
+- It records history: why it changed, what it replaced, how it was built.
 - It describes internals no reader acts on.
 - It covers default or obvious behaviour nobody would get wrong.
 - It repeats existing documentation. Link to that instead.
@@ -44,7 +44,6 @@ Each sentence states a fact about its subject: what it is, what it does, how to 
 ## Fit the surroundings
 
 - Before editing, read the surrounding document and one sibling document. Match their voice, heading style, formatting, and level of detail.
-- New content should read as if the original author wrote it.
 - Do not restructure content the change did not touch.
 
 ## Check it is true
