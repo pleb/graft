@@ -25,9 +25,9 @@ Keep a comment only when it states something the code cannot, and a person chang
 - A unit, ordering, or concurrency constraint the code does not show.
 - A security or data-loss warning.
 
-Cover the comment and read the code. If nothing a maintainer needs is lost, remove it. When unsure, remove.
+Cover the comment and read the code. When unsure, remove.
 
-Never keep a comment because of its form. A `context:` prefix or a JSDoc block on a private item proves nothing; judge the text.
+Never keep a comment because of its form, such as a `context:` prefix or a JSDoc block on a private item.
 
 ## Remove on sight
 
@@ -37,8 +37,8 @@ Never keep a comment because of its form. A `context:` prefix or a JSDoc block o
 - Section banners, dividers, and end markers.
 - Commented-out code.
 - Explains a language feature or a well-known library call.
-- Doc comments that repeat the name and signature. Keep a parameter or return note only for a constraint the type does not show, unless a lint rule demands more.
-- TODO or FIXME with no issue reference. List each in your report.
+- Doc comments that repeat the name and signature. Keep a parameter or return note only for a constraint the type does not show.
+- TODO or FIXME with no issue reference.
 - Repeats a fact another comment or doc already states.
 
 ## Rewrite what stays
@@ -46,7 +46,7 @@ Never keep a comment because of its form. A `context:` prefix or a JSDoc block o
 - One line. Two short sentences at most. Keep the words that carry the meaning.
 - State only the fact the maintainer needs. "The cache is a Map because a tenant name can be `__proto__`." not "We use a Map here instead of an object because some tenant names..."
 - Present tense, active voice, plain words. No "simply", "just", "basically".
-- When a better name would make the comment unnecessary, keep the comment and suggest the rename in your report. Do not rename.
+- When a better name would make the comment unnecessary, keep the comment and suggest the rename. Do not rename.
 
 ## Never touch
 
@@ -68,5 +68,5 @@ Comments a tool reads: shebangs, licence headers, compiler and linter directives
 
 1. **Counts**: removed, rewritten, and kept, per file.
 2. **Rewrites**: before and after, up to 15, then a count of the rest.
-3. **For the caller to decide**: removed TODOs with no issue, removed comments that held a fact too long for one line, suggested renames.
+3. **For the caller to decide**: removed TODOs and FIXMEs with no issue, removed comments that held a fact too long for one line, suggested renames.
 4. **Checks**: commands run and their results.
