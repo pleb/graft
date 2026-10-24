@@ -19,7 +19,7 @@ To install Graft on another machine, or again after `/graft:uninstall`, run the 
 
 ![Graft's flow: /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
 
-Start by creating a plan. Plans are automatically saved to `.claude/plans` in the repo. The first time, Graft asks whether to ignore them.
+Start by creating a plan. Plans are automatically saved to `.claude/plans` in the repo, or, after asking, to `~/.my-graft/.claude/plans` when you plan outside a repo. The first time, Graft asks whether to ignore them.
 
 The plan can be a task with any level of initial detail. Graft will help build enough context for successful plan execution.
 

@@ -8,6 +8,8 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/extract.ts *)
 
 You find the corrections the user keeps making to `/graft:plan` and `/graft:orchestrate` runs, including the agents they launch, and turn the ones the user picks into mods in `~/.my-graft`.
 
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its section `## Ask the user`.
+
 **Arguments:** $ARGUMENTS
 
 ## Start
@@ -34,7 +36,7 @@ Show the user the lines after `Wrote`, including any `Warning:` line (a likely t
 
 ## Analyse
 
-Send one `graft:researcher` the candidates file and the clone, with every path absolute (expand `~/.my-graft`): the clone's current `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/pr/SKILL.md`, `agents/*.md` and, when it exists, `MODS.md`. Its brief carries the user's guidance and these rules:
+Send one `graft:researcher` the candidates file and the clone, with every path absolute (expand `~/.my-graft`): the clone's current `skills/common.md`, `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/pr/SKILL.md`, `agents/*.md` and, when it exists, `MODS.md`. Its brief carries the user's guidance and these rules:
 
 - **Guidance**: apply the user's guidance first (for example, skip the runs it excludes).
 - **Evidence**: the candidates file is the only evidence. Do not open transcripts.
@@ -46,11 +48,11 @@ Send one `graft:researcher` the candidates file and the clone, with every path a
   - A run with none of those belongs to the task of the plan it reads, when it reads one. When it reads several or none, it is a task of its own.
   - A run with `copyOf` counts as the run it copies.
 - **Recurrence**: keep a correction only when the same correction appears in at least 2 different tasks from at least 2 sessions. Each kept correction is a finding.
-- **Target file**: pick it from each run's agent launches, the correction's time and its `skill` (the skill typed most recently, when not the run's own). The target is `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/pr/SKILL.md` (the worker that raises a PR follows it) or an `agents/*.md` file.
-- **Coverage**: read the target file's history.
+- **Target file**: pick it from each run's agent launches, the correction's time and its `skill` (the skill typed most recently, when not the run's own). The target is `skills/common.md` (rules plan, orchestrate and pr share), `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/pr/SKILL.md` (the worker that raises a PR follows it) or an `agents/*.md` file.
+- **Coverage**: read the history of the target file and of `skills/common.md`.
 
   ```bash
-  git -C <clone> log --first-parent -p --format='%h %cI' -- <target file>
+  git -C <clone> log --first-parent -p --format='%h %cI' -- <target file> skills/common.md
   ```
 
   - Judge when the covering meaning first reached the clone, by meaning rather than exact wording.
@@ -63,7 +65,7 @@ Send one `graft:researcher` the candidates file and the clone, with every path a
 
 ## Pick
 
-List the findings, numbered, each with its rule, target file and evidence. Ask which to make into mods with `AskUserQuestion`: multi-select questions of 2 to 4 findings, the most recurring first, over as many calls as needed. Ask a lone finding as take or skip.
+List the findings, numbered, each with its rule, target file and evidence. Ask which to make into mods: multi-select questions of 2 to 4 findings, the most recurring first, over as many calls as needed. Ask a lone finding as take or skip.
 
 With no findings, say so, show the counts from Extract, and stop.
 

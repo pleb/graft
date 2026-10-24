@@ -5,7 +5,9 @@ argument-hint: "[when... do...]"
 disable-model-invocation: true
 ---
 
-You change the user's Graft clone at `~/.my-graft`, one mod at a time. If a command fails, help the user resolve it, then carry on.
+You change the user's Graft clone at `~/.my-graft`, one mod at a time.
+
+Read `~/.my-graft/skills/common.md` and follow its sections `## Ask the user` and `## Command failures`.
 
 The mod registry is `~/.my-graft/MODS.md`.
 
@@ -13,21 +15,7 @@ The mod registry is `~/.my-graft/MODS.md`.
 
 ## Sync
 
-Check that the clone is on `main` with no changed or untracked files.
-
-```bash
-git -C ~/.my-graft status --short --branch
-```
-
-It prints only the `## main...origin/main` line. If it prints more, use the `AskUserQuestion` tool to work with the user until it prints that line alone, then carry on.
-
-Bring in mods pushed to `origin` from the user's other machines.
-
-```bash
-git -C ~/.my-graft pull --ff-only origin main
-```
-
-If the pull cannot fast-forward, help the user merge `origin/main`; never rebase. For any conflicts, read the registry to understand what each mod changes, and use the `AskUserQuestion` tool to get a decision on how to resolve them.
+Follow common.md's `## Sync the clone`.
 
 ## Read the registry
 

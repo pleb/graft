@@ -7,11 +7,11 @@ disable-model-invocation: true
 
 You are the coordinator. Agents do the work. You order it, write the briefs, judge the results, and commit.
 
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work` and `## Settings`.
+
 **Arguments:** $ARGUMENTS
 
 ## Start
-
-The arguments may name a reviewer model (`fable`, `opus` or `sonnet`) anywhere, such as `sonnet` or `review with sonnet`. Take out the words that set it (all of `review with sonnet`, not just `sonnet`) before reading the rest. A word that belongs to the main text stays in it (for example, `add sonnet support` is the work); ask when it is unclear. The default is Opus.
 
 The arguments may also ask for a PR, such as `open a pr` or `raise a ready pr that resolves #42`. Take out the whole request, including any guidance for the PR, the same way, and keep it for `## Raise a PR`.
 
@@ -19,13 +19,7 @@ Find the root with `git rev-parse --show-toplevel`.
 
 ## Find the work
 
-Take the first that applies:
-
-1. A file path: that file is the plan.
-2. A plan name: the arguments match `<root>/.claude/plans/<name>.md` (`.md` optional). That file is the plan.
-3. A single kebab-case word with no matching plan: list the plans and ask whether it names one of them or is the work.
-4. Other text: that text is the work.
-5. Nothing: the plan or task list in this conversation. Ask when there is none, or more than one.
+The work in this conversation is a plan or task list. Ask when there is none, or more than one.
 
 When the work is a plan file (including a plan in this conversation written to or read from one), check for the Graft footer: a `Plan by Graft.` line after a thematic break, outside any code fence. It need not be the last line. Skip the check for a plan without it. Otherwise warn when either holds:
 
@@ -71,7 +65,7 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 
 ## Raise a PR
 
-When the plan or the user asks for a PR, raise it after Clean up, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it. Its arguments are the plan's PR request and the user's, the user's winning where they differ. Its brief also carries the plan file or the work you were given, and any issue numbers and motivation from this conversation. Where pr says to ask, the worker stops and reports the question; ask the user and send it again. If no PR is raised, say why in Report.
+When the plan or the user asks for a PR, raise it after Clean up, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with the common.md it names at `${CLAUDE_SKILL_DIR}/../common.md`. Its arguments are the plan's PR request and the user's, the user's winning where they differ. Its brief also carries the plan file or the work you were given, and any issue numbers and motivation from this conversation. Where pr or common.md says to ask, the worker stops and reports the question; ask the user and send it again. If no PR is raised, say why in Report.
 
 ## Ask, do not guess
 
@@ -84,3 +78,11 @@ Ask the user when something is ambiguous, needs more than a straightforward deci
 - Review findings acted on, and those dismissed with the reason.
 - Items the cleanup agents flagged for a decision.
 - Anything left undone.
+
+## Delete the plan
+
+Run this step only when the work is a plan file with the Graft footer and every milestone is done, including the PR when one was asked for.
+
+Run `git -C <plan's directory> ls-files --error-unmatch <plan file>`. Go on only when it fails with `did not match any file(s) known to git`; otherwise keep the plan.
+
+With `orchestrate.deletePlan` set to `always`, delete the plan without asking; with `never`, keep it. Otherwise ask whether to delete it: **Yes**, **Yes, don't ask again** (sets `always`), **No**, or **No, don't ask again** (sets `never`).

@@ -4,7 +4,9 @@ description: Removes Graft from Claude Code and deletes ~/.my-graft. Your my-gra
 disable-model-invocation: true
 ---
 
-You remove Graft from this machine. The user's `my-graft` repo on GitHub stays. If a command fails, help the user resolve it, then carry on.
+You remove Graft from this machine. The user's `my-graft` repo on GitHub stays.
+
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user` and `## Command failures`.
 
 ## Confirm
 
@@ -14,7 +16,7 @@ When `~/.my-graft` exists, check it for work that is not on GitHub.
 git -C ~/.my-graft status --short --branch
 ```
 
-Always ask with `AskUserQuestion` whether to delete `~/.my-graft`, and show that output. It does not list stashes, other branches or ignored files.
+Always ask whether to delete `~/.my-graft`, and show that output. It does not list stashes, other branches or ignored files.
 
 On no, stop before removing anything.
 
