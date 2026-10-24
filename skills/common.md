@@ -44,20 +44,8 @@ If the pull cannot fast-forward, help the user merge `origin/main`; never rebase
 
 ## Settings
 
-Settings live in `~/.my-graft/graft-settings.json`, a JSON object keyed by skill, then by setting (for example, `{"plan": {"outsideRepoPlans": "always"}}`). A missing file means no settings. If the file is not valid JSON, tell the user, treat it as no settings, and never write to it.
+Settings live in `~/.my-graft/graft-settings.json`, a JSON object keyed by skill, then by setting (for example, `{"plan": {"outsideRepoPlans": "always"}}`). A missing file means no settings.
 
-Write a setting only when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded). Otherwise the setting holds for this run only, and nothing is created. Do not pull before writing.
+Save a setting only when `~/.my-graft` is the Graft clone (`git -C ~/.my-graft rev-parse --show-toplevel` prints it); otherwise the setting holds for this run only. To save, change only that key, then commit `graft-settings.json` alone and push it to `origin main`.
 
-1. Skip the write while the clone has a merge in progress (`git -C ~/.my-graft rev-parse -q --verify MERGE_HEAD` succeeds). Note whether the commit may run: the clone is on `main`, `git -C ~/.my-graft status --porcelain -- graft-settings.json` prints nothing, and `git -C ~/.my-graft rev-list origin/main..HEAD` prints nothing.
-2. Re-read the file and change only the one key.
-3. Only when step 1 found the commit may run, commit and push the file.
-
-   ```bash
-   git -C ~/.my-graft add -- graft-settings.json
-   git -C ~/.my-graft commit -m "Update graft settings" -- graft-settings.json
-   git -C ~/.my-graft push origin main
-   ```
-
-4. When a step fails or the commit may not run, tell the user what is left (an uncommitted or unpushed settings file) and carry on. A rejected push is reported; the next Sync merges it.
-
-Whenever a "don't ask again" answer cannot be saved, tell the user why.
+When a "don't ask again" answer cannot be saved, tell the user why.
