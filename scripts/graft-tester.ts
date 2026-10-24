@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
-import { resolve } from "node:path";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 
 const NAME = "graft-tester";
 const TESTER_NAME = /^graft-tester( \(\d+\))?$/;
@@ -54,8 +55,10 @@ function start(args: string[]): void {
       repoRoot,
       "--permission-mode",
       "auto",
+      "--add-dir",
+      join(homedir(), ".my-graft"),
       "--settings",
-      JSON.stringify({ crossSessionInbound: "accept" }),
+      JSON.stringify({ crossSessionInbound: "accept", worktree: { bgIsolation: "none" } }),
       "--disallowedTools",
       "AskUserQuestion",
       "--append-system-prompt",
