@@ -63,7 +63,6 @@ function start(args: string[]): void {
         worktree: { bgIsolation: "none" },
         permissions: {
           allow: ["Bash(rm .claude/plans/*)", "Bash(rm /*/.claude/plans/*)"],
-          deny: ["Bash(rm * *.claude/plans/*)", "Bash(rm *.claude/plans/*..*)"],
         },
       }),
       "--disallowedTools",
