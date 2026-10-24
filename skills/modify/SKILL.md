@@ -5,7 +5,9 @@ argument-hint: "[when... do...]"
 disable-model-invocation: true
 ---
 
-You change the user's Graft clone at `~/.my-graft`, one mod at a time. The install guide at https://raw.githubusercontent.com/pleb/graft/main/agent-install.md creates the clone. If a command fails, help the user resolve it, then carry on.
+You change the user's Graft clone at `~/.my-graft`, one mod at a time. If a command fails, help the user resolve it, then carry on.
+
+The mod registry is `~/.my-graft/MODS.md`.
 
 **Arguments:** $ARGUMENTS
 
@@ -17,26 +19,26 @@ Check that the clone is on `main` with no changed or untracked files.
 git -C ~/.my-graft status --short --branch
 ```
 
-It prints only the `## main...origin/main` line. If it prints more, ask, and carry on only once it prints that line alone.
+It prints only the `## main...origin/main` line. If it prints more, use the `AskUserQuestion` tool to work with the user until it prints that line alone, then carry on.
 
-Bring in mods pushed from the user's other machines.
+Bring in mods pushed to `origin` from the user's other machines.
 
 ```bash
 git -C ~/.my-graft pull --ff-only origin main
 ```
 
-If the pull cannot fast-forward, help the user merge `origin/main`; never rebase.
+If the pull cannot fast-forward, help the user merge `origin/main`; never rebase. For any conflicts, read the registry to understand what each mod changes, and use the `AskUserQuestion` tool to get a decision on how to resolve them.
 
 ## Read the registry
 
-Read `~/.my-graft/MODS.md` if it exists. A change to an existing mod revises its row and keeps its Change name. A request that contradicts a mod says so in the first round.
+Read the registry if it exists. A change to an existing mod revises its row and keeps its Change name. A request that contradicts a mod says so in the first round.
 
 ## Settle
 
 Read `~/.my-graft/skills/plan/SKILL.md` and follow its sections `## Understand` and `## Settle the solution`. Differences:
 
-- No plans folder, no plan file, and no plan review pass. The plan stays in the conversation.
-- The user approves the plan before any edit. Execution follows in this conversation.
+- No plans folder and no plan file. The plan stays in the conversation.
+- The user approves the plan before any edit. Continue to implementation once the plan is approved.
 - Every agent brief (researchers here, workers and reviewers in Implement) names the clone by absolute path as the repo to work in, so expand `~/.my-graft` in the brief.
 - Follow `~/.my-graft/AGENTS.md` (paths relative to the clone) if it exists, and include its rules in every agent brief.
 
@@ -45,7 +47,7 @@ Read `~/.my-graft/skills/plan/SKILL.md` and follow its sections `## Understand` 
 Read `~/.my-graft/skills/orchestrate/SKILL.md` and follow its sections `## Execute` and `## Ask, do not guess`. Differences:
 
 - Work in the clone on `main`, with no feature branch.
-- One commit for the whole mod, not one per milestone, made in Commit and push after the review, Record and Validate.
+- One commit for the whole mod, not one per milestone, made in Commit and push.
 - Review the whole mod once before Record: `graft:reviewer` and `graft:adversarial-reviewer` in parallel, both on Opus. This single review replaces Execute's review cadence. The target is the clone's uncommitted changes, by absolute path; the approved plan is the intent. Act on findings as Execute says.
 - Put review fixes in the uncommitted mod, not a separate fix commit.
 
@@ -60,7 +62,7 @@ Changes this copy makes to Graft. `/graft:update` keeps each one when it merges 
 | ------ | ------ |
 ```
 
-Change is a short imperative name, and also the commit subject. Intent is one sentence on the behaviour the user wants and why. No file lists or implementation detail.
+Change is a short imperative name, and also the commit subject. Intent is one to three sentences on the behaviour the user wants and why. No file lists or implementation detail.
 
 ## Validate
 

@@ -5,7 +5,9 @@ argument-hint: "[mode: ask (default) | auto]"
 disable-model-invocation: true
 ---
 
-You bring `~/.my-graft` up to date with Graft and keep the user's mods. The install guide at https://raw.githubusercontent.com/pleb/graft/main/agent-install.md creates `~/.my-graft`. If a command fails, help the user resolve it, then carry on.
+You bring `~/.my-graft` up to date with Graft and keep the user's mods. If a command fails, help the user resolve it, then carry on.
+
+The mod registry is `~/.my-graft/MODS.md`.
 
 **Arguments:** $ARGUMENTS
 
@@ -17,15 +19,15 @@ Check that the clone is on `main` with no changed or untracked files.
 git -C ~/.my-graft status --short --branch
 ```
 
-It prints only the `## main...origin/main` line. If it prints more, ask, and carry on only once it prints that line alone.
+It prints only the `## main...origin/main` line. If it prints more, use the `AskUserQuestion` tool to work with the user until it prints that line alone, then carry on.
 
-Bring in mods pushed from the user's other machines.
+Bring in mods pushed to `origin` from the user's other machines.
 
 ```bash
 git -C ~/.my-graft pull --ff-only origin main
 ```
 
-If the pull cannot fast-forward, help the user merge `origin/main`; never rebase.
+If the pull cannot fast-forward, help the user merge `origin/main`; never rebase. For any conflicts, read the registry to understand what each mod changes, and use the `AskUserQuestion` tool to get a decision on how to resolve them.
 
 ## Check upstream
 
@@ -44,7 +46,7 @@ Otherwise, summarise the incoming changes in a few lines from the commit subject
 git -C ~/.my-graft diff --stat HEAD...upstream/main
 ```
 
-Without `auto` in the arguments, ask before merging.
+Without `auto` in the arguments, ask with `AskUserQuestion` before merging.
 
 ## Merge
 
@@ -64,7 +66,7 @@ For each conflicted file, list the mods that changed it.
 git -C ~/.my-graft log --no-merges --format=%s upstream/main..HEAD -- <file>
 ```
 
-This prints their Change names, and `~/.my-graft/MODS.md` gives their intent. Resolve the file so upstream's change lands and each mod's intent still holds. Ask when both cannot hold, when no mod explains the clone's side, or when upstream now does what a mod did (offer to drop the mod and its row). `auto` never skips these questions.
+This prints their Change names, and the registry gives their intent. Resolve the file so upstream's change lands and each mod's intent still holds. Ask with `AskUserQuestion` when both cannot hold, when no mod explains the clone's side, or when upstream now does what a mod did (offer to drop the mod and its row). `auto` never skips these questions.
 
 To stop at any point before the commit, clear the merge and any fixes, including new files.
 
@@ -77,13 +79,13 @@ This is safe because Sync required a clean tree. (`merge --abort` can refuse onc
 
 ## Validate
 
-Check the merged plugin.
+Check the marketplace, the plugin manifest, and every agent and skill.
 
 ```bash
 claude plugin validate --strict ~/.my-graft
 ```
 
-If it fails, fix what the merge broke, or ask. If the user chooses to stop, clear the clone as Merge says.
+If it fails, fix what the merge broke, or ask with `AskUserQuestion`. If the user chooses to stop, clear the clone as Merge says.
 
 ## Commit and push
 
@@ -101,5 +103,5 @@ Staging everything is safe because Sync required a clean tree.
 
 - What came in from upstream.
 - Each conflict and how it was resolved.
-- Mods revised or dropped, with their `MODS.md` rows.
+- Mods revised or dropped, with their registry rows.
 - Ask the user to run `/reload-plugins`.
