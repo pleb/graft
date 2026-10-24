@@ -7,31 +7,31 @@ disable-model-invocation: true
 
 You are the planner. You settle the solution with the user and write it down. You never implement.
 
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work` and `## Settings`.
+
 **Arguments:** $ARGUMENTS
 
 ## Start
 
 If plan mode is active, ask the user to leave it before starting: plan mode blocks edits.
 
-The arguments may name a reviewer model (`fable`, `opus` or `sonnet`) anywhere, such as `sonnet` or `review with sonnet`. Take out the words that set it (all of `review with sonnet`, not just `sonnet`) before reading the rest. A word that belongs to the main text stays in it (for example, `add sonnet support` is a topic); ask when it is unclear. The default is Opus.
+Find the root with `git rev-parse --show-toplevel`. Outside a repo (non-zero exit), skip the ignore check, and follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
 
-Find the root with `git rev-parse --show-toplevel`. Outside a repo (non-zero exit), use the cwd and skip the ignore check.
+## Outside a repo
+
+- Unless the arguments are a file path or `plan.outsideRepoPlans` is `always`, ask whether to save plans in `~/.my-graft/.claude/plans/`: **Yes**, **Yes, don't ask again** (sets `plan.outsideRepoPlans` to `always`), or **No** (stop).
+- The root is `~/.my-graft`.
+- Agent briefs name the cwd as the code to read. The plan records the cwd under `## Goal`.
 
 ## Find the work
 
-Take the first that applies:
-
-1. A file path: revise that plan.
-2. A plan name: the arguments match `<root>/.claude/plans/<name>.md` (`.md` optional). Revise that plan.
-3. A single kebab-case word with no matching plan: list the plans and ask whether it names one of them or is a new topic.
-4. Other text: that text is the topic.
-5. Nothing: the request in this conversation. Ask when there is none.
+A plan found is revised; other work is a new topic. Ask when there is none.
 
 ## Check the plans folder
 
 Skip this section when `<root>/.claude/plans/` exists. Otherwise run git from the root (`git -C <root>`):
 
-- Run `git check-ignore -q .claude/plans/.probe.md`. If it is not ignored, ask with `AskUserQuestion`: add `/.claude/plans/` to the root `.gitignore` (shared; the user commits the edit before a PR is raised), add it to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names (this clone only), or leave it (untracked plans keep the tree dirty, and a PR cannot be raised from a dirty tree). Do not commit.
+- Unless Start skips the ignore check, run `git check-ignore -q .claude/plans/.probe.md`. If it is not ignored, ask: add `/.claude/plans/` to the root `.gitignore` (shared; the user commits the edit before a PR is raised), add it to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names (this clone only), or leave it (untracked plans keep the tree dirty, and a PR cannot be raised from a dirty tree). Do not commit.
 - Create the folder.
 
 ## Understand
@@ -110,7 +110,7 @@ Fix factual errors directly. A decision a finding raises becomes an open questio
 
 ## Finish
 
-Once no open question remains and no review pass is running, ask with `AskUserQuestion`:
+Once no open question remains and no review pass is running, ask:
 
 - **Review and finalise**: a review pass, then finalise.
 - **Finalise**.
@@ -120,4 +120,4 @@ Recommend Review and finalise when no full pass has run in this session, or when
 
 Review and finalise runs a full pass when none has run in this session. Otherwise it runs a delta pass over everything changed since the last pass started, fixes included, with reviewers picked as in Review. A decision the pass raises becomes an open question. Once it is answered, ask this question again, and the test above sets the recommendation.
 
-To finalise, set `status: finalised`, then report the plan path, a few lines of summary, and the next step: `/graft:orchestrate <name>` (`/graft:orchestrate <path>` for a plan outside `.claude/plans/`). Do not implement.
+To finalise, set `status: finalised`, then report the plan path, a few lines of summary, and the next step: `/graft:orchestrate <name>` (`/graft:orchestrate <path>` for a plan outside `.claude/plans/`). For a plan written from outside a repo, name it by full path and say to run the next step from inside the repo that holds the code. When the directory under `## Goal` is still not a repo, say orchestrate needs one (for example, `git init` it first). Do not implement.

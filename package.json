@@ -8,7 +8,9 @@
     "check:format": "oxfmt --check",
     "check:types": "tsc",
     "test": "vitest run --dir skills",
-    "check:plugin": "claude plugin validate --strict . && claude plugin validate --strict .claude-plugin/plugin.json && claude plugin validate --strict agents && claude plugin validate --strict skills"
+    "check:plugin": "claude plugin validate --strict . && claude plugin validate --strict .claude-plugin/plugin.json && claude plugin validate --strict agents && claude plugin validate --strict skills",
+    "start-graft-tester": "node scripts/graft-tester.ts start",
+    "stop-graft-tester": "node scripts/graft-tester.ts stop"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

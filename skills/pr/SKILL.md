@@ -9,6 +9,8 @@ disable-model-invocation: true
 
 Compose a short PR from the repo template, push, and create it.
 
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its section `## Ask the user`.
+
 **Arguments:** $ARGUMENTS
 
 ## Start
