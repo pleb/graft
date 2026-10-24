@@ -9,3 +9,5 @@ When a change or merge alters what a graphic shows, update the graphic, its `<de
 Match the existing style and palette, keep the 830px width (grow taller, not wider), keep text at least 14px and inside its box, and check that it reads on light and dark backgrounds. Keep preview files and screenshots outside the repo.
 
 The `README.md` explains how graft works and what it does.
+
+When this clone's `origin` is `pleb/graft` (`git remote get-url origin`), test changes to skills and agents as `CONTRIBUTING.md` describes.
