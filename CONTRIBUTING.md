@@ -2,7 +2,7 @@
 
 ## Testing
 
-Test skill changes in a `graft-tester` session that loads this checkout. Run your own session in `auto` permission mode, and opt into auto mode once by running `claude --permission-mode auto` interactively.
+Test skill changes in a `graft-tester` session that loads this checkout. Run your own session in `auto` permission mode, and opt into auto mode once by running `claude --permission-mode auto` interactively. The tester may delete files in `.claude/plans/` without asking.
 
 1. Run `npm run stop-graft-tester` to stop any `graft-tester` left from an earlier test.
 2. Note whether `~/.my-graft/graft-settings.json` exists, and its content.

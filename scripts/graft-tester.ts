@@ -58,7 +58,18 @@ function start(args: string[]): void {
       "--add-dir",
       join(homedir(), ".my-graft"),
       "--settings",
-      JSON.stringify({ crossSessionInbound: "accept", worktree: { bgIsolation: "none" } }),
+      JSON.stringify({
+        crossSessionInbound: "accept",
+        worktree: { bgIsolation: "none" },
+        permissions: {
+          allow: ["Bash(rm .claude/plans/*)", "Bash(rm /*/.claude/plans/*)"],
+          deny: [
+            "Bash(rm * *.claude/plans/*)",
+            "Bash(rm *.claude/plans/* *)",
+            "Bash(rm *.claude/plans/*..*)",
+          ],
+        },
+      }),
       "--disallowedTools",
       "AskUserQuestion",
       "--append-system-prompt",
