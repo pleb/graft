@@ -13,7 +13,7 @@ Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user
 
 ## Start
 
-The arguments may also ask for a PR, such as `open a pr` or `raise a ready pr that resolves #42`. Take out the whole request, including any guidance for the PR, the same way, and keep it for `## Raise a PR`.
+The arguments may also ask for a PR, such as `open a pr` or `raise a ready pr that resolves #42`. Take out the whole request, including any guidance for the PR, the same way as common.md's `## Reviewer model`, and keep it for `## Raise a PR`.
 
 Find the root with `git rev-parse --show-toplevel`.
 
@@ -83,6 +83,6 @@ Ask the user when something is ambiguous, needs more than a straightforward deci
 
 Run this step only when the work is a plan file with the Graft footer and every milestone is done, including the PR when one was asked for.
 
-Run `git -C <plan's directory> ls-files --error-unmatch <plan file>`. Go on only when it fails with `did not match any file(s) known to git`; otherwise keep the plan.
+Run `git -C <plan's directory> ls-files --error-unmatch <plan's absolute path>`. Go on only when it fails with `did not match any file(s) known to git`; otherwise keep the plan.
 
 With `orchestrate.deletePlan` set to `always`, delete the plan without asking; with `never`, keep it. Otherwise ask whether to delete it: **Yes**, **Yes, don't ask again** (sets `always`), **No**, or **No, don't ask again** (sets `never`).

@@ -55,6 +55,8 @@ Send one `graft:researcher` the candidates file and the clone, with every path a
   git -C <clone> log --first-parent -p --format='%h %cI' -- <target file> skills/common.md
   ```
 
+  When the target is `skills/common.md`, also log `'skills/*/SKILL.md'`, where its rules lived before.
+
   - Judge when the covering meaning first reached the clone, by meaning rather than exact wording.
   - Compare that time in UTC with the latest correction's `skillTime`, or the start of its run when it has none.
   - When the current text covers a finding and the covering text reached the clone after that time, drop the finding.

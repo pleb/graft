@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { statSync } from "node:fs";
 import { resolve } from "node:path";
 
 const NAME = "graft-tester";
@@ -12,15 +13,21 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-function claude(args: string[], options: { cwd?: string; capture?: boolean } = {}): string {
+function run(args: string[], options: { cwd?: string; capture?: boolean } = {}): string | Error {
   const result = spawnSync("claude", args, {
     cwd: options.cwd,
     encoding: "utf8",
     stdio: options.capture ? ["ignore", "pipe", "inherit"] : "inherit",
   });
-  if (result.error) fail(`claude ${args[0]} failed: ${result.error.message}`);
-  if (result.status !== 0) fail(`claude ${args[0]} exited with ${result.status}`);
+  if (result.error) return new Error(`claude ${args[0]} failed: ${result.error.message}`);
+  if (result.status !== 0) return new Error(`claude ${args[0]} exited with ${result.status}`);
   return result.stdout ?? "";
+}
+
+function claude(args: string[], options: { cwd?: string; capture?: boolean } = {}): string {
+  const result = run(args, options);
+  if (result instanceof Error) fail(result.message);
+  return result;
 }
 
 function automationNote(controller: string): string {
@@ -36,6 +43,8 @@ function start(args: string[]): void {
   if (args.length !== 3 || !cwd || !controller || !command) {
     fail('Usage: npm run start-graft-tester -- <cwd> <controller session name> "<slash command>"');
   }
+  const dir = resolve(process.env.INIT_CWD ?? process.cwd(), cwd);
+  if (!statSync(dir, { throwIfNoEntry: false })?.isDirectory()) fail(`Not a directory: ${dir}`);
   claude(
     [
       "--bg",
@@ -54,7 +63,7 @@ function start(args: string[]): void {
       "--",
       command,
     ],
-    { cwd: resolve(process.env.INIT_CWD ?? process.cwd(), cwd) },
+    { cwd: dir },
   );
 }
 
@@ -63,8 +72,16 @@ function stop(): void {
   const testers = agents.filter(
     (agent) => agent.kind === "background" && TESTER_NAME.test(agent.name ?? ""),
   );
-  for (const tester of testers) claude(["stop", tester.id]);
-  console.log(`Stopped ${testers.length} ${NAME} session(s).`);
+  let failed = 0;
+  for (const tester of testers) {
+    const result = run(["stop", tester.id]);
+    if (result instanceof Error) {
+      console.error(`${result.message} for ${tester.id}`);
+      failed++;
+    }
+  }
+  console.log(`Stopped ${testers.length - failed} ${NAME} session(s).`);
+  if (failed > 0) fail(`Failed to stop ${failed} ${NAME} session(s).`);
 }
 
 const [action, ...rest] = process.argv.slice(2);
