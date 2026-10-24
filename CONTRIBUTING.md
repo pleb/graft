@@ -4,7 +4,7 @@
 
 Test changes to skills and agents in `graft-tester`, a background Claude Code session that loads this checkout and sends its questions to your session.
 
-Your session must run in `auto` permission mode. To opt into auto mode, run `claude --permission-mode auto` interactively once. The tester can run any `rm` that starts with a path in `.claude/plans/` without asking.
+Your session must run in `auto` permission mode. To opt into auto mode, run `claude --permission-mode auto` interactively once. The tester's auto mode blocks actions it judges destructive, such as deleting a plan file, since your answers are not user consent.
 
 1. Run `npm run stop-graft-tester` to stop any `graft-tester` left from an earlier test.
 2. Note whether `~/.my-graft/graft-settings.json` exists, and its content.

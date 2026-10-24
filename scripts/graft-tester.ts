@@ -61,9 +61,6 @@ function start(args: string[]): void {
       JSON.stringify({
         crossSessionInbound: "accept",
         worktree: { bgIsolation: "none" },
-        permissions: {
-          allow: ["Bash(rm .claude/plans/*)", "Bash(rm /*/.claude/plans/*)"],
-        },
       }),
       "--disallowedTools",
       "AskUserQuestion",
