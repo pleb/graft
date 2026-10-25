@@ -6,7 +6,6 @@
   href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap"
 />
 <style>
-  /* Layout: summary bar on top, sticky file list on the left, one block per file on the right; file list folds above the diff on phones. */
   :root {
     --bg: #f6f7f9;
     --surface: #ffffff;
@@ -691,7 +690,7 @@
 </script>
 <script>
   const DIFF = JSON.parse(document.getElementById("diff-data").textContent);
-  // Long text arrives in pieces.
+  // Long text arrives as arrays of pieces; these keys must match CHUNKED in build-lib.ts.
   const joined = (text) => (Array.isArray(text) ? text.join("") : text);
   DIFF.threads = DIFF.threads.map(joined);
   for (const f of DIFF.files) {
@@ -716,7 +715,7 @@
   let current = 0;
   const collapsed = new Set();
   const targets = []; // per file: { old: [], new: [] } of { n, el, code }
-  const sections = []; // per file: its section element
+  const sections = [];
 
   const counts = (f) => ({ add: f.add, del: f.del });
   function store(key, value) {
@@ -779,7 +778,6 @@
     );
   }
 
-  // ---- file list ----
   function fileLink(f, fi, label) {
     const c = counts(f);
     const li = el("li");
@@ -857,7 +855,6 @@
     renderList();
   });
 
-  // ---- comments ----
   function commentOn(fi, side, idx) {
     const f = DIFF.files[fi];
     const t = targets[fi][side][idx];
@@ -913,7 +910,6 @@
   }
 
   const td = (cls, text) => el("td", cls, text ?? "");
-  // A code cell; a line without a newline at end of file gets a marker after its text.
   function codeTd(cls, line) {
     const c = td(cls, line[3]);
     if (line[4]) c.append(el("span", "nonl", "No newline at end of file"));
@@ -986,7 +982,6 @@
     }
   }
 
-  // ---- files ----
   function fileView(f) {
     if (narrowMq.matches || f.status === "A" || f.status === "D") return "unified";
     return load(viewKey(f.path)) === "unified" ? "unified" : "split";
@@ -1092,7 +1087,6 @@
     reportPins();
   }
 
-  // ---- current file ----
   function setCurrent(fi, scroll) {
     current = Math.max(0, Math.min(DIFF.files.length - 1, fi));
     document
@@ -1148,7 +1142,6 @@
     e.preventDefault();
   });
 
-  // ---- pins ----
   function targetFor(anchor) {
     const m = /#(f-[A-Za-z0-9_-]+)/.exec(anchor || "");
     if (m)
