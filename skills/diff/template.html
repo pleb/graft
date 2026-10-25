@@ -691,10 +691,13 @@
 </script>
 <script>
   const DIFF = JSON.parse(document.getElementById("diff-data").textContent);
-  // A long line's text arrives in pieces.
-  for (const f of DIFF.files)
-    for (const h of f.hunks || [])
-      for (const l of h.lines) if (Array.isArray(l[3])) l[3] = l[3].join("");
+  // Long text arrives in pieces.
+  const joined = (text) => (Array.isArray(text) ? text.join("") : text);
+  DIFF.threads = DIFF.threads.map(joined);
+  for (const f of DIFF.files) {
+    for (const k of ["id", "path", "oldPath", "stub", "note"]) if (k in f) f[k] = joined(f[k]);
+    for (const h of f.hunks || []) for (const l of h.lines) l[3] = joined(l[3]);
+  }
 
   const $ = (id) => document.getElementById(id);
   const el = (tag, cls, text) => {
@@ -1057,6 +1060,7 @@
     lab.append(cb, "Viewed");
     head.append(lab);
     sec.append(head);
+    if (f.note) body.append(el("div", "note", f.note));
     if (f.binary) body.append(el("div", "note", "Binary file changed."));
     else if (f.stub) body.append(el("div", "note", f.stub));
     else {

@@ -34,7 +34,7 @@ node ${CLAUDE_SKILL_DIR}/build.ts files --default <branch>
 
 If `node` is not found, or the command fails with `diff needs Node 24 or later`, `ERR_UNKNOWN_FILE_EXTENSION` or a SyntaxError, say diff needs Node 24 or later and stop. When it exits 1 with another message, show it to the user and stop.
 
-It prints `{root, base, baseRef, tracked, untracked}`.
+It prints `{root, name, base, baseRef, tracked, untracked}`.
 
 ## Sensitive files
 
@@ -44,7 +44,7 @@ The untracked files to include are `untracked` (include all or exclude some, les
 
 ## Build
 
-The page is `<scratchpad>/diff/<name>.html` and its input `<scratchpad>/diff/<name>.json`, where `<name>` is `root` with each `/` replaced by `-`. Keep these paths for every run in the session.
+The page is `<scratchpad>/diff/<name>.html` and its input `<scratchpad>/diff/<name>.json`, with `name` from the files output. Keep these paths for every run in the session.
 
 Write the input file:
 
@@ -53,13 +53,13 @@ Write the input file:
   "default": "<branch>",
   "untracked": ["<untracked files to include>"],
   "exclude": ["<exclusions>"],
-  "threads": ["<open-thread line ids>"],
+  "threads": [{ "path": "<file path>", "side": "old or new", "line": 1 }],
   "publish": 1
 }
 ```
 
 - `publish` is 1, or the existing input file's `publish` plus 1.
-- `threads` is empty on the first publish in the session. Otherwise, read the artifact's threads with `ArtifactComments` `read`, following `cursor` until none remain, and take the line id of each open thread from `## Line ids`.
+- `threads` is empty on the first publish in the session. Otherwise, it holds each open thread's file, side and line, read as `## Threads` describes.
 
 ```bash
 node ${CLAUDE_SKILL_DIR}/build.ts build --input <input file> --out <page>
@@ -73,33 +73,39 @@ On the first publish in the session, call `Artifact` with `action: "quickstart"`
 
 Read the page in full with the `Read` tool, in parts with `offset` and `limit` when it is long.
 
-Publish the page with `Artifact`: `file_path` the page, `capabilities: {comments: {customAnchors: true}}`, and `icon: "code"` on the first publish only. A republish uses the same `file_path`, which keeps the same link.
+Publish the page with `Artifact`: `file_path` the page, `capabilities: {comments: {customAnchors: true}}`, and `icon: "code"` on the first publish only. A republish uses the same `file_path`.
 
 If the publish is refused with `capabilities.comments: unavailable`, publish again with `capabilities: {comments: {}}`, and tell the user comments then anchor to text selections, without line labels or comment icons.
 
 Report the link. On a republish, say the link keeps its sharing settings, so anyone it is shared with sees the new version. Tell the user to comment on lines, send each comment to Claude, and press Finish review (or tell you in the terminal) when done.
 
-## Line ids
+## Threads
 
-A line id is `f-<encoded path>-<old|new>-<line>`. To encode the path, replace every character outside `[A-Za-z0-9]` with `_`, its Unicode code point in lowercase hex, and `_`: `src/a.b.ts` becomes `src_2f_a_2e_b_2e_ts`, and `é` becomes `_e9_`.
+Read the artifact's threads with `ArtifactComments` `read`, following `cursor` until none remain.
 
-Take the file, side and line from the thread's `[location]`:
+Take a thread's file, side and line from its `[location]`:
 
 - `<file>:<line>`: new side, that line.
 - `<file>:old <line>`: old side, that line.
 - `<file>:<line> (old <line>)`: new side, the first line.
 
-A `[location]` starting with `…` has a shortened path: match it by path suffix against the files in the diff, and by `[anchor detail]` (the commented code) when several match. Skip threads with no `[location]`, or anchored at `#finish-review`.
+The file is the path as the diff shows it, the new path for a renamed file. A `[location]` starting with `…` has a shortened path: match it by path suffix against the files in the diff, and by `[anchor detail]` (the commented code) when several match. For the build input, skip threads with no `[location]`, anchored at `#finish-review`, or whose file is not among the files being built (`tracked` plus the untracked files to include, less the exclusions).
 
 ## Batch
 
-The batch starts when the user says so in the terminal, or when a thread anchored at `#finish-review` arrives. First re-read this section of `${CLAUDE_SKILL_DIR}/SKILL.md`, then:
+The batch starts when the user says so in the terminal, or when a thread anchored at `#finish-review` arrives. First re-read this section of `${CLAUDE_SKILL_DIR}/SKILL.md`, then follow the steps below. Every reply you post passes `acknowledge_duplicate: true`.
 
-1. Read every thread with `ArtifactComments` `read`, following `cursor` until none remain. Pending work is the open threads sent to Claude, other than the Finish review threads. Quote the open threads not sent to Claude in the terminal and ask the user to send the ones they want acted on.
-2. Take each pending thread's file, side and line from its `[location]`. `[anchor detail]` is the source of truth: locate that code in the current file, using the line number only to narrow the search. Ask the user about any thread whose code is no longer there or matches more than one place.
+1. Read every thread as `## Threads` describes. Pending work is the open threads sent to Claude, other than the Finish review threads. Quote the open threads not sent to Claude in the terminal and ask the user to send the ones they want acted on.
+2. Locate each pending thread's code. A thread with a `[location]` has its file, side and line from `## Threads`, and its `[anchor detail]` is the source of truth, with the line number only narrowing the search.
+   - New side: locate `[anchor detail]` in the current file.
+   - Old side (a `:old` label, a removed line or a deleted file): `[anchor detail]` is removed code. Locate it in the base version (`git show <base>:<old path>`, with `base` from the files output), then act at the matching spot in the current file.
+   - No `[location]`: locate its selected text in the changed files.
+
+   Ask the user about any thread whose code is not found, or matches more than one place.
+
 3. For each thread in turn:
    - Check whether the code already reflects the request. If not, make the change.
-   - Reply with what you did, passing `acknowledge_duplicate: true`.
+   - Reply with what you did.
    - Resolve the thread before moving to the next.
 4. Rerun `## Build` and `## Publish`, keeping the earlier untracked files and exclusions, dropping files that are no longer untracked, and adding untracked files the batch created. Then check each still-open thread's `[anchor detail]` against the code now at its line, and list any that moved in the terminal.
 5. Reply to each Finish review thread with a summary that names any thread you could not act on, and resolve it. With none, give the summary in the terminal.

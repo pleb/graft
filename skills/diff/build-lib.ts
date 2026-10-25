@@ -10,6 +10,9 @@ const LARGEST_SHOWN = 5;
 const CHUNK = 500;
 // Arrays whose items each go on their own line of the page.
 const LISTED = new Set(["threads", "files", "hunks", "lines"]);
+// Fields whose text is split into pieces when long, as line text is.
+const CHUNKED = new Set(["id", "path", "oldPath", "stub", "note"]);
+const REMOVED_FROM_INDEX = "Removed from the index; kept as an untracked file.";
 
 // The largest page Claude reads in full before publishing it.
 export const MAX_PAGE_BYTES = 300 * 1024;
@@ -77,6 +80,7 @@ export interface ParsedFile {
   index?: string;
   // An untracked FIFO, socket or device, shown without content.
   special?: true;
+  note?: string;
   hunks: Hunk[];
 }
 
@@ -89,6 +93,7 @@ export interface PageFile {
   hash: string;
   binary?: true;
   stub?: string;
+  note?: string;
   add: number;
   del: number;
   hunks?: Hunk[];
@@ -107,11 +112,17 @@ export interface PageData {
   files: PageFile[];
 }
 
+export interface Thread {
+  path: string;
+  side: Side;
+  line: number;
+}
+
 export interface BuildInput {
   default: string;
   untracked: string[];
   exclude: string[];
-  threads: string[];
+  threads: Thread[];
   publish: number;
 }
 
@@ -122,6 +133,7 @@ export interface Base {
 
 export interface Changes extends Base {
   root: string;
+  name: string;
   tracked: string[];
   untracked: string[];
 }
@@ -341,6 +353,7 @@ export function toPageFile(file: ParsedFile, source: Source): PageFile {
     del,
   };
   if (file.oldPath !== undefined) page.oldPath = file.oldPath;
+  if (file.note !== undefined) page.note = file.note;
   if (file.binary) page.binary = true;
   else if (stub) page.stub = stub;
   else page.hunks = file.hunks;
@@ -410,6 +423,12 @@ export function listUntracked(root: string): string[] {
   return splitZ(out.stdout).filter((path) => !path.endsWith("/"));
 }
 
+// A file name unique to the repo root: its basename and a hash of the full path.
+export function pageName(root: string): string {
+  const hash = createHash("sha256").update(root).digest("hex").slice(0, 8);
+  return `${basename(root).replace(/[^A-Za-z0-9._-]/g, "-")}-${hash}`;
+}
+
 export function listChanges(cwd: string, branch: string): Changes {
   const root = repoRoot(cwd);
   const base = resolveBase(root, branch);
@@ -420,7 +439,13 @@ export function listChanges(cwd: string, branch: string): Changes {
     if (/^[RC]/.test(fields[i])) tracked.add(fields[++i]);
     tracked.add(fields[++i]);
   }
-  return { root, ...base, tracked: [...tracked], untracked: listUntracked(root) };
+  return {
+    root,
+    name: pageName(root),
+    ...base,
+    tracked: [...tracked],
+    untracked: listUntracked(root),
+  };
 }
 
 function strings(value: unknown, name: string): string[] {
@@ -429,6 +454,28 @@ function strings(value: unknown, name: string): string[] {
     throw new BuildError(`Input "${name}" must be an array of strings`);
   }
   return value;
+}
+
+function threads(value: unknown): Thread[] {
+  if (value === undefined) return [];
+  const valid = (item: unknown): item is Thread => {
+    const thread = item as Record<string, unknown>;
+    return (
+      typeof item === "object" &&
+      item !== null &&
+      typeof thread.path === "string" &&
+      (thread.side === "old" || thread.side === "new") &&
+      typeof thread.line === "number" &&
+      Number.isInteger(thread.line) &&
+      thread.line > 0
+    );
+  };
+  if (!Array.isArray(value) || !value.every(valid)) {
+    throw new BuildError(
+      'Input "threads" must be an array of {"path": <file path>, "side": "old" or "new", "line": <line number>}',
+    );
+  }
+  return value.map(({ path, side, line }) => ({ path, side, line }));
 }
 
 export function parseInput(value: unknown): BuildInput {
@@ -447,7 +494,7 @@ export function parseInput(value: unknown): BuildInput {
     default: input.default,
     untracked: strings(input.untracked, "untracked"),
     exclude: strings(input.exclude, "exclude"),
-    threads: strings(input.threads, "threads"),
+    threads: threads(input.threads),
     publish,
   };
 }
@@ -494,8 +541,10 @@ function mergeByPath(entries: Entry[]): Entry[] {
     if (gone.file.status !== "D" || added.file.status !== "A") {
       throw new BuildError(`git reported ${path} twice`);
     }
+    const file = mergeSides(gone.file, added.file);
+    if (added.source === "untracked") file.note = REMOVED_FROM_INDEX;
     byPath.set(path, {
-      file: mergeSides(gone.file, added.file),
+      file,
       source: SOURCES[Math.max(SOURCES.indexOf(gone.source), SOURCES.indexOf(added.source))],
     });
   }
@@ -552,6 +601,12 @@ export function collectPage(cwd: string, input: BuildInput): PageData {
   const files = mergeByPath(entries).map(({ file, source }) => toPageFile(file, source));
   if (!files.length) throw new BuildError(`No changes against ${baseRef}`);
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  const paths = new Set(files.map((file) => file.path));
+  const missing = input.threads.filter((thread) => !paths.has(thread.path));
+  if (missing.length) {
+    const names = missing.map((thread) => `${thread.path} (${thread.side} ${thread.line})`);
+    throw new BuildError(`Threads name files that are not in the page: ${names.join(", ")}`);
+  }
 
   const head = git(root, ["rev-parse", "--short", "HEAD"]).stdout.trim();
   const symbolic = git(root, ["symbolic-ref", "--short", "-q", "HEAD"], [0, 1]);
@@ -564,7 +619,7 @@ export function collectPage(cwd: string, input: BuildInput): PageData {
     head,
     uncommitted: files.filter((file) => file.source === "uncommitted").length,
     untracked: files.filter((file) => file.source === "untracked").length,
-    threads: input.threads,
+    threads: input.threads.map((thread) => lineId(thread.path, thread.side, thread.line)),
     files,
   };
 }
@@ -601,22 +656,26 @@ function chunkText(text: string): string | string[] {
   return pieces;
 }
 
-// Script-safe JSON with each item of a listed array, and each piece of a split line text, on its own line.
+function layoutText(value: unknown): string {
+  if (typeof value !== "string") return layout(value);
+  const text = chunkText(value);
+  return layout(text, Array.isArray(text));
+}
+
+// Script-safe JSON with each object field, each item of a listed array, and each piece of a split
+// text on its own line.
 function layout(value: unknown, listed = false): string {
   if (Array.isArray(value)) {
     if (listed)
-      return value.length ? `[\n${value.map((item) => layout(item)).join(",\n")}\n]` : "[]";
-    const items = value.map((item) => {
-      const text = typeof item === "string" ? chunkText(item) : item;
-      return layout(text, Array.isArray(text));
-    });
-    return `[${items.join(",")}]`;
+      return value.length ? `[\n${value.map((item) => layoutText(item)).join(",\n")}\n]` : "[]";
+    return `[${value.map(layoutText).join(",")}]`;
   }
   if (typeof value === "object" && value !== null) {
-    const fields = Object.entries(value).map(
-      ([key, item]) => `${scriptJson(key)}:${layout(item, LISTED.has(key))}`,
-    );
-    return `{${fields.join(",")}}`;
+    const fields = Object.entries(value).map(([key, item]) => {
+      const text = CHUNKED.has(key) ? layoutText(item) : layout(item, LISTED.has(key));
+      return `${scriptJson(key)}:${text}`;
+    });
+    return `{\n${fields.join(",\n")}\n}`;
   }
   return scriptJson(value);
 }

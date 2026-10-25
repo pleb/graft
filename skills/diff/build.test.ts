@@ -17,11 +17,13 @@ import {
   collectPage,
   decodePath,
   encodePath,
+  fileId,
   isSupportedNode,
   lineId,
   listChanges,
   MAX_PAGE_BYTES,
   mergeSides,
+  pageName,
   parseDiff,
   parseInput,
   parseLineId,
@@ -234,6 +236,22 @@ describe("parseInput", () => {
     expect(() => parseInput({ default: "main", publish: 1.5 })).toThrow('Input "publish"');
     expect(() => parseInput([])).toThrow("Input must be a JSON object");
   });
+
+  it("reads threads as path, side and line", () => {
+    const thread = { path: "a.ts", side: "old", line: 3 };
+    expect(parseInput({ default: "main", threads: [thread] }).threads).toEqual([thread]);
+    for (const bad of [
+      ["f-a-new-1"],
+      [{ path: "a.ts", side: "mid", line: 3 }],
+      [{ path: "a.ts", side: "new", line: 0 }],
+      [{ side: "new", line: 1 }],
+      [null],
+    ]) {
+      expect(() => parseInput({ default: "main", threads: bad })).toThrow(
+        'Input "threads" must be an array of {"path"',
+      );
+    }
+  });
 });
 
 describe("listChanges", () => {
@@ -242,6 +260,7 @@ describe("listChanges", () => {
     const changes = listChanges(dir, "main");
     expect(changes).toEqual({
       root: dir,
+      name: pageName(dir),
       base: git(dir, "rev-parse", "main"),
       baseRef: "main",
       tracked: [
@@ -256,6 +275,13 @@ describe("listChanges", () => {
       ],
       untracked: ["notes.md"],
     });
+  });
+
+  it("names the page uniquely for each root", () => {
+    expect(pageName("/work/a-b")).toMatch(/^a-b-[0-9a-f]{8}$/);
+    expect(pageName("/work/a/b")).toMatch(/^b-[0-9a-f]{8}$/);
+    expect(pageName("/x/a-b")).not.toBe(pageName("/work/a-b"));
+    expect(pageName("/work/naïve repo")).toMatch(/^na-ve-repo-[0-9a-f]{8}$/);
   });
 
   it("lists both paths of a rename, so a renamed sensitive file is seen", () => {
@@ -287,7 +313,14 @@ describe("collectPage", () => {
     const dir = featureRepo();
     const data = collectPage(
       dir,
-      input({ untracked: ["notes.md"], threads: ["f-x-new-1"], publish: 3 }),
+      input({
+        untracked: ["notes.md"],
+        threads: [
+          { path: "src/mod.ts", side: "new", line: 3 },
+          { path: "src/new-name.ts", side: "old", line: 10 },
+        ],
+        publish: 3,
+      }),
     );
     const head = git(dir, "rev-parse", "--short", "HEAD");
     expect({ ...data, files: [] }).toEqual({
@@ -299,7 +332,7 @@ describe("collectPage", () => {
       head,
       uncommitted: 1,
       untracked: 1,
-      threads: ["f-x-new-1"],
+      threads: [lineId("src/mod.ts", "new", 3), lineId("src/new-name.ts", "old", 10)],
       files: [],
     });
     expect(data.files.map((file) => file.path)).toEqual([
@@ -364,6 +397,18 @@ describe("collectPage", () => {
 
     expect(files.get("notes.md")).toMatchObject({ status: "A", source: "untracked", add: 1 });
     expect(files.has("nested/inner.txt")).toBe(false);
+  });
+
+  it("fails on threads whose file is not in the page", () => {
+    const dir = featureRepo();
+    const threads = [
+      { path: "src/mod.ts", side: "new" as const, line: 3 },
+      { path: "src/old-name.ts", side: "old" as const, line: 10 },
+      { path: "gone.ts", side: "new" as const, line: 1 },
+    ];
+    expect(() => collectPage(dir, input({ threads }))).toThrow(
+      "Threads name files that are not in the page: src/old-name.ts (old 10), gone.ts (new 1)",
+    );
   });
 
   it("includes only the untracked files asked for and leaves out exclusions", () => {
@@ -496,7 +541,13 @@ describe("collectPage", () => {
     write(dir, { ".env": "SECRET=2\n" });
     const data = collectPage(dir, input({ untracked: [".env", ".env"] }));
     expect(data.files.map((file) => file.id)).toEqual(["f-_2e_env"]);
-    expect(data.files[0]).toMatchObject({ status: "M", source: "untracked", add: 1, del: 1 });
+    expect(data.files[0]).toMatchObject({
+      status: "M",
+      source: "untracked",
+      note: "Removed from the index; kept as an untracked file.",
+      add: 1,
+      del: 1,
+    });
     expect(data.files[0].hunks!.flatMap((hunk) => hunk.lines)).toEqual([
       ["-", 1, null, "SECRET=1"],
       ["+", null, 1, "SECRET=2"],
@@ -596,7 +647,7 @@ describe("renderPage", () => {
       html.indexOf(DATA_OPEN) + DATA_OPEN.length,
       html.indexOf("</script>", html.indexOf(DATA_OPEN)),
     );
-    expect(block.trim().split("\n")).toHaveLength(8);
+    expect(block.split("\n")).toContain('[" ",1,1,"start"],');
   });
 
   it("keeps every line of the page and the template under 1000 characters", () => {
@@ -611,6 +662,32 @@ describe("renderPage", () => {
     const text = (line: unknown) => (Array.isArray(line) ? line.join("") : line);
     expect(text(files[0].hunks![0].lines[1][3])).toBe(long);
     expect(text(files[1].hunks![0].lines[0][3])).toBe("y".repeat(10000));
+  });
+
+  it("splits long paths, ids and thread ids so every line stays under 1000 characters", () => {
+    const from = `${"旧的目录/".repeat(14)}old_snake_case_name_for_a_module_${"x_y_".repeat(10)}.ts`;
+    const to = `${"新的目录/".repeat(14)}new_snake_case_name_for_a_module_${"x_y_".repeat(10)}.ts`;
+    expect(to.length).toBeGreaterThan(140);
+    const dir = newRepo({ [from]: lines("line", 10), "a.txt": "a\n" });
+    rmSync(join(dir, from));
+    write(dir, { [to]: lines("line", 10).replace("line 10\n", "changed 10\n") });
+    git(dir, "add", "-A");
+    git(dir, "rm", "-q", "--cached", "a.txt");
+    const data = collectPage(
+      dir,
+      input({ untracked: ["a.txt"], threads: [{ path: to, side: "old", line: 10 }] }),
+    );
+    expect(lineId(to, "old", 10).length).toBeGreaterThan(500);
+    const html = renderPage(TEMPLATE, data);
+    expect(Math.max(...html.split("\n").map((line) => line.length))).toBeLessThan(1000);
+    const page = embedded(html);
+    const text = (value: unknown) => (Array.isArray(value) ? value.join("") : value);
+    const renamed = page.files.find((file) => text(file.path) === to)!;
+    expect(text(renamed.id)).toBe(fileId(to));
+    expect(text(renamed.oldPath)).toBe(from);
+    expect(page.threads.map(text)).toEqual([lineId(to, "old", 10)]);
+    const kept = page.files.find((file) => file.path === "a.txt")!;
+    expect(kept.note).toBe("Removed from the index; kept as an untracked file.");
   });
 
   it("fails on an oversized page and names the largest files", () => {
