@@ -1,5 +1,14 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,11 +21,14 @@ import {
   lineId,
   listChanges,
   MAX_PAGE_BYTES,
+  mergeSides,
   parseDiff,
   parseInput,
   parseLineId,
   renderPage,
+  toPageFile,
   unquoteGitPath,
+  untrackedFile,
 } from "./build-lib.ts";
 import type { BuildInput, PageData, PageFile } from "./build-lib.ts";
 
@@ -157,6 +169,28 @@ describe("parseDiff", () => {
     expect(unquoteGitPath("plain path")).toBe("plain path");
   });
 
+  it("keeps astral characters whole in quoted paths", () => {
+    expect(unquoteGitPath('"emoji \u{1f600}\\tx.md"')).toBe("emoji \u{1f600}\tx.md");
+    expect(unquoteGitPath('"\\360\\237\\230\\200 \u{1f600}"')).toBe("\u{1f600} \u{1f600}");
+  });
+
+  it("merges a delete and an add of one path", () => {
+    const gone = parseDiff(
+      "diff --git a/f b/f\ndeleted file mode 100644\nindex 1111111..0000000\n--- a/f\n+++ /dev/null\n@@ -1 +0,0 @@\n-hello\n",
+    )[0];
+    const added = parseDiff(
+      "diff --git a/f b/f\nnew file mode 120000\nindex 0000000..2222222\n--- /dev/null\n+++ b/f\n@@ -0,0 +1 @@\n+target\n\\ No newline at end of file\n",
+    )[0];
+    expect(mergeSides(gone, added)).toEqual({
+      path: "f",
+      status: "T",
+      oldMode: "100644",
+      newMode: "120000",
+      index: "1111111..2222222",
+      hunks: [...gone.hunks, ...added.hunks],
+    });
+  });
+
   it("reads quoted names and keeps an empty context line", () => {
     const text = [
       'diff --git "a/x\\ty" "b/x\\ty"',
@@ -174,6 +208,7 @@ describe("parseDiff", () => {
       {
         path: "x\ty",
         status: "M",
+        index: "1..2 100644",
         hunks: [
           {
             header: "@@ -1,3 +1,3 @@",
@@ -216,10 +251,17 @@ describe("listChanges", () => {
         "src/added.ts",
         "src/del.ts",
         "src/mod.ts",
+        "src/old-name.ts",
         "src/new-name.ts",
       ],
       untracked: ["notes.md"],
     });
+  });
+
+  it("lists both paths of a rename, so a renamed sensitive file is seen", () => {
+    const dir = newRepo({ ".env": "SECRET=1\n" });
+    git(dir, "mv", ".env", "config.txt");
+    expect(listChanges(dir, "main").tracked).toEqual([".env", "config.txt"]);
   });
 
   it("uses origin's branch when origin has it", () => {
@@ -411,6 +453,120 @@ describe("collectPage", () => {
     expect(files.get("sub")!.hunks![0].lines[0][3]).toMatch(/^Subproject commit [0-9a-f]{40}$/);
   });
 
+  it("ignores textconv filters", () => {
+    const dir = newRepo({
+      ".gitattributes": "*.enc diff=dec\n*.bin binary\n",
+      "a.enc": "cipher one\n",
+      "b.enc": PNG,
+      "c.bin": "text one\n",
+    });
+    git(dir, "config", "diff.dec.textconv", "echo plain #");
+    write(dir, {
+      "a.enc": "cipher two\n",
+      "b.enc": Buffer.concat([PNG, Buffer.from([9])]),
+      "c.bin": "text two\n",
+      "d.enc": "cipher three\n",
+    });
+    const files = byPath(collectPage(dir, input({ untracked: ["d.enc"] })));
+    expect(files.get("a.enc")!.hunks![0].lines).toEqual([
+      ["-", 1, null, "cipher one"],
+      ["+", null, 1, "cipher two"],
+    ]);
+    expect(files.get("b.enc")).toMatchObject({ binary: true });
+    expect(files.get("c.bin")).toMatchObject({ binary: true });
+    expect(files.get("d.enc")!.hunks![0].lines).toEqual([["+", null, 1, "cipher three"]]);
+  });
+
+  it("merges a type change into one entry", () => {
+    const dir = newRepo({ "f.txt": "hello\n", "g.txt": "x\n" });
+    rmSync(join(dir, "f.txt"));
+    symlinkSync("target", join(dir, "f.txt"));
+    const data = collectPage(dir, input());
+    expect(data.files.map((file) => file.id)).toEqual(["f-f_2e_txt"]);
+    expect(data.files[0]).toMatchObject({ status: "T", source: "uncommitted", add: 1, del: 1 });
+    expect(data.files[0].hunks!.flatMap((hunk) => hunk.lines)).toEqual([
+      ["-", 1, null, "hello"],
+      ["+", null, 1, "target", 1],
+    ]);
+  });
+
+  it("merges a file removed from the index and included untracked", () => {
+    const dir = newRepo({ ".env": "SECRET=1\n", "a.txt": "a\n" });
+    git(dir, "rm", "-q", "--cached", ".env");
+    write(dir, { ".env": "SECRET=2\n" });
+    const data = collectPage(dir, input({ untracked: [".env", ".env"] }));
+    expect(data.files.map((file) => file.id)).toEqual(["f-_2e_env"]);
+    expect(data.files[0]).toMatchObject({ status: "M", source: "untracked", add: 1, del: 1 });
+    expect(data.files[0].hunks!.flatMap((hunk) => hunk.lines)).toEqual([
+      ["-", 1, null, "SECRET=1"],
+      ["+", null, 1, "SECRET=2"],
+    ]);
+    expect(data.untracked).toBe(1);
+  });
+
+  it("shows an untracked symlink as its target", () => {
+    const dir = newRepo({ "d/x.txt": "x\n" });
+    symlinkSync("d", join(dir, "dlink"));
+    symlinkSync("missing", join(dir, "broken"));
+    const files = byPath(collectPage(dir, input({ untracked: ["dlink", "broken"] })));
+    expect(files.get("dlink")).toMatchObject({ status: "A", source: "untracked", add: 1 });
+    expect(files.get("dlink")!.hunks![0].lines).toEqual([["+", null, 1, "d", 1]]);
+    expect(files.get("broken")!.hunks![0].lines).toEqual([["+", null, 1, "missing", 1]]);
+  });
+
+  it.skipIf(spawnSync("mkfifo", ["--help"]).error !== undefined)(
+    "shows an untracked FIFO without content",
+    () => {
+      const dir = newRepo({ "a.txt": "a\n" });
+      const fifo = spawnSync("mkfifo", [join(dir, "pipe")]);
+      expect(fifo.status).toBe(0);
+      // git ls-files does not list a FIFO, so collectPage never asks for one; this guards a path
+      // that became one after the listing.
+      expect(listChanges(dir, "main").untracked).toEqual([]);
+      const [file] = untrackedFile(dir, "pipe");
+      expect(toPageFile(file, "untracked")).toMatchObject({
+        status: "A",
+        source: "untracked",
+        stub: "Not a regular file. No content shown.",
+        add: 0,
+        del: 0,
+      });
+    },
+  );
+
+  it.skipIf(process.getuid?.() === 0)("includes git's stderr when git fails", () => {
+    const dir = newRepo({ "a.txt": "a\n" });
+    write(dir, { "locked.txt": "x\n" });
+    chmodSync(join(dir, "locked.txt"), 0);
+    expect(() => collectPage(dir, input({ untracked: ["locked.txt"] }))).toThrow(
+      /Permission denied\nfatal: cannot hash locked\.txt/,
+    );
+  });
+
+  it("changes the hash when a stubbed or binary file's content changes", () => {
+    const dir = featureRepo();
+    const before = byPath(collectPage(dir, input()));
+    write(dir, {
+      "img.png": Buffer.concat([PNG, Buffer.from([6, 7])]),
+      "package-lock.json": '{\n  "a": 1,\n  "b": 3,\n  "c": 5\n}\n',
+    });
+    const after = byPath(collectPage(dir, input()));
+    for (const path of ["img.png", "package-lock.json"]) {
+      expect(after.get(path)!.stub).toBe(before.get(path)!.stub);
+      expect(after.get(path)!.hash).not.toBe(before.get(path)!.hash);
+    }
+  });
+
+  it("excludes a quoted path with astral characters by its real name", () => {
+    const path = "emoji \u{1f600}\tx.md";
+    const dir = newRepo({ [path]: "one\n", "a.txt": "a\n" });
+    write(dir, { [path]: "two\n", "a.txt": "b\n" });
+    expect(collectPage(dir, input()).files.map((file) => file.path)).toEqual(["a.txt", path]);
+    expect(collectPage(dir, input({ exclude: [path] })).files.map((file) => file.path)).toEqual([
+      "a.txt",
+    ]);
+  });
+
   it("fails when there are no changes", () => {
     const dir = newRepo({ "a.txt": "a\n" });
     expect(() => collectPage(dir, input())).toThrow("No changes against main");
@@ -440,7 +596,21 @@ describe("renderPage", () => {
       html.indexOf(DATA_OPEN) + DATA_OPEN.length,
       html.indexOf("</script>", html.indexOf(DATA_OPEN)),
     );
-    expect(block.trim().split("\n")).toHaveLength(3);
+    expect(block.trim().split("\n")).toHaveLength(8);
+  });
+
+  it("keeps every line of the page and the template under 1000 characters", () => {
+    const long = "<x>&".repeat(2500);
+    const dir = newRepo({ "a.txt": "a\n" });
+    write(dir, { "a.txt": `${long}\n`, "b.txt": "y".repeat(10000) });
+    const html = renderPage(TEMPLATE, collectPage(dir, input({ untracked: ["b.txt"] })));
+    for (const text of [TEMPLATE, html]) {
+      expect(Math.max(...text.split("\n").map((line) => line.length))).toBeLessThanOrEqual(1000);
+    }
+    const files = embedded(html).files;
+    const text = (line: unknown) => (Array.isArray(line) ? line.join("") : line);
+    expect(text(files[0].hunks![0].lines[1][3])).toBe(long);
+    expect(text(files[1].hunks![0].lines[0][3])).toBe("y".repeat(10000));
   });
 
   it("fails on an oversized page and names the largest files", () => {
@@ -455,6 +625,66 @@ describe("renderPage", () => {
         `over the ${MAX_PAGE_BYTES / 1024} KB Claude can read\\. Largest files: big\\.txt \\(\\d+ KB\\), small\\.txt \\(1 KB\\)$`,
       ),
     );
+  });
+});
+
+// A stand-in for the DOM calls the template's line rendering makes.
+class FakeElement {
+  children: FakeElement[] = [];
+  dataset: Record<string, string> = {};
+  id = "";
+  className = "";
+  textContent = "";
+  tagName: string;
+  constructor(tagName: string) {
+    this.tagName = tagName;
+  }
+  append(...nodes: (FakeElement | string)[]) {
+    for (const node of nodes) if (typeof node !== "string") this.children.push(node);
+  }
+  prepend(node: FakeElement) {
+    this.children.unshift(node);
+  }
+  setAttribute() {}
+  addEventListener() {}
+}
+
+// The template's own source for a line, or for a block that ends with a closing brace at its two-space indent.
+function templateSource(start: string): string {
+  const from = TEMPLATE.indexOf(`\n  ${start}`) + 1;
+  expect(from).toBeGreaterThan(0);
+  const line = TEMPLATE.indexOf("\n", from);
+  if (TEMPLATE.slice(from, line).trimEnd().endsWith(";")) return TEMPLATE.slice(from, line);
+  return TEMPLATE.slice(from, TEMPLATE.indexOf("\n  }", from) + 5);
+}
+
+describe("template", () => {
+  it("marks a unified context row whose thread is on its old-side id", () => {
+    const source = [
+      templateSource("const el = "),
+      templateSource("const lineId = "),
+      templateSource("const td = "),
+      templateSource("function addTarget("),
+      templateSource("function codeTd("),
+      templateSource("function renderUnified("),
+      "return renderUnified;",
+    ].join("\n");
+    const document = { createElement: (tag: string) => new FakeElement(tag) };
+    const known = new Set(["f-a-old-3"]);
+    const renderUnified = new Function("document", "known", "comments", "targets", "ICON", source)(
+      document,
+      known,
+      {},
+      [{ old: [], new: [] }],
+      "",
+    );
+    const table = new FakeElement("table");
+    const file = { id: "f-a", path: "a", hunks: [{ header: "@@", lines: [[" ", 3, 5, "x"]] }] };
+    renderUnified(file, 0, table);
+    const row = table.children[1];
+    expect(row.id).toBe("f-a-new-5");
+    expect(row.dataset.alt).toBe("f-a-old-3");
+    expect(row.children[1].children.map((child) => child.className)).toContain("cicon");
   });
 });
 

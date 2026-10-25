@@ -264,7 +264,8 @@
   .st-M {
     color: var(--mod-fg);
   }
-  .st-R {
+  .st-R,
+  .st-T {
     color: var(--accent);
   }
   .st-B {
@@ -690,6 +691,10 @@
 </script>
 <script>
   const DIFF = JSON.parse(document.getElementById("diff-data").textContent);
+  // A long line's text arrives in pieces.
+  for (const f of DIFF.files)
+    for (const h of f.hunks || [])
+      for (const l of h.lines) if (Array.isArray(l[3])) l[3] = l[3].join("");
 
   const $ = (id) => document.getElementById(id);
   const el = (tag, cls, text) => {
@@ -698,7 +703,7 @@
     if (text != null) n.textContent = text;
     return n;
   };
-  const STATUS = { A: "Added", D: "Deleted", M: "Modified", R: "Renamed" };
+  const STATUS = { A: "Added", D: "Deleted", M: "Modified", R: "Renamed", T: "Type changed" };
   const narrowMq = window.matchMedia("(max-width: 760px)");
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
   let comments = null,
@@ -708,6 +713,7 @@
   let current = 0;
   const collapsed = new Set();
   const targets = []; // per file: { old: [], new: [] } of { n, el, code }
+  const sections = []; // per file: its section element
 
   const counts = (f) => ({ add: f.add, del: f.del });
   function store(key, value) {
@@ -886,7 +892,7 @@
         commentOn(fi, side, idx);
       });
       gutter.prepend(b);
-      if (known.has(el0.id)) {
+      if (known.has(el0.id) || (el0.dataset.alt && known.has(el0.dataset.alt))) {
         const ic = document.createElement("span");
         ic.className = "cicon";
         ic.innerHTML = ICON;
@@ -932,8 +938,8 @@
         table.append(tr);
         if (t === "-") addTarget(f, fi, "old", o, [cells[0], cells[1], cells[2], cells[3]], tr, s);
         else {
-          addTarget(f, fi, "new", n, [cells[1], cells[0], cells[2], cells[3]], tr, s);
           if (t === " ") tr.dataset.alt = lineId(f, "old", o);
+          addTarget(f, fi, "new", n, [cells[1], cells[0], cells[2], cells[3]], tr, s);
         }
       }
     }
@@ -986,14 +992,14 @@
     const f = DIFF.files[fi];
     if (!f.hunks || narrowMq.matches || f.status === "A" || f.status === "D") return;
     store(viewKey(f.path), v === "unified" ? "unified" : null);
-    renderFile(fi);
+    renderFile(sections[fi], fi);
     reportPins();
   }
   function setCollapsed(fi, hide) {
     const f = DIFF.files[fi];
     if (!f.hunks) return;
     hide ? collapsed.add(f.path) : collapsed.delete(f.path);
-    const sec = $(f.id);
+    const sec = sections[fi];
     // The page height change must not move the current file; a file collapsed from inside comes back into view.
     jumpUntil = Date.now() + 300;
     sec.querySelector(".fbody").hidden = hide;
@@ -1008,9 +1014,8 @@
     setCollapsed(fi, on);
     renderList();
   }
-  function renderFile(fi) {
+  function renderFile(sec, fi) {
     const f = DIFF.files[fi];
-    const sec = $(f.id);
     sec.replaceChildren();
     targets[fi] = { old: [], new: [] };
     const head = el("div", "fhead");
@@ -1076,7 +1081,8 @@
       sec.id = f.id;
       sec.classList.toggle("cur", fi === current);
       root.append(sec);
-      renderFile(fi);
+      sections[fi] = sec;
+      renderFile(sec, fi);
     });
     rendered = true;
     reportPins();
@@ -1094,7 +1100,7 @@
     if (!scroll) return;
     // The scroll this starts must not move the current file on to a short file below it.
     jumpUntil = Date.now() + 300;
-    $(DIFF.files[current].id).scrollIntoView({
+    sections[current].scrollIntoView({
       block: "start",
       behavior: reduced.matches ? "auto" : "smooth",
     });

@@ -1,10 +1,15 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { basename } from "node:path";
+import { lstatSync, readlinkSync } from "node:fs";
+import { basename, join } from "node:path";
 
 const MIN_NODE_MAJOR = 24;
 const MAX_GIT_OUTPUT = 512 * 1024 * 1024;
 const LARGEST_SHOWN = 5;
+// The longest escaped piece of line text on one line of the page, so Claude's Read tool sees whole lines.
+const CHUNK = 500;
+// Arrays whose items each go on their own line of the page.
+const LISTED = new Set(["threads", "files", "hunks", "lines"]);
 
 // The largest page Claude reads in full before publishing it.
 export const MAX_PAGE_BYTES = 300 * 1024;
@@ -17,6 +22,7 @@ const DIFF_ARGS = [
   "diff",
   "--no-color",
   "--no-ext-diff",
+  "--no-textconv",
   "--no-relative",
   "--submodule=short",
   "--src-prefix=a/",
@@ -48,7 +54,7 @@ const LOCKFILES = new Set([
   "gradle.lockfile",
 ]);
 
-export type Status = "A" | "D" | "M" | "R";
+export type Status = "A" | "D" | "M" | "R" | "T";
 export type Source = "committed" | "uncommitted" | "untracked";
 export type Side = "old" | "new";
 
@@ -67,6 +73,10 @@ export interface ParsedFile {
   binary?: true;
   oldMode?: string;
   newMode?: string;
+  // The "index" line: old and new blob ids, then the mode when it did not change.
+  index?: string;
+  // An untracked FIFO, socket or device, shown without content.
+  special?: true;
   hunks: Hunk[];
 }
 
@@ -167,21 +177,14 @@ const ESCAPES: Record<string, number> = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12,
 // Undoes git's C-style quoting of a path, as in "a/tab\there".
 export function unquoteGitPath(text: string): string {
   if (!text.startsWith('"') || !text.endsWith('"') || text.length < 2) return text;
-  const bytes: number[] = [];
-  const body = text.slice(1, -1);
-  for (let i = 0; i < body.length; i++) {
-    const c = body[i];
-    if (c !== "\\") {
-      bytes.push(...Buffer.from(c, "utf8"));
-      continue;
-    }
-    const next = body[++i];
-    if (/[0-7]/.test(next)) {
-      bytes.push(parseInt(body.slice(i, i + 3), 8));
-      i += 2;
-    } else bytes.push(ESCAPES[next] ?? next.charCodeAt(0));
+  const parts: Buffer[] = [];
+  for (const [token, escape] of text.slice(1, -1).matchAll(/\\([0-7]{1,3}|.)|[^\\]+/gsu)) {
+    if (escape === undefined) parts.push(Buffer.from(token, "utf8"));
+    else if (/^[0-7]/.test(escape)) parts.push(Buffer.from([parseInt(escape, 8)]));
+    else if (escape in ESCAPES) parts.push(Buffer.from([ESCAPES[escape]]));
+    else parts.push(Buffer.from(escape, "utf8"));
   }
-  return Buffer.from(bytes).toString("utf8");
+  return Buffer.concat(parts).toString("utf8");
 }
 
 function stripPrefix(name: string, prefix: string): string | null {
@@ -234,6 +237,7 @@ export function parseDiff(text: string): ParsedFile[] {
         file.oldMode = line.slice(18);
       } else if (line.startsWith("old mode ")) file.oldMode = line.slice(9);
       else if (line.startsWith("new mode ")) file.newMode = line.slice(9);
+      else if (line.startsWith("index ")) file.index = line.slice(6);
       else if (line.startsWith("rename from ")) renameFrom = unquoteGitPath(line.slice(12));
       else if (line.startsWith("rename to ")) renameTo = unquoteGitPath(line.slice(10));
       else if (line.startsWith("--- ")) oldPath = stripPrefix(line.slice(4), "a/");
@@ -297,6 +301,7 @@ function counts(file: ParsedFile): { add: number; del: number } {
 function stubFor(file: ParsedFile, add: number, del: number): string | undefined {
   const name = basename(file.path);
   const changed = `(+${add} −${del})`;
+  if (file.special) return "Not a regular file. No content shown.";
   if (LOCKFILES.has(name)) return `Lockfile changed ${changed}. Content hidden.`;
   if (/\.min\.[A-Za-z0-9]+$/.test(name)) return `Minified file changed ${changed}. Content hidden.`;
   if (file.binary || file.hunks.length) return undefined;
@@ -309,13 +314,29 @@ function stubFor(file: ParsedFile, add: number, del: number): string | undefined
 
 export function toPageFile(file: ParsedFile, source: Source): PageFile {
   const { add, del } = counts(file);
+  // Hashed before stubbing, so a stubbed or binary file's hash still follows its content.
+  const hash = createHash("sha256")
+    .update(
+      JSON.stringify([
+        file.path,
+        file.oldPath,
+        file.status,
+        file.binary,
+        file.oldMode,
+        file.newMode,
+        file.index,
+        file.hunks,
+      ]),
+    )
+    .digest("hex")
+    .slice(0, 16);
   const stub = stubFor(file, add, del);
   const page: PageFile = {
     id: fileId(file.path),
     path: file.path,
     status: file.status,
     source,
-    hash: "",
+    hash,
     add,
     del,
   };
@@ -323,12 +344,6 @@ export function toPageFile(file: ParsedFile, source: Source): PageFile {
   if (file.binary) page.binary = true;
   else if (stub) page.stub = stub;
   else page.hunks = file.hunks;
-  page.hash = createHash("sha256")
-    .update(
-      JSON.stringify([page.path, page.oldPath, page.status, page.binary, page.stub, page.hunks]),
-    )
-    .digest("hex")
-    .slice(0, 16);
   return page;
 }
 
@@ -336,7 +351,7 @@ function git(
   root: string | null,
   args: string[],
   ok: number[] = [0],
-): { status: number; stdout: string } {
+): { status: number; stdout: string; stderr: string } {
   const result = spawnSync("git", root === null ? args : ["-C", root, ...args], {
     encoding: "utf8",
     maxBuffer: MAX_GIT_OUTPUT,
@@ -344,10 +359,11 @@ function git(
   if (result.error) throw new BuildError(`git ${args.join(" ")} failed: ${result.error.message}`);
   const status = result.status ?? -1;
   if (!ok.includes(status)) {
-    const reason = result.stderr.trim().split("\n")[0] || `exit status ${status}`;
-    throw new BuildError(`git ${args.join(" ")} failed: ${reason}`);
+    throw new BuildError(
+      `git ${args.join(" ")} failed: ${result.stderr.trim() || `exit status ${status}`}`,
+    );
   }
-  return { status, stdout: result.stdout };
+  return { status, stdout: result.stdout, stderr: result.stderr };
 }
 
 function splitZ(text: string): string[] {
@@ -356,8 +372,10 @@ function splitZ(text: string): string[] {
 
 export function repoRoot(cwd: string): string {
   const result = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" });
-  if (result.error || result.status !== 0)
-    throw new BuildError(`${cwd} is not inside a git repository`);
+  if (result.error || result.status !== 0) {
+    const reason = result.error?.message ?? result.stderr.trim();
+    throw new BuildError(`${cwd} is not inside a git repository${reason ? `: ${reason}` : ""}`);
+  }
   return result.stdout.trim();
 }
 
@@ -395,8 +413,14 @@ export function listUntracked(root: string): string[] {
 export function listChanges(cwd: string, branch: string): Changes {
   const root = repoRoot(cwd);
   const base = resolveBase(root, branch);
-  const tracked = git(root, [...DIFF_ARGS, "--name-only", "-z", base.base, "--"]).stdout;
-  return { root, ...base, tracked: splitZ(tracked), untracked: listUntracked(root) };
+  // Each entry is a status, then one path, or two for a rename or copy.
+  const fields = splitZ(git(root, [...DIFF_ARGS, "--name-status", "-z", base.base, "--"]).stdout);
+  const tracked = new Set<string>();
+  for (let i = 0; i < fields.length; i++) {
+    if (/^[RC]/.test(fields[i])) tracked.add(fields[++i]);
+    tracked.add(fields[++i]);
+  }
+  return { root, ...base, tracked: [...tracked], untracked: listUntracked(root) };
 }
 
 function strings(value: unknown, name: string): string[] {
@@ -428,6 +452,80 @@ export function parseInput(value: unknown): BuildInput {
   };
 }
 
+interface Entry {
+  file: ParsedFile;
+  source: Source;
+}
+
+const SOURCES: Source[] = ["committed", "uncommitted", "untracked"];
+
+// The file type from a git mode: 10 for a regular file, 12 for a symlink, 16 for a submodule.
+function modeType(mode: string | undefined): string | undefined {
+  return mode?.slice(0, 2);
+}
+
+// One entry from a delete and an add of the same path, as git reports a type change or a file
+// removed from the index and kept in the working tree.
+export function mergeSides(gone: ParsedFile, added: ParsedFile): ParsedFile {
+  const merged: ParsedFile = {
+    path: added.path,
+    status: modeType(gone.oldMode) === modeType(added.newMode) ? "M" : "T",
+    hunks: [...gone.hunks, ...added.hunks],
+  };
+  if (gone.binary || added.binary) merged.binary = true;
+  if (gone.oldMode !== undefined) merged.oldMode = gone.oldMode;
+  if (added.newMode !== undefined) merged.newMode = added.newMode;
+  const oldBlob = gone.index?.split(" ")[0].split("..")[0];
+  const newBlob = added.index?.split(" ")[0].split("..")[1];
+  if (oldBlob !== undefined || newBlob !== undefined) merged.index = `${oldBlob}..${newBlob}`;
+  return merged;
+}
+
+function mergeByPath(entries: Entry[]): Entry[] {
+  const byPath = new Map<string, Entry>();
+  for (const entry of entries) {
+    const path = entry.file.path;
+    const other = byPath.get(path);
+    if (!other) {
+      byPath.set(path, entry);
+      continue;
+    }
+    const [gone, added] = other.file.status === "D" ? [other, entry] : [entry, other];
+    if (gone.file.status !== "D" || added.file.status !== "A") {
+      throw new BuildError(`git reported ${path} twice`);
+    }
+    byPath.set(path, {
+      file: mergeSides(gone.file, added.file),
+      source: SOURCES[Math.max(SOURCES.indexOf(gone.source), SOURCES.indexOf(added.source))],
+    });
+  }
+  return [...byPath.values()];
+}
+
+// An untracked symlink shows as one added line holding its target, as git shows a tracked one;
+// any other non-regular file shows without content, since git would block reading a FIFO.
+export function untrackedFile(root: string, path: string): ParsedFile[] {
+  const full = join(root, path);
+  const stat = lstatSync(full);
+  if (!stat.isFile() && !stat.isSymbolicLink()) {
+    return [{ path, status: "A", special: true, hunks: [] }];
+  }
+  if (stat.isSymbolicLink()) {
+    const target = readlinkSync(full, "utf8");
+    const line: DiffLine = ["+", null, 1, target, 1];
+    return [
+      { path, status: "A", newMode: "120000", hunks: [{ header: "@@ -0,0 +1 @@", lines: [line] }] },
+    ];
+  }
+  const args = [...DIFF_ARGS, "--no-index", "--", "/dev/null", path];
+  const out = git(root, args, [1]);
+  if (!out.stdout.startsWith("diff --git")) {
+    const reason = out.stderr.trim();
+    throw new BuildError(`git ${args.join(" ")} printed no diff${reason ? `: ${reason}` : ""}`);
+  }
+  return parseDiff(out.stdout);
+}
+
 export function collectPage(cwd: string, input: BuildInput): PageData {
   const root = repoRoot(cwd);
   const { base, baseRef } = resolveBase(root, input.default);
@@ -438,22 +536,20 @@ export function collectPage(cwd: string, input: BuildInput): PageData {
   const uncommitted = new Set(
     splitZ(git(root, [...DIFF_ARGS, "--name-only", "-z", "HEAD", "--"]).stdout),
   );
-  const files: PageFile[] = parseDiff(git(root, [...DIFF_ARGS, base, "--"]).stdout)
+  const entries: Entry[] = parseDiff(git(root, [...DIFF_ARGS, base, "--"]).stdout)
     .filter(kept)
-    .map((file) => toPageFile(file, uncommitted.has(file.path) ? "uncommitted" : "committed"));
+    .map((file) => ({ file, source: uncommitted.has(file.path) ? "uncommitted" : "committed" }));
 
   const untracked = new Set(listUntracked(root));
-  for (const path of input.untracked) {
+  const wanted = new Set(input.untracked);
+  for (const path of wanted) {
     if (!untracked.has(path)) throw new BuildError(`${path} is not an untracked file`);
   }
-  for (const path of input.untracked) {
+  for (const path of wanted) {
     if (exclude.has(path)) continue;
-    const args = [...DIFF_ARGS, "--no-index", "--", "/dev/null", path];
-    const out = git(root, args, [1]);
-    if (!out.stdout.startsWith("diff --git"))
-      throw new BuildError(`git ${args.join(" ")} printed no diff`);
-    files.push(...parseDiff(out.stdout).map((file) => toPageFile(file, "untracked")));
+    for (const file of untrackedFile(root, path)) entries.push({ file, source: "untracked" });
   }
+  const files = mergeByPath(entries).map(({ file, source }) => toPageFile(file, source));
   if (!files.length) throw new BuildError(`No changes against ${baseRef}`);
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
@@ -485,14 +581,52 @@ function scriptJson(value: unknown): string {
   );
 }
 
+// Text over CHUNK escaped characters becomes an array of pieces, which the page joins.
+function chunkText(text: string): string | string[] {
+  if (scriptJson(text).length - 2 <= CHUNK) return text;
+  const pieces: string[] = [];
+  let piece = "";
+  let size = 0;
+  for (const c of text) {
+    const width = scriptJson(c).length - 2;
+    if (size + width > CHUNK) {
+      pieces.push(piece);
+      piece = "";
+      size = 0;
+    }
+    piece += c;
+    size += width;
+  }
+  pieces.push(piece);
+  return pieces;
+}
+
+// Script-safe JSON with each item of a listed array, and each piece of a split line text, on its own line.
+function layout(value: unknown, listed = false): string {
+  if (Array.isArray(value)) {
+    if (listed)
+      return value.length ? `[\n${value.map((item) => layout(item)).join(",\n")}\n]` : "[]";
+    const items = value.map((item) => {
+      const text = typeof item === "string" ? chunkText(item) : item;
+      return layout(text, Array.isArray(text));
+    });
+    return `[${items.join(",")}]`;
+  }
+  if (typeof value === "object" && value !== null) {
+    const fields = Object.entries(value).map(
+      ([key, item]) => `${scriptJson(key)}:${layout(item, LISTED.has(key))}`,
+    );
+    return `{${fields.join(",")}}`;
+  }
+  return scriptJson(value);
+}
+
 function kb(bytes: number): string {
   return `${Math.ceil(bytes / 1024)} KB`;
 }
 
 export function renderPage(template: string, data: PageData): string {
-  const { files, ...meta } = data;
-  const entries = files.map((file) => scriptJson(file));
-  const json = `${scriptJson(meta).slice(0, -1)},"files":[\n${entries.join(",\n")}\n]}`;
+  const json = layout(data);
   const [before, after, extra] = template.split("__DIFF_DATA__");
   if (after === undefined || extra !== undefined)
     throw new BuildError("The template must hold __DIFF_DATA__ once");
@@ -500,8 +634,8 @@ export function renderPage(template: string, data: PageData): string {
   const html = before.split("__DIFF_TITLE__").join(title) + json + after;
   const size = Buffer.byteLength(html);
   if (size > MAX_PAGE_BYTES) {
-    const largest = files
-      .map((file, index) => ({ path: file.path, size: Buffer.byteLength(entries[index]) }))
+    const largest = data.files
+      .map((file) => ({ path: file.path, size: Buffer.byteLength(layout(file)) }))
       .sort((a, b) => b.size - a.size)
       .slice(0, LARGEST_SHOWN)
       .map((file) => `${file.path} (${kb(file.size)})`);
