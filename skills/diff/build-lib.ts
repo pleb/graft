@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstatSync, readlinkSync } from "node:fs";
-import { basename, join } from "node:path";
+import { lstatSync, readFileSync, readlinkSync } from "node:fs";
+import { basename, extname, join } from "node:path";
 
 const MIN_NODE_MAJOR = 24;
 const MAX_GIT_OUTPUT = 512 * 1024 * 1024;
@@ -9,9 +9,10 @@ const LARGEST_SHOWN = 5;
 // The longest escaped piece of line text on one line of the page, so Claude's Read tool sees whole lines.
 const CHUNK = 500;
 // Arrays whose items each go on their own line of the page.
-const LISTED = new Set(["threads", "files", "hunks", "lines"]);
+const LISTED = new Set(["threads", "files", "hunks", "lines", "content"]);
 // Fields whose text is split into pieces when long, as line text is.
 const CHUNKED = new Set(["id", "path", "oldPath", "stub", "note"]);
+const MARKDOWN = new Set([".md", ".markdown", ".mdx"]);
 const REMOVED_FROM_INDEX = "Removed from the index; kept as an untracked file.";
 
 // The largest page Claude reads in full before publishing it.
@@ -97,6 +98,8 @@ export interface PageFile {
   add: number;
   del: number;
   hunks?: Hunk[];
+  // A Markdown file's full new content, one item per line, for the rendered view.
+  content?: string[];
 }
 
 export interface PageData {
@@ -112,11 +115,11 @@ export interface PageData {
   files: PageFile[];
 }
 
-export interface Thread {
-  path: string;
-  side: Side;
-  line: number;
-}
+export type Thread =
+  | { path: string; side: Side; line: number }
+  | { path: string; side: "file" }
+  // line is the hunk's new start line.
+  | { path: string; side: "hunk"; line: number };
 
 export interface BuildInput {
   default: string;
@@ -166,6 +169,12 @@ export function fileId(path: string): string {
 
 export function lineId(path: string, side: Side, line: number): string {
   return `${fileId(path)}-${side}-${line}`;
+}
+
+export function threadId(thread: Thread): string {
+  if (thread.side === "file") return `${fileId(thread.path)}-file`;
+  if (thread.side === "hunk") return `${fileId(thread.path)}-hunk-${thread.line}`;
+  return lineId(thread.path, thread.side, thread.line);
 }
 
 export function parseLineId(id: string): { path: string; side: Side; line: number } | null {
@@ -459,23 +468,28 @@ function strings(value: unknown, name: string): string[] {
 function threads(value: unknown): Thread[] {
   if (value === undefined) return [];
   const valid = (item: unknown): item is Thread => {
-    const thread = item as Record<string, unknown>;
+    if (typeof item !== "object" || item === null) return false;
+    const { path, side, line } = item as Record<string, unknown>;
+    if (typeof path !== "string") return false;
+    if (side === "file") return line === undefined;
+    const min = side === "hunk" ? 0 : 1;
     return (
-      typeof item === "object" &&
-      item !== null &&
-      typeof thread.path === "string" &&
-      (thread.side === "old" || thread.side === "new") &&
-      typeof thread.line === "number" &&
-      Number.isInteger(thread.line) &&
-      thread.line > 0
+      (side === "old" || side === "new" || side === "hunk") &&
+      typeof line === "number" &&
+      Number.isInteger(line) &&
+      line >= min
     );
   };
   if (!Array.isArray(value) || !value.every(valid)) {
     throw new BuildError(
-      'Input "threads" must be an array of {"path": <file path>, "side": "old" or "new", "line": <line number>}',
+      'Input "threads" must be an array of {"path": <file path>, "side": "old" or "new", "line": <line number>}, {"path": <file path>, "side": "file"} or {"path": <file path>, "side": "hunk", "line": <new start line>}',
     );
   }
-  return value.map(({ path, side, line }) => ({ path, side, line }));
+  return value.map((thread) =>
+    thread.side === "file"
+      ? { path: thread.path, side: thread.side }
+      : { path: thread.path, side: thread.side, line: thread.line },
+  );
 }
 
 export function parseInput(value: unknown): BuildInput {
@@ -575,6 +589,24 @@ export function untrackedFile(root: string, path: string): ParsedFile[] {
   return parseDiff(out.stdout);
 }
 
+function fileMode(file: ParsedFile): string | undefined {
+  return file.newMode ?? file.index?.split(" ")[1];
+}
+
+// A shown, regular Markdown file's new content, from HEAD when committed and the working tree otherwise.
+function markdownContent(root: string, file: ParsedFile, page: PageFile): string[] | undefined {
+  if (!page.hunks || page.status === "D" || !MARKDOWN.has(extname(page.path).toLowerCase())) {
+    return undefined;
+  }
+  const mode = fileMode(file);
+  if (mode !== undefined && modeType(mode) !== "10") return undefined;
+  const text =
+    page.source === "committed"
+      ? git(root, ["show", `HEAD:${page.path}`]).stdout
+      : readFileSync(join(root, page.path), "utf8");
+  return text.split("\n");
+}
+
 export function collectPage(cwd: string, input: BuildInput): PageData {
   const root = repoRoot(cwd);
   const { base, baseRef } = resolveBase(root, input.default);
@@ -598,13 +630,22 @@ export function collectPage(cwd: string, input: BuildInput): PageData {
     if (exclude.has(path)) continue;
     for (const file of untrackedFile(root, path)) entries.push({ file, source: "untracked" });
   }
-  const files = mergeByPath(entries).map(({ file, source }) => toPageFile(file, source));
+  const files = mergeByPath(entries).map(({ file, source }) => {
+    const page = toPageFile(file, source);
+    const content = markdownContent(root, file, page);
+    if (content) page.content = content;
+    return page;
+  });
   if (!files.length) throw new BuildError(`No changes against ${baseRef}`);
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const paths = new Set(files.map((file) => file.path));
   const missing = input.threads.filter((thread) => !paths.has(thread.path));
   if (missing.length) {
-    const names = missing.map((thread) => `${thread.path} (${thread.side} ${thread.line})`);
+    const names = missing.map((thread) =>
+      thread.side === "file"
+        ? `${thread.path} (file)`
+        : `${thread.path} (${thread.side} ${thread.line})`,
+    );
     throw new BuildError(`Threads name files that are not in the page: ${names.join(", ")}`);
   }
 
@@ -619,7 +660,7 @@ export function collectPage(cwd: string, input: BuildInput): PageData {
     head,
     uncommitted: files.filter((file) => file.source === "uncommitted").length,
     untracked: files.filter((file) => file.source === "untracked").length,
-    threads: input.threads.map((thread) => lineId(thread.path, thread.side, thread.line)),
+    threads: input.threads.map(threadId),
     files,
   };
 }

@@ -344,6 +344,7 @@
   }
   .scroll {
     overflow-x: auto;
+    overflow-y: hidden;
   }
   table {
     border-collapse: collapse;
@@ -630,6 +631,149 @@
   section.file.cur {
     border-color: var(--accent);
   }
+  .fhead .seg button {
+    padding: 3px 10px;
+    font-size: 12px;
+  }
+  .fhead .path .cicon {
+    position: static;
+    display: inline-grid;
+    vertical-align: -3px;
+    margin-right: 6px;
+  }
+  tr.hunk td {
+    position: relative;
+    padding-left: 28px;
+  }
+  tr.hunk .cbtn {
+    left: 5px;
+    right: auto;
+    top: 3px;
+  }
+  tr.hunk .cicon {
+    left: 6px;
+    top: 4px;
+  }
+  tr.hunk:hover .cbtn {
+    opacity: 1;
+  }
+  body.commenting tr.hunk,
+  body.commenting .fhead .path,
+  body.commenting .mdb {
+    cursor: crosshair;
+  }
+  body.commenting tr.hunk:hover td,
+  body.commenting .mdb:hover {
+    box-shadow:
+      inset 0 1px 0 var(--accent),
+      inset 0 -1px 0 var(--accent);
+  }
+  body.commenting .fhead .path:hover {
+    text-decoration: underline dotted var(--accent);
+  }
+  .wrapopt {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  body.wrap td.code,
+  body.wrap tr.hunk td {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  body.wrap table.unified,
+  body.wrap table.split {
+    table-layout: fixed;
+  }
+  body.wrap col.cn {
+    width: var(--num-w);
+  }
+  body.wrap col.cs {
+    width: calc(1ch + 8px);
+  }
+
+  .md {
+    padding: 8px 0 12px;
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+  .mdb {
+    position: relative;
+    padding: 1px 16px 1px 32px;
+    border-left: 3px solid transparent;
+  }
+  .mdb.chg {
+    background: var(--add-bg);
+    border-left-color: var(--add-fg);
+  }
+  .mdb > .cbtn {
+    left: 6px;
+    right: auto;
+    top: 6px;
+  }
+  .mdb > .cicon {
+    left: 7px;
+    top: 7px;
+  }
+  .mdb:hover > .cbtn {
+    opacity: 1;
+  }
+  .md a {
+    color: var(--accent);
+  }
+  .md img {
+    max-width: 100%;
+  }
+  .md code {
+    font-family: var(--font-code);
+    font-size: 12.5px;
+    background: var(--sunken);
+    border-radius: 4px;
+    padding: 1px 4px;
+  }
+  .md pre {
+    background: var(--sunken);
+    border-radius: 6px;
+    padding: 10px 12px;
+    overflow-x: auto;
+  }
+  .md pre code {
+    padding: 0;
+    background: none;
+  }
+  body.wrap .md pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .md table {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    overflow-x: auto;
+    table-layout: auto;
+    font-family: var(--font-ui);
+    font-size: 13px;
+  }
+  .md th,
+  .md td {
+    white-space: normal;
+    border: 1px solid var(--border);
+    padding: 4px 8px;
+    text-align: left;
+  }
+  .md blockquote {
+    margin-left: 0;
+    padding-left: 12px;
+    border-left: 3px solid var(--border);
+    color: var(--muted);
+  }
   @media (max-width: 860px) {
     .keys {
       display: none;
@@ -657,6 +801,9 @@
           >When you are done, tell Claude in the terminal to act on your comments.</span
         >
       </div>
+      <label class="wrapopt" data-uncommentable
+        ><input type="checkbox" id="wrap" /> Wrap lines</label
+      >
       <details class="files" id="files" open data-uncommentable>
         <summary>
           <span
@@ -678,7 +825,8 @@
         ><span>Collapse or expand file</span> <span class="k"><kbd>u</kbd></span
         ><span>Unified</span> <span class="k"><kbd>s</kbd></span
         ><span>Side-by-side</span> <span class="k"><kbd>v</kbd></span
-        ><span>Toggle viewed</span>
+        ><span>Toggle viewed</span> <span class="k"><kbd>w</kbd></span
+        ><span>Wrap lines</span>
       </div>
     </aside>
     <main class="diffs" id="diffs"></main>
@@ -696,6 +844,7 @@
   for (const f of DIFF.files) {
     for (const k of ["id", "path", "oldPath", "stub", "note"]) if (k in f) f[k] = joined(f[k]);
     for (const h of f.hunks || []) for (const l of h.lines) l[3] = joined(l[3]);
+    if (f.content) f.content = f.content.map(joined).join("\n");
   }
 
   const $ = (id) => document.getElementById(id);
@@ -714,6 +863,9 @@
     actAnchor = null;
   let current = 0;
   const collapsed = new Set();
+  // Hunk rows and file paths: the function that comments on each.
+  const onComment = new WeakMap();
+  let mdReady = false;
   const targets = []; // per file: { old: [], new: [] } of { n, el, code }
   const sections = [];
 
@@ -855,22 +1007,44 @@
     renderList();
   });
 
+  function commentAt(target, label, detail) {
+    while (new TextEncoder().encode(label).length > 128) label = "…" + label.slice(2);
+    detail = detail.slice(0, 500);
+    if (anchors) {
+      const [path] = anchors.domAnchor(target);
+      pendingAnchor = path;
+      pendingBefore = threads.filter((x) => x.anchor === path).length;
+      posted = false;
+      anchors.compose(path, target, { label, detail }).catch(() => {});
+    } else if (comments) {
+      comments.openComposer({ element: target }).catch(() => {});
+    }
+  }
   function commentOn(fi, side, idx) {
     const f = DIFF.files[fi];
     const t = targets[fi][side][idx];
     let label = f.path + (side === "old" ? ":old " : ":") + t.n;
     if (side === "new" && t.pair != null) label += " (old " + t.pair + ")";
-    while (new TextEncoder().encode(label).length > 128) label = "…" + label.slice(2);
-    const detail = t.code.slice(0, 500);
-    if (anchors) {
-      const [path] = anchors.domAnchor(t.el);
-      pendingAnchor = path;
-      pendingBefore = threads.filter((x) => x.anchor === path).length;
-      posted = false;
-      anchors.compose(path, t.el, { label, detail }).catch(() => {});
-    } else if (comments) {
-      comments.openComposer({ element: t.el }).catch(() => {});
-    }
+    commentAt(t.el, label, t.code);
+  }
+  function commentIcon(title) {
+    const ic = document.createElement("span");
+    ic.className = "cicon";
+    ic.innerHTML = ICON;
+    ic.title = title;
+    ic.setAttribute("role", "img");
+    ic.setAttribute("aria-label", title);
+    return ic;
+  }
+  function commentButton(aria, onClick) {
+    const b = el("button", "cbtn", "+");
+    b.type = "button";
+    b.setAttribute("aria-label", aria);
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      onClick();
+    });
+    return b;
   }
 
   // A target is one commentable line on one side: its gutter cell selects it, its + comments on it.
@@ -881,25 +1055,10 @@
     list.push({ n, el: el0, cells, code, pair });
     const gutter = cells[0];
     if (comments) {
-      const b = el("button", "cbtn", "+");
-      b.type = "button";
-      b.setAttribute(
-        "aria-label",
-        "Comment on " + f.path + (side === "old" ? " old line " : " line ") + n,
-      );
-      b.addEventListener("click", (e) => {
-        e.stopPropagation();
-        commentOn(fi, side, idx);
-      });
-      gutter.prepend(b);
+      const aria = "Comment on " + f.path + (side === "old" ? " old line " : " line ") + n;
+      gutter.prepend(commentButton(aria, () => commentOn(fi, side, idx)));
       if (known.has(el0.id) || (el0.dataset.alt && known.has(el0.dataset.alt))) {
-        const ic = document.createElement("span");
-        ic.className = "cicon";
-        ic.innerHTML = ICON;
-        ic.title = "This line has comments. Turn on comment mode to read them.";
-        ic.setAttribute("role", "img");
-        ic.setAttribute("aria-label", ic.title);
-        gutter.prepend(ic);
+        gutter.prepend(commentIcon("This line has comments. Turn on comment mode to read them."));
       }
     }
     for (const c of cells) {
@@ -915,14 +1074,39 @@
     if (line[4]) c.append(el("span", "nonl", "No newline at end of file"));
     return c;
   }
+  // A hunk header row, commentable as the whole hunk; its id holds the hunk's new start line.
+  function hunkRow(f, fi, h, table) {
+    const hr = el("tr", "hunk");
+    const c = td(null, h.header);
+    c.colSpan = 4;
+    hr.append(c);
+    table.append(hr);
+    const m = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(h.header);
+    if (!m) return;
+    hr.id = f.id + "-hunk-" + m[1];
+    const range = m[0];
+    const comment = () => commentAt(hr, f.path + " " + range, h.header);
+    onComment.set(hr, comment);
+    if (!comments) return;
+    c.prepend(commentButton("Comment on " + f.path + " hunk " + range, comment));
+    if (known.has(hr.id)) {
+      c.prepend(commentIcon("This hunk has comments. Turn on comment mode to read them."));
+    }
+  }
+  // Column widths for the wrapped, fixed layout: line number columns sized to the largest number.
+  function colgroup(f, table, kinds) {
+    let max = 0;
+    for (const h of f.hunks) for (const l of h.lines) max = Math.max(max, l[1] || 0, l[2] || 0);
+    table.style.setProperty("--num-w", "calc(" + Math.max(2, String(max).length) + "ch + 34px)");
+    const g = el("colgroup");
+    for (const k of kinds) g.append(el("col", k));
+    table.append(g);
+  }
   function renderUnified(f, fi, table) {
     table.className = "unified";
+    colgroup(f, table, ["cn", "cn", "cs", ""]);
     for (const h of f.hunks) {
-      const hr = el("tr", "hunk");
-      const c = td(null, h.header);
-      c.colSpan = 4;
-      hr.append(c);
-      table.append(hr);
+      hunkRow(f, fi, h, table);
       for (const l of h.lines) {
         const [t, o, n, s] = l;
         const k = t === "+" ? "add" : t === "-" ? "del" : "";
@@ -945,12 +1129,9 @@
   }
   function renderSplit(f, fi, table) {
     table.className = "split";
+    colgroup(f, table, ["cn", "", "cn", ""]);
     for (const h of f.hunks) {
-      const hr = el("tr", "hunk");
-      const c = td(null, h.header);
-      c.colSpan = 4;
-      hr.append(c);
-      table.append(hr);
+      hunkRow(f, fi, h, table);
       const L = h.lines;
       let i = 0;
       const row = (d, a) => {
@@ -982,14 +1163,23 @@
     }
   }
 
+  const VIEWS = { unified: "Unified", split: "Side-by-side", rendered: "Rendered" };
+  function views(f) {
+    const list = ["unified"];
+    if (!(narrowMq.matches || f.status === "A" || f.status === "D")) list.push("split");
+    if (f.content != null && mdReady) list.push("rendered");
+    return list;
+  }
   function fileView(f) {
-    if (narrowMq.matches || f.status === "A" || f.status === "D") return "unified";
-    return load(viewKey(f.path)) === "unified" ? "unified" : "split";
+    const list = views(f);
+    const saved = load(viewKey(f.path));
+    if (list.includes(saved)) return saved;
+    return list.includes("split") ? "split" : "unified";
   }
   function setView(fi, v) {
     const f = DIFF.files[fi];
-    if (!f.hunks || narrowMq.matches || f.status === "A" || f.status === "D") return;
-    store(viewKey(f.path), v === "unified" ? "unified" : null);
+    if (!f.hunks || !views(f).includes(v)) return;
+    store(viewKey(f.path), v === "split" ? null : v);
     renderFile(sections[fi], fi);
     reportPins();
   }
@@ -1012,17 +1202,69 @@
     setCollapsed(fi, on);
     renderList();
   }
+  // The new file rendered as Markdown, one block per top-level token, each commentable as the
+  // new-side line it starts on.
+  function renderMarkdown(f, fi, box) {
+    const added = new Set();
+    for (const h of f.hunks) for (const l of h.lines) if (l[0] === "+") added.add(l[2]);
+    const src = f.content;
+    const lineAt = (offset) => src.slice(0, offset).split("\n").length;
+    const addBlock = (block, start, raw) => {
+      const end = start + raw.replace(/\n+$/, "").split("\n").length - 1;
+      block.dataset.start = start;
+      block.dataset.end = end;
+      let has = false;
+      for (let n = start; n <= end; n++) {
+        if (added.has(n)) block.classList.add("chg");
+        if (n > start && known.has(lineId(f, "new", n))) has = true;
+      }
+      box.append(block);
+      addTarget(f, fi, "new", start, [block], block, raw);
+      if (comments && has && !block.querySelector(":scope > .cicon")) {
+        block.prepend(commentIcon("This block has comments. Turn on comment mode to read them."));
+      }
+    };
+    // YAML frontmatter shows as a code block.
+    const fm = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/.exec(src);
+    let cursor = 0;
+    if (fm) {
+      const block = el("div", "mdb");
+      const pre = el("pre");
+      pre.append(el("code", null, fm[0].replace(/\r?\n$/, "")));
+      block.append(pre);
+      addBlock(block, 1, fm[0]);
+      cursor = fm[0].length;
+    }
+    const tokens = marked.lexer(src.slice(cursor));
+    for (const tok of tokens) {
+      // The lexer drops link definitions, so each block is found in the source from the last one's end.
+      const at = src.indexOf(tok.raw, cursor);
+      const from = at >= 0 ? at : cursor;
+      cursor = from + tok.raw.length;
+      if (tok.type === "space") continue;
+      const one = [tok];
+      one.links = tokens.links;
+      const block = el("div", "mdb");
+      block.innerHTML = DOMPurify.sanitize(marked.parser(one), { SANITIZE_NAMED_PROPS: true });
+      addBlock(block, lineAt(from), tok.raw);
+    }
+  }
   function renderFile(sec, fi) {
     const f = DIFF.files[fi];
     sec.replaceChildren();
     targets[fi] = { old: [], new: [] };
     const head = el("div", "fhead");
-    head.setAttribute("data-uncommentable", "");
     const st = f.binary ? "B" : f.status;
     head.append(el("span", "chip st-" + st, f.binary ? "Binary" : STATUS[f.status]));
     const p = el("h2", "path");
     if (f.oldPath) p.append(el("span", "from", f.oldPath + " → "));
     p.append(f.path);
+    p.id = f.id + "-file";
+    const commentFile = () => commentAt(p, f.path, f.path);
+    onComment.set(p, commentFile);
+    if (comments && known.has(p.id)) {
+      p.prepend(commentIcon("This file has comments. Turn on comment mode to read them."));
+    }
     head.append(p);
     if (f.source !== "committed") head.append(el("span", "src", f.source));
     const c = counts(f);
@@ -1033,13 +1275,28 @@
     }
     head.append(el("span", "spacer"));
     const body = el("div", "fbody");
+    if (comments) {
+      const cb = el("button", "tog", "Comment");
+      cb.type = "button";
+      cb.setAttribute("aria-label", "Comment on " + f.path);
+      cb.addEventListener("click", commentFile);
+      head.append(cb);
+    }
     if (f.hunks) {
       const v = fileView(f);
-      if (!(narrowMq.matches || f.status === "A" || f.status === "D")) {
-        const tog = el("button", "tog", v === "split" ? "Unified" : "Side-by-side");
-        tog.type = "button";
-        tog.addEventListener("click", () => setView(fi, v === "split" ? "unified" : "split"));
-        head.append(tog);
+      const list = views(f);
+      if (list.length > 1) {
+        const seg = el("div", "seg");
+        seg.setAttribute("role", "group");
+        seg.setAttribute("aria-label", "View");
+        for (const k of list) {
+          const b = el("button", null, VIEWS[k]);
+          b.type = "button";
+          b.setAttribute("aria-pressed", String(k === v));
+          b.addEventListener("click", () => setView(fi, k));
+          seg.append(b);
+        }
+        head.append(seg);
       }
       const fold = el("button", "fold", "Collapse");
       fold.type = "button";
@@ -1054,11 +1311,16 @@
     cb.addEventListener("change", () => setViewed(fi, cb.checked));
     lab.append(cb, "Viewed");
     head.append(lab);
+    for (const c of head.children) if (c !== p) c.setAttribute("data-uncommentable", "");
     sec.append(head);
     if (f.note) body.append(el("div", "note", f.note));
     if (f.binary) body.append(el("div", "note", "Binary file changed."));
     else if (f.stub) body.append(el("div", "note", f.stub));
-    else {
+    else if (fileView(f) === "rendered") {
+      const box = el("div", "md");
+      renderMarkdown(f, fi, box);
+      body.append(box);
+    } else {
       const scroll = el("div", "scroll");
       const table = el("table");
       (fileView(f) === "split" ? renderSplit : renderUnified)(f, fi, table);
@@ -1138,14 +1400,28 @@
     } else if (k === "u") setView(current, "unified");
     else if (k === "s") setView(current, "split");
     else if (k === "v") setViewed(current, !isViewed(DIFF.files[current]));
+    else if (k === "w") setWrap(!wrap);
     else return;
     e.preventDefault();
   });
 
   function targetFor(anchor) {
     const m = /#(f-[A-Za-z0-9_-]+)/.exec(anchor || "");
-    if (m)
-      return document.getElementById(m[1]) || document.querySelector('[data-alt="' + m[1] + '"]');
+    if (m) {
+      const found =
+        document.getElementById(m[1]) || document.querySelector('[data-alt="' + m[1] + '"]');
+      if (found) return found;
+      // In Rendered view a new-side line maps to the block that holds it.
+      const line = /^(f-[A-Za-z0-9_]*)-new-(\d+)$/.exec(m[1]);
+      const sec = line && document.getElementById(line[1]);
+      if (!sec) return null;
+      const n = +line[2];
+      return (
+        [...sec.querySelectorAll(".mdb")].find(
+          (b) => +b.dataset.start <= n && n <= +b.dataset.end,
+        ) || null
+      );
+    }
     try {
       return document.querySelector(anchor);
     } catch {
@@ -1171,11 +1447,15 @@
             ? target.previousElementSibling || target
             : target;
       const r = gutter.getBoundingClientRect();
-      const x =
-        gutter === target && target.tagName !== "TD"
+      // Rendered Markdown blocks pin beside their first line.
+      const block = target.classList.contains("mdb");
+      const x = block
+        ? r.left + 14
+        : gutter === target && target.tagName !== "TD"
           ? Math.min(r.right, window.innerWidth) - 16
           : r.left + 6;
-      map[t.id] = { x: x + window.scrollX, y: r.top + r.height / 2 + window.scrollY };
+      const y = block ? r.top + Math.min(r.height / 2, 14) : r.top + r.height / 2;
+      map[t.id] = { x: x + window.scrollX, y: y + window.scrollY };
     }
     anchors.placed(map);
   }
@@ -1184,14 +1464,78 @@
 
   document.addEventListener("click", (e) => {
     if (!anchors || !document.body.classList.contains("commenting")) return;
-    const cell = e.target.closest && e.target.closest("td[data-side]");
-    if (!cell || e.target.closest(".cbtn")) return;
+    if (!e.target.closest || e.target.closest(".cbtn")) return;
+    const other = e.target.closest("tr.hunk, h2.path");
+    if (other && onComment.has(other)) {
+      e.preventDefault();
+      onComment.get(other)();
+      return;
+    }
+    const cell = e.target.closest("[data-side]");
+    if (!cell) return;
     e.preventDefault();
     const fi = +cell.dataset.fi,
       side = cell.dataset.side,
       idx = +cell.dataset.idx;
     commentOn(fi, side, idx);
   });
+
+  let wrap = load("wrap") !== "0";
+  function setWrap(on) {
+    wrap = on;
+    store("wrap", on ? null : "0");
+    $("wrap").checked = on;
+    document.body.classList.toggle("wrap", on);
+    requestAnimationFrame(reportPins);
+  }
+  $("wrap").addEventListener("change", () => setWrap($("wrap").checked));
+  setWrap(wrap);
+
+  const LIBS = [
+    [
+      "https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js",
+      "sha512-xeUh+KxNyTufZOje++oQHstlMQ8/rpyzPuM+gjMFYK3z5ILJGE7l2NvYL+XfliKURMpBIKKp1XoPN/qswlSMFA==",
+    ],
+    [
+      "https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js",
+      "sha512-jB0TkTBeQC9ZSkBqDhdmfTv1qdfbWpGE72yJ/01Srq6hEzZIz2xkz1e57p9ai7IeHMwEG7HpzG6NdptChif5Pg==",
+    ],
+  ];
+  function loadScript([src, integrity]) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = src;
+      s.integrity = integrity;
+      s.crossOrigin = "anonymous";
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.append(s);
+    });
+  }
+  // The Rendered view appears once both libraries load.
+  if (DIFF.files.some((f) => f.content != null)) {
+    Promise.all(LIBS.map(loadScript))
+      .then(() => {
+        if (typeof window.marked?.lexer !== "function") return;
+        if (typeof window.DOMPurify?.sanitize !== "function") return;
+        DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+          if (node.tagName === "A" && node.hasAttribute("href")) {
+            node.setAttribute("target", "_blank");
+            node.setAttribute("rel", "noopener noreferrer");
+          }
+          // Repo-relative images cannot load from the artifact, so they show their alt text.
+          if (node.tagName === "IMG" && !/^(https?:|data:)/i.test(node.getAttribute("src") || "")) {
+            node.removeAttribute("src");
+          }
+        });
+        mdReady = true;
+        DIFF.files.forEach((f, fi) => {
+          if (f.content != null && sections[fi]) renderFile(sections[fi], fi);
+        });
+        reportPins();
+      })
+      .catch(() => {});
+  }
 
   if (window.matchMedia("(max-width: 860px)").matches) $("files").open = false;
   renderSummary();

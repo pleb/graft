@@ -59,7 +59,7 @@ Write the input file:
 ```
 
 - `publish` is 1, or the existing input file's `publish` plus 1.
-- `threads` is empty on the first publish in the session. Otherwise, it holds each open thread's file, side and line, read as `## Threads` describes.
+- `threads` is empty on the first publish in the session. Otherwise, it holds an item for each open thread, read as `## Threads` describes.
 
 ```bash
 node ${CLAUDE_SKILL_DIR}/build.ts build --input <input file> --out <page>
@@ -71,23 +71,25 @@ When it exits 1, show the user its message and stop. Otherwise show the line aft
 
 On the first publish in the session, call `Artifact` with `action: "quickstart"` and `intent: "other"`, and load the `artifact-capabilities` skill.
 
-Read the page in full with the `Read` tool, in parts with `offset` and `limit` when it is long.
+Read the page in full with the `Read` tool, in parts of about 800 lines with `offset` and `limit` when it is long.
 
 Publish the page with `Artifact`: `file_path` the page, `capabilities: {comments: {customAnchors: true}}`, and `icon: "code"` on the first publish only. A republish uses the same `file_path`.
 
 If the publish is refused with `capabilities.comments: unavailable`, publish again with `capabilities: {comments: {}}`, and tell the user comments then anchor to text selections, without line labels or comment icons.
 
-Report the link. On a republish, say the link keeps its sharing settings, so anyone it is shared with sees the new version. Tell the user to comment on lines, send each comment to Claude, and press Finish review (or tell you in the terminal) when done.
+Report the link. On a republish, say the link keeps its sharing settings, so anyone it is shared with sees the new version. Tell the user to comment on lines, hunks or files, send each comment to Claude, and press Finish review (or tell you in the terminal) when done.
 
 ## Threads
 
 Read the artifact's threads with `ArtifactComments` `read`, following `cursor` until none remain.
 
-Take a thread's file, side and line from its `[location]`:
+Take a thread's file and place from its `[location]`, with its build input item:
 
-- `<file>:<line>`: new side, that line.
-- `<file>:old <line>`: old side, that line.
-- `<file>:<line> (old <line>)`: new side, the first line.
+- `<file>:<line>`: new side, that line. `{"path": "<file>", "side": "new", "line": <line>}`
+- `<file>:old <line>`: old side, that line. `{"path": "<file>", "side": "old", "line": <line>}`
+- `<file>:<line> (old <line>)`: new side, the first line. `{"path": "<file>", "side": "new", "line": <first line>}`
+- `<file>` alone: the whole file. `{"path": "<file>", "side": "file"}`
+- `<file> @@ -a,b +c,d @@`: that hunk. `{"path": "<file>", "side": "hunk", "line": <c>}`
 
 The file is the path as the diff shows it, the new path for a renamed file. A `[location]` starting with `…` has a shortened path: match it by path suffix against the files in the diff, and by `[anchor detail]` (the commented code) when several match. For the build input, skip threads with no `[location]`, anchored at `#finish-review`, or whose file is not among the files being built (`tracked` plus the untracked files to include, less the exclusions).
 
@@ -96,7 +98,9 @@ The file is the path as the diff shows it, the new path for a renamed file. A `[
 The batch starts when the user says so in the terminal, or when a thread anchored at `#finish-review` arrives. First re-read this section of `${CLAUDE_SKILL_DIR}/SKILL.md`, then follow the steps below. Every reply you post passes `acknowledge_duplicate: true`.
 
 1. Read every thread as `## Threads` describes. Pending work is the open threads sent to Claude, other than the Finish review threads. Quote the open threads not sent to Claude in the terminal and ask the user to send the ones they want acted on.
-2. Locate each pending thread's code. A thread with a `[location]` has its file, side and line from `## Threads`, and its `[anchor detail]` is the source of truth, with the line number only narrowing the search.
+2. Locate each pending thread's code. A thread with a `[location]` has its file and place from `## Threads`, and its `[anchor detail]` is the source of truth, with the line number only narrowing the search.
+   - File: the thread acts on the file as a whole.
+   - Hunk: locate the hunk by its range and `[anchor detail]` (the hunk header).
    - New side: locate `[anchor detail]` in the current file.
    - Old side (a `:old` label, a removed line or a deleted file): `[anchor detail]` is removed code. Locate it in the base version (`git show <base>:<old path>`, with `base` from the files output), then act at the matching spot in the current file.
    - No `[location]`: locate its selected text in the changed files.

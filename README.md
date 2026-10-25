@@ -48,7 +48,7 @@ And when you're ready to ship the changes:
 /graft:pr [guidance] [state: draft (default) | ready-state]
 ```
 
-`/graft:diff` publishes the branch's changes against the default branch as a private claude.ai artifact for you to comment on. When you press Finish review, or tell Claude in the terminal, it acts on your comments in one batch. It needs Node 24 or later and Claude Code signed in to claude.ai.
+`/graft:diff` publishes the branch's changes against the default branch as a private claude.ai artifact for you to comment on. When you press Finish review, or tell Claude in the terminal, it acts on your comments in one batch.
 
 ## Utility commands
 
@@ -61,18 +61,9 @@ And when you're ready to ship the changes:
 
 Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps your mods when it brings in upstream changes.
 
-`/graft:tune` finds corrections you keep making to plan and orchestrate runs and turns the ones you pick into mods. It needs Node 24 or later.
+`/graft:tune` finds corrections you keep making to plan and orchestrate runs and turns the ones you pick into mods.
 
 ![How your copy of Graft stays current: /graft:update merges the latest Graft from pleb/graft into your clone at ~/.my-graft, keeping your mods. /graft:modify commits a mod to the clone, recorded in MODS.md. /graft:tune finds corrections you keep making and hands the ones you pick to /graft:modify. The clone pushes to your private \<login\>/my-graft repo, and your other machines pull from it. Claude Code loads Graft from the clone, and /reload-plugins picks up changes.](./docs/update.svg)
-
-## Graft development
-
-Install from a local checkout:
-
-```bash
-claude plugin marketplace add /path/to/graft
-claude plugin install graft@graft
-```
 
 ## Acknowledgements
 

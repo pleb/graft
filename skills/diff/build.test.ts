@@ -28,6 +28,7 @@ import {
   parseInput,
   parseLineId,
   renderPage,
+  threadId,
   toPageFile,
   unquoteGitPath,
   untrackedFile,
@@ -245,12 +246,27 @@ describe("parseInput", () => {
       [{ path: "a.ts", side: "mid", line: 3 }],
       [{ path: "a.ts", side: "new", line: 0 }],
       [{ side: "new", line: 1 }],
+      [{ path: "a.ts", side: "file", line: 1 }],
+      [{ path: "a.ts", side: "hunk" }],
+      [{ path: "a.ts", side: "hunk", line: -1 }],
       [null],
     ]) {
       expect(() => parseInput({ default: "main", threads: bad })).toThrow(
         'Input "threads" must be an array of {"path"',
       );
     }
+  });
+
+  it("reads file threads without a line and hunk threads with their new start line", () => {
+    const threads = [
+      { path: "a.ts", side: "file" },
+      { path: "a.ts", side: "hunk", line: 12 },
+      { path: "gone.ts", side: "hunk", line: 0 },
+    ];
+    expect(parseInput({ default: "main", threads }).threads).toEqual(threads);
+    expect(threadId({ path: "a.ts", side: "file" })).toBe("f-a_2e_ts-file");
+    expect(threadId({ path: "a.ts", side: "hunk", line: 12 })).toBe("f-a_2e_ts-hunk-12");
+    expect(threadId({ path: "a.ts", side: "old", line: 3 })).toBe(lineId("a.ts", "old", 3));
   });
 });
 
@@ -409,6 +425,45 @@ describe("collectPage", () => {
     expect(() => collectPage(dir, input({ threads }))).toThrow(
       "Threads name files that are not in the page: src/old-name.ts (old 10), gone.ts (new 1)",
     );
+  });
+
+  it("builds ids for file and hunk threads", () => {
+    const dir = featureRepo();
+    const data = collectPage(
+      dir,
+      input({
+        threads: [
+          { path: "src/mod.ts", side: "file" },
+          { path: "src/mod.ts", side: "hunk", line: 1 },
+        ],
+      }),
+    );
+    expect(data.threads).toEqual(["f-src_2f_mod_2e_ts-file", "f-src_2f_mod_2e_ts-hunk-1"]);
+    expect(() => collectPage(dir, input({ threads: [{ path: "gone.ts", side: "file" }] }))).toThrow(
+      "Threads name files that are not in the page: gone.ts (file)",
+    );
+  });
+
+  it("embeds the new content of shown Markdown files only", () => {
+    const dir = newRepo({
+      "doc.md": "# Doc\n\nold\n",
+      "work.markdown": "a\n",
+      "gone.md": "bye\n",
+      "code.ts": "a\n",
+      "x.min.md": "a\n",
+    });
+    git(dir, "checkout", "-q", "-b", "feature");
+    write(dir, { "doc.md": "# Doc\n\nnew\n", "code.ts": "b\n", "x.min.md": "b\n" });
+    rmSync(join(dir, "gone.md"));
+    commitAll(dir, "feature");
+    write(dir, { "work.markdown": "b\n", "new.MDX": "# New" });
+    const files = byPath(collectPage(dir, input({ untracked: ["new.MDX"] })));
+    expect(files.get("doc.md")!.content).toEqual(["# Doc", "", "new", ""]);
+    expect(files.get("work.markdown")!.content).toEqual(["b", ""]);
+    expect(files.get("new.MDX")!.content).toEqual(["# New"]);
+    for (const path of ["gone.md", "code.ts", "x.min.md"]) {
+      expect(files.get(path)!.content).toBeUndefined();
+    }
   });
 
   it("includes only the untracked files asked for and leaves out exclusions", () => {
@@ -690,6 +745,39 @@ describe("renderPage", () => {
     expect(kept.note).toBe("Removed from the index; kept as an untracked file.");
   });
 
+  it("chunks long Markdown content lines, which the page joins back", () => {
+    const long = "<b>&".repeat(600);
+    const dir = newRepo({ "a.md": "a\n" });
+    write(dir, { "a.md": `${long}\nshort\n` });
+    const html = renderPage(TEMPLATE, collectPage(dir, input()));
+    expect(Math.max(...html.split("\n").map((line) => line.length))).toBeLessThanOrEqual(1000);
+    const page = embedded(html);
+    const content = page.files[0].content as unknown[];
+    expect(Array.isArray(content[0])).toBe(true);
+    expect(content[1]).toBe("short");
+    const join = new Function(
+      "DIFF",
+      [templateSource("const joined = "), templateSource("for (const f of DIFF.files) {")].join(
+        "\n",
+      ),
+    );
+    join(page);
+    expect(page.files[0].content).toBe(`${long}\nshort\n`);
+  });
+
+  it("counts Markdown content toward the size cap", () => {
+    const body = lines("a fairly long line of text in a big file", 9000);
+    const dir = newRepo({ "big.md": body, "big.txt": body });
+    write(dir, {
+      "big.md": body.replace("file 5\n", "changed 5\n"),
+      "big.txt": body.replace("file 5\n", "changed 5\n"),
+    });
+    const both = collectPage(dir, input());
+    expect(() => renderPage(TEMPLATE, both)).toThrow(/Largest files: big\.md \(\d+ KB\)/);
+    const text = collectPage(dir, input({ exclude: ["big.md"] }));
+    expect(() => renderPage(TEMPLATE, text)).not.toThrow();
+  });
+
   it("fails on an oversized page and names the largest files", () => {
     const dir = newRepo({ "README.md": "x\n" });
     write(dir, {
@@ -712,6 +800,10 @@ class FakeElement {
   id = "";
   className = "";
   textContent = "";
+  innerHTML = "";
+  title = "";
+  colSpan = 1;
+  style = { setProperty() {} };
   tagName: string;
   constructor(tagName: string) {
     this.tagName = tagName;
@@ -736,18 +828,23 @@ function templateSource(start: string): string {
 }
 
 describe("template", () => {
-  it("marks a unified context row whose thread is on its old-side id", () => {
+  it("marks a hunk row by its new start line and a unified context row by its old-side id", () => {
     const source = [
       templateSource("const el = "),
       templateSource("const lineId = "),
       templateSource("const td = "),
+      templateSource("const onComment = "),
+      templateSource("function commentIcon("),
+      templateSource("function commentButton("),
+      templateSource("function hunkRow("),
+      templateSource("function colgroup("),
       templateSource("function addTarget("),
       templateSource("function codeTd("),
       templateSource("function renderUnified("),
       "return renderUnified;",
     ].join("\n");
     const document = { createElement: (tag: string) => new FakeElement(tag) };
-    const known = new Set(["f-a-old-3"]);
+    const known = new Set(["f-a-old-3", "f-a-hunk-5"]);
     const renderUnified = new Function("document", "known", "comments", "targets", "ICON", source)(
       document,
       known,
@@ -756,9 +853,13 @@ describe("template", () => {
       "",
     );
     const table = new FakeElement("table");
-    const file = { id: "f-a", path: "a", hunks: [{ header: "@@", lines: [[" ", 3, 5, "x"]] }] };
+    const header = "@@ -3 +5 @@ context";
+    const file = { id: "f-a", path: "a", hunks: [{ header, lines: [[" ", 3, 5, "x"]] }] };
     renderUnified(file, 0, table);
-    const row = table.children[1];
+    const hunk = table.children[1];
+    expect(hunk.id).toBe("f-a-hunk-5");
+    expect(hunk.children[0].children.map((child) => child.className)).toEqual(["cicon", "cbtn"]);
+    const row = table.children[2];
     expect(row.id).toBe("f-a-new-5");
     expect(row.dataset.alt).toBe("f-a-old-3");
     expect(row.children[1].children.map((child) => child.className)).toContain("cicon");
