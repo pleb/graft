@@ -1,0 +1,1308 @@
+<title>__DIFF_TITLE__</title>
+<meta name="claude:viewport-fit-sides" content="cover" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap"
+/>
+<style>
+  /* Layout: summary bar on top, sticky file list on the left, one block per file on the right; file list folds above the diff on phones. */
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --sunken: #eef0f4;
+    --fg: #1c2330;
+    --muted: #5d6778;
+    --border: #d9dde5;
+    --accent: #2f5d8a;
+    --accent-fg: #ffffff;
+    --add-bg: #e3f4e8;
+    --add-strong: #b9e4c6;
+    --add-fg: #1d6b3a;
+    --del-bg: #fbe8e8;
+    --del-strong: #f2c2c2;
+    --del-fg: #a03030;
+    --mod-fg: #8a5a00;
+    --hunk-bg: #e8eef6;
+    --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-code: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12161d;
+      --surface: #191e27;
+      --sunken: #212734;
+      --fg: #e3e7ee;
+      --muted: #9aa4b5;
+      --border: #2e3644;
+      --accent: #7fb0e0;
+      --accent-fg: #0d1520;
+      --add-bg: #15301f;
+      --add-strong: #1f4a2e;
+      --add-fg: #7fd69c;
+      --del-bg: #3a1a1c;
+      --del-strong: #5a2629;
+      --del-fg: #f19a9a;
+      --mod-fg: #e0b45c;
+      --hunk-bg: #1d2a3a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12161d;
+    --surface: #191e27;
+    --sunken: #212734;
+    --fg: #e3e7ee;
+    --muted: #9aa4b5;
+    --border: #2e3644;
+    --accent: #7fb0e0;
+    --accent-fg: #0d1520;
+    --add-bg: #15301f;
+    --add-strong: #1f4a2e;
+    --add-fg: #7fd69c;
+    --del-bg: #3a1a1c;
+    --del-strong: #5a2629;
+    --del-fg: #f19a9a;
+    --mod-fg: #e0b45c;
+    --hunk-bg: #1d2a3a;
+    color-scheme: dark;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-ui);
+    font-size: 14px;
+  }
+  .wrap {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 16px 48px;
+    max-width: 1600px;
+    margin: 0 auto;
+    display: grid;
+    gap: 16px;
+  }
+
+  .summary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 24px;
+  }
+  .summary h1 {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 0;
+    text-wrap: balance;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .summary h1 .base {
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .meta code {
+    font-family: var(--font-code);
+    font-size: 12px;
+    color: var(--fg);
+  }
+  .totals {
+    font-family: var(--font-code);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .plus {
+    color: var(--add-fg);
+  }
+  .minus {
+    color: var(--del-fg);
+  }
+  .spacer {
+    flex: 1 1 auto;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .seg button {
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 12px;
+    border: 0;
+    background: var(--surface);
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] {
+    background: var(--sunken);
+    font-weight: 600;
+  }
+  .seg button:disabled {
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+  .act {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 6px;
+    border: 0;
+    background: var(--accent);
+    color: var(--accent-fg);
+    cursor: pointer;
+  }
+  .act:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .hint {
+    color: var(--muted);
+    font-size: 13px;
+  }
+  button:focus-visible,
+  a:focus-visible,
+  summary:focus-visible,
+  input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .body {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .files {
+    position: sticky;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    max-height: calc(100vh - 24px);
+    overflow: auto;
+  }
+  .files summary {
+    list-style: none;
+    padding: 10px 12px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    cursor: default;
+  }
+  .files summary::-webkit-details-marker {
+    display: none;
+  }
+  .files ol {
+    list-style: none;
+    margin: 0;
+    padding: 6px 0;
+  }
+  .files li a {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    padding: 5px 12px;
+    color: var(--fg);
+    text-decoration: none;
+    font-size: 13px;
+  }
+  .files li a:hover {
+    background: var(--sunken);
+  }
+  .files li a .p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: left;
+  }
+  .files li a .n {
+    font-family: var(--font-code);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .files li.viewed a {
+    color: var(--muted);
+  }
+  .st {
+    font-family: var(--font-code);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .st-A {
+    color: var(--add-fg);
+  }
+  .st-D {
+    color: var(--del-fg);
+  }
+  .st-M {
+    color: var(--mod-fg);
+  }
+  .st-R {
+    color: var(--accent);
+  }
+  .st-B {
+    color: var(--muted);
+  }
+
+  .diffs {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+  .file {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    scroll-margin-top: 12px;
+  }
+  .fhead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 9px 12px;
+    background: var(--sunken);
+    border-bottom: 1px solid var(--border);
+  }
+  .fhead .chip {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid currentColor;
+  }
+  .fhead .path {
+    margin: 0;
+    font-family: var(--font-code);
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .fhead .from {
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .fhead .src {
+    font-size: 12px;
+    color: var(--muted);
+    border: 1px dashed var(--border);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+  .fhead label {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .fhead .fold {
+    font: inherit;
+    font-size: 13px;
+    background: none;
+    border: 0;
+    color: var(--accent);
+    cursor: pointer;
+    padding: 0;
+  }
+  .note {
+    padding: 14px 16px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .scroll {
+    overflow-x: auto;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-family: var(--font-code);
+    font-size: 12.5px;
+    line-height: 1.55;
+    font-variant-ligatures: none;
+  }
+  td {
+    padding: 0 10px;
+    vertical-align: top;
+    white-space: pre;
+  }
+  td.num {
+    width: 1%;
+    min-width: 44px;
+    text-align: right;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+  }
+  td.sign {
+    width: 1%;
+    padding: 0 4px 0 0;
+    user-select: none;
+    color: var(--muted);
+  }
+  td.code {
+    width: 50%;
+  }
+  table.unified td.code {
+    width: auto;
+  }
+  tr.hunk td {
+    background: var(--hunk-bg);
+    color: var(--muted);
+    padding-block: 3px;
+  }
+  .add {
+    background: var(--add-bg);
+  }
+  .add.num {
+    background: var(--add-strong);
+    color: var(--add-fg);
+  }
+  .del {
+    background: var(--del-bg);
+  }
+  .del.num {
+    background: var(--del-strong);
+    color: var(--del-fg);
+  }
+  .empty {
+    background: var(--sunken);
+  }
+  td.split {
+    border-left: 1px solid var(--border);
+  }
+  tr.line {
+    position: relative;
+  }
+  .cbtn {
+    position: absolute;
+    left: 2px;
+    margin-top: 1px;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 0;
+    background: var(--accent);
+    color: var(--accent-fg);
+    font: 600 13px/18px var(--font-ui);
+    cursor: pointer;
+    opacity: 0;
+    padding: 0;
+  }
+  tr.line:hover .cbtn,
+  .cbtn:focus-visible {
+    opacity: 1;
+  }
+  .proto {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .nonl {
+    margin-left: 12px;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    color: var(--muted);
+    user-select: none;
+  }
+
+  @media (max-width: 860px) {
+    .body {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .files {
+      position: static;
+      max-height: none;
+    }
+    .files summary {
+      cursor: pointer;
+    }
+    .files summary::after {
+      content: "Show";
+      font-weight: 400;
+      color: var(--accent);
+    }
+    .files[open] summary::after {
+      content: "Hide";
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+
+  .side {
+    position: sticky;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    display: grid;
+    gap: 12px;
+    max-height: calc(100vh - 24px);
+    min-width: 0;
+  }
+  .side .files {
+    position: static;
+    max-height: none;
+    overflow: auto;
+    min-height: 0;
+  }
+  .finish {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    display: grid;
+    gap: 8px;
+  }
+  .finish .act {
+    width: 100%;
+    padding: 9px 14px;
+    font-size: 14px;
+  }
+  .fhead .tog {
+    font: inherit;
+    font-size: 13px;
+    background: none;
+    border: 0;
+    color: var(--accent);
+    cursor: pointer;
+    padding: 0;
+  }
+  .fhead .tog:disabled {
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+  body.commenting tr.line {
+    cursor: crosshair;
+  }
+  body.commenting tr.line:hover td {
+    box-shadow:
+      inset 0 1px 0 var(--accent),
+      inset 0 -1px 0 var(--accent);
+  }
+  @media (max-width: 860px) {
+    .side {
+      position: static;
+      max-height: none;
+    }
+  }
+
+  td.num {
+    position: relative;
+  }
+  .cbtn {
+    left: auto;
+    right: 2px;
+    top: 1px;
+  }
+  tr.line:hover .cbtn {
+    opacity: 1;
+  }
+  .files .bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px 0;
+  }
+  .files .bar .seg button {
+    padding: 3px 10px;
+    font-size: 12px;
+  }
+  .files .count {
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .files li.cur > a {
+    background: var(--sunken);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .files ol ol {
+    padding: 0 0 0 14px;
+  }
+  .files .dir > details > summary {
+    border: 0;
+    padding: 4px 12px;
+    font-weight: 500;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    gap: 6px;
+    justify-content: flex-start;
+  }
+  .files .dir > details > summary::before {
+    content: "▸";
+    display: inline-block;
+    width: 10px;
+  }
+  .files .dir > details[open] > summary::before {
+    content: "▾";
+  }
+  .files .dir > details > summary::after {
+    content: none;
+  }
+  .cicon {
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    width: 16px;
+    height: 16px;
+    color: var(--accent);
+    display: grid;
+    place-items: center;
+  }
+  .cicon svg {
+    width: 15px;
+    height: 15px;
+  }
+  body.commenting .cicon {
+    display: none;
+  }
+  .keys {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 10px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .keys h2 {
+    grid-column: 1 / -1;
+    margin: 0 0 2px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fg);
+  }
+  kbd {
+    font-family: var(--font-code);
+    font-size: 12px;
+    color: var(--fg);
+    background: var(--sunken);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 0 5px;
+    text-align: center;
+    min-width: 1.6em;
+    display: inline-block;
+  }
+  .keys .k {
+    white-space: nowrap;
+  }
+  section.file.cur {
+    border-color: var(--accent);
+  }
+  @media (max-width: 860px) {
+    .keys {
+      display: none;
+    }
+  }
+</style>
+
+<div class="wrap">
+  <header class="summary">
+    <h1 id="title"></h1>
+    <div class="meta" id="meta"></div>
+    <div class="proto" style="flex-basis: 100%">
+      Comments are collected; nothing changes until you press Finish review.
+      <span id="comment-hint" hidden
+        >Hover a line and press + to comment on it, or turn on comment mode and click a line.</span
+      >
+    </div>
+  </header>
+
+  <div class="body">
+    <aside class="side">
+      <div class="finish" id="finish-review">
+        <button type="button" class="act" id="act" hidden>Finish review</button>
+        <span class="hint" id="act-hint"
+          >When you are done, tell Claude in the terminal to act on your comments.</span
+        >
+      </div>
+      <details class="files" id="files" open data-uncommentable>
+        <summary>
+          <span
+            >Files (<span id="files-total"></span>) <span class="count" id="files-viewed"></span
+          ></span>
+        </summary>
+        <div class="bar">
+          <div class="seg" role="group" aria-label="File list layout">
+            <button type="button" id="list-flat" aria-pressed="true">Flat</button>
+            <button type="button" id="list-tree" aria-pressed="false">Tree</button>
+          </div>
+        </div>
+        <ol id="file-list"></ol>
+      </details>
+      <div class="keys" data-uncommentable aria-label="Keyboard shortcuts">
+        <h2>Shortcuts</h2>
+        <span class="k"><kbd>j</kbd> <kbd>k</kbd></span
+        ><span>Next or previous file</span> <span class="k"><kbd>x</kbd></span
+        ><span>Collapse or expand file</span> <span class="k"><kbd>u</kbd></span
+        ><span>Unified</span> <span class="k"><kbd>s</kbd></span
+        ><span>Side-by-side</span> <span class="k"><kbd>v</kbd></span
+        ><span>Toggle viewed</span>
+      </div>
+    </aside>
+    <main class="diffs" id="diffs"></main>
+  </div>
+</div>
+
+<script id="diff-data" type="application/json">
+  __DIFF_DATA__
+</script>
+<script>
+  const DIFF = JSON.parse(document.getElementById("diff-data").textContent);
+
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, text) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  };
+  const STATUS = { A: "Added", D: "Deleted", M: "Modified", R: "Renamed" };
+  const narrowMq = window.matchMedia("(max-width: 760px)");
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let comments = null,
+    anchors = null,
+    threads = [],
+    actAnchor = null;
+  let current = 0;
+  const collapsed = new Set();
+  const targets = []; // per file: { old: [], new: [] } of { n, el, code }
+
+  const counts = (f) => ({ add: f.add, del: f.del });
+  function store(key, value) {
+    try {
+      value == null ? localStorage.removeItem(key) : localStorage.setItem(key, value);
+    } catch {}
+  }
+  function load(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+  // Viewed is keyed by the file's content hash, so a file Claude changes shows as unviewed again.
+  const viewedKey = (f) => "viewed:" + DIFF.branch + ":" + f.path + ":" + f.hash;
+  const viewKey = (p) => "view:" + DIFF.branch + ":" + p;
+  const isViewed = (f) => load(viewedKey(f)) === "1";
+  const lineId = (f, side, n) => f.id + "-" + side + "-" + n;
+  // Keyed by build so a republish's embedded list wins over what an earlier version saw.
+  const knownKey = "threads:" + DIFF.buildId;
+  let saved = null;
+  try {
+    saved = JSON.parse(load(knownKey) || "null");
+  } catch {}
+  const known = new Set(Array.isArray(saved) ? saved : DIFF.threads);
+  let pendingAnchor = null,
+    pendingBefore = 0,
+    posted = false;
+  const ICON =
+    '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M2.5 2h11A1.5 1.5 0 0 1 15 3.5v7a1.5 1.5 0 0 1-1.5 1.5H8.2l-3.1 2.6c-.4.3-1.1 0-1.1-.5V12H2.5A1.5 1.5 0 0 1 1 10.5v-7A1.5 1.5 0 0 1 2.5 2Z"/></svg>';
+  const idOf = (anchor) => {
+    const m = /#(f-[A-Za-z0-9_-]+)/.exec(anchor || "");
+    return m ? m[1] : null;
+  };
+
+  function renderSummary() {
+    const h1 = $("title");
+    h1.append(DIFF.repo + " / " + DIFF.branch + " ", el("span", "base", "vs " + DIFF.base));
+    let add = 0,
+      del = 0;
+    for (const f of DIFF.files) {
+      const c = counts(f);
+      add += c.add;
+      del += c.del;
+    }
+    const t = el("span", "totals");
+    t.append(
+      DIFF.files.length + " files ",
+      el("span", "plus", "+" + add),
+      " ",
+      el("span", "minus", "−" + del),
+    );
+    const mb = el("span");
+    mb.append("base ", el("code", null, DIFF.mergeBase), " → head ", el("code", null, DIFF.head));
+    $("meta").append(
+      t,
+      mb,
+      el("span", null, DIFF.uncommitted + " uncommitted, " + DIFF.untracked + " untracked"),
+    );
+  }
+
+  // ---- file list ----
+  function fileLink(f, fi, label) {
+    const c = counts(f);
+    const li = el("li");
+    li.id = "li-" + f.id;
+    li.classList.toggle("viewed", isViewed(f));
+    li.classList.toggle("cur", fi === current);
+    const a = el("a");
+    a.href = "#" + f.id;
+    a.addEventListener("click", () => setCurrent(fi, false));
+    const st = f.binary ? "B" : f.status;
+    a.append(el("span", "st st-" + st, st), el("span", "p", label));
+    a.title = f.path;
+    const n = el("span", "n");
+    if (!f.binary) n.append(el("span", "plus", "+" + c.add), " ", el("span", "minus", "−" + c.del));
+    a.append(n);
+    li.append(a);
+    return li;
+  }
+  function renderList() {
+    const tree = load("list-layout") === "tree";
+    $("list-flat").setAttribute("aria-pressed", String(!tree));
+    $("list-tree").setAttribute("aria-pressed", String(tree));
+    $("files-total").textContent = DIFF.files.length;
+    const viewed = DIFF.files.filter(isViewed).length;
+    $("files-viewed").textContent = "· " + viewed + " viewed";
+    const ol = $("file-list");
+    ol.replaceChildren();
+    if (!tree) {
+      DIFF.files.forEach((f, fi) => ol.append(fileLink(f, fi, f.path)));
+      return;
+    }
+    const root = { dirs: new Map(), files: [] };
+    DIFF.files.forEach((f, fi) => {
+      const parts = f.path.split("/");
+      let node = root;
+      for (const d of parts.slice(0, -1)) {
+        if (!node.dirs.has(d)) node.dirs.set(d, { dirs: new Map(), files: [] });
+        node = node.dirs.get(d);
+      }
+      node.files.push([f, fi, parts[parts.length - 1]]);
+    });
+    const build = (node, into, prefix) => {
+      for (const [name, child] of [...node.dirs].sort((a, b) => a[0].localeCompare(b[0]))) {
+        // Fold single-child folder chains into one row, like "src/auth".
+        let label = name,
+          n = child,
+          path = prefix + name;
+        while (n.files.length === 0 && n.dirs.size === 1) {
+          const [k, v] = [...n.dirs][0];
+          label += "/" + k;
+          path += "/" + k;
+          n = v;
+        }
+        const li = el("li", "dir");
+        const d = el("details");
+        d.open = load("dir-closed:" + path) !== "1";
+        d.addEventListener("toggle", () => store("dir-closed:" + path, d.open ? null : "1"));
+        d.append(el("summary", null, label));
+        const sub = el("ol");
+        build(n, sub, path + "/");
+        d.append(sub);
+        li.append(d);
+        into.append(li);
+      }
+      for (const [f, fi, name] of node.files) into.append(fileLink(f, fi, name));
+    };
+    build(root, ol, "");
+  }
+  $("list-flat").addEventListener("click", () => {
+    store("list-layout", null);
+    renderList();
+  });
+  $("list-tree").addEventListener("click", () => {
+    store("list-layout", "tree");
+    renderList();
+  });
+
+  // ---- comments ----
+  function commentOn(fi, side, idx) {
+    const f = DIFF.files[fi];
+    const t = targets[fi][side][idx];
+    let label = f.path + (side === "old" ? ":old " : ":") + t.n;
+    if (side === "new" && t.pair != null) label += " (old " + t.pair + ")";
+    while (new TextEncoder().encode(label).length > 128) label = "…" + label.slice(2);
+    const detail = t.code.slice(0, 500);
+    if (anchors) {
+      const [path] = anchors.domAnchor(t.el);
+      pendingAnchor = path;
+      pendingBefore = threads.filter((x) => x.anchor === path).length;
+      posted = false;
+      anchors.compose(path, t.el, { label, detail }).catch(() => {});
+    } else if (comments) {
+      comments.openComposer({ element: t.el }).catch(() => {});
+    }
+  }
+
+  // A target is one commentable line on one side: its gutter cell selects it, its + comments on it.
+  function addTarget(f, fi, side, n, cells, el0, code, pair) {
+    const list = targets[fi][side];
+    const idx = list.length;
+    el0.id = lineId(f, side, n);
+    list.push({ n, el: el0, cells, code, pair });
+    const gutter = cells[0];
+    if (comments) {
+      const b = el("button", "cbtn", "+");
+      b.type = "button";
+      b.setAttribute(
+        "aria-label",
+        "Comment on " + f.path + (side === "old" ? " old line " : " line ") + n,
+      );
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        commentOn(fi, side, idx);
+      });
+      gutter.prepend(b);
+      if (known.has(el0.id)) {
+        const ic = document.createElement("span");
+        ic.className = "cicon";
+        ic.innerHTML = ICON;
+        ic.title = "This line has comments. Turn on comment mode to read them.";
+        ic.setAttribute("role", "img");
+        ic.setAttribute("aria-label", ic.title);
+        gutter.prepend(ic);
+      }
+    }
+    for (const c of cells) {
+      c.dataset.fi = fi;
+      c.dataset.side = side;
+      c.dataset.idx = idx;
+    }
+  }
+
+  const td = (cls, text) => el("td", cls, text ?? "");
+  // A code cell; a line without a newline at end of file gets a marker after its text.
+  function codeTd(cls, line) {
+    const c = td(cls, line[3]);
+    if (line[4]) c.append(el("span", "nonl", "No newline at end of file"));
+    return c;
+  }
+  function renderUnified(f, fi, table) {
+    table.className = "unified";
+    for (const h of f.hunks) {
+      const hr = el("tr", "hunk");
+      const c = td(null, h.header);
+      c.colSpan = 4;
+      hr.append(c);
+      table.append(hr);
+      for (const l of h.lines) {
+        const [t, o, n, s] = l;
+        const k = t === "+" ? "add" : t === "-" ? "del" : "";
+        const tr = el("tr", "line");
+        const cells = [
+          td("num " + k, o),
+          td("num " + k, n),
+          td("sign " + k, t === " " ? "" : t === "-" ? "−" : "+"),
+          codeTd("code " + k, l),
+        ];
+        tr.append(...cells);
+        table.append(tr);
+        if (t === "-") addTarget(f, fi, "old", o, [cells[0], cells[1], cells[2], cells[3]], tr, s);
+        else {
+          addTarget(f, fi, "new", n, [cells[1], cells[0], cells[2], cells[3]], tr, s);
+          if (t === " ") tr.dataset.alt = lineId(f, "old", o);
+        }
+      }
+    }
+  }
+  function renderSplit(f, fi, table) {
+    table.className = "split";
+    for (const h of f.hunks) {
+      const hr = el("tr", "hunk");
+      const c = td(null, h.header);
+      c.colSpan = 4;
+      hr.append(c);
+      table.append(hr);
+      const L = h.lines;
+      let i = 0;
+      const row = (d, a) => {
+        const tr = el("tr", "line");
+        const ctx = d && a && d[0] === " ";
+        const left = d
+          ? [td("num" + (ctx ? "" : " del"), d[1]), codeTd("code" + (ctx ? "" : " del"), d)]
+          : [td("num empty"), td("code empty")];
+        const right = a
+          ? [td("num split" + (ctx ? "" : " add"), a[2]), codeTd("code" + (ctx ? "" : " add"), a)]
+          : [td("num split empty"), td("code empty")];
+        tr.append(...left, ...right);
+        table.append(tr);
+        if (d) addTarget(f, fi, "old", d[1], left, left[1], d[3]);
+        if (a) addTarget(f, fi, "new", a[2], right, right[1], a[3], d && !ctx ? d[1] : null);
+      };
+      while (i < L.length) {
+        if (L[i][0] === " ") {
+          row(L[i], L[i]);
+          i++;
+          continue;
+        }
+        const dels = [],
+          adds = [];
+        while (i < L.length && L[i][0] === "-") dels.push(L[i++]);
+        while (i < L.length && L[i][0] === "+") adds.push(L[i++]);
+        for (let j = 0; j < Math.max(dels.length, adds.length); j++) row(dels[j], adds[j]);
+      }
+    }
+  }
+
+  // ---- files ----
+  function fileView(f) {
+    if (narrowMq.matches || f.status === "A" || f.status === "D") return "unified";
+    return load(viewKey(f.path)) === "unified" ? "unified" : "split";
+  }
+  function setView(fi, v) {
+    const f = DIFF.files[fi];
+    if (!f.hunks || narrowMq.matches || f.status === "A" || f.status === "D") return;
+    store(viewKey(f.path), v === "unified" ? "unified" : null);
+    renderFile(fi);
+    reportPins();
+  }
+  function setCollapsed(fi, hide) {
+    const f = DIFF.files[fi];
+    if (!f.hunks) return;
+    hide ? collapsed.add(f.path) : collapsed.delete(f.path);
+    const sec = $(f.id);
+    // The page height change must not move the current file; a file collapsed from inside comes back into view.
+    jumpUntil = Date.now() + 300;
+    sec.querySelector(".fbody").hidden = hide;
+    sec.querySelector(".fold").textContent = hide ? "Expand" : "Collapse";
+    if (hide && sec.getBoundingClientRect().top < 0) sec.scrollIntoView({ block: "start" });
+    reportPins();
+  }
+  function setViewed(fi, on) {
+    const f = DIFF.files[fi];
+    store(viewedKey(f), on ? "1" : null);
+    $("viewed-" + f.id).checked = on;
+    setCollapsed(fi, on);
+    renderList();
+  }
+  function renderFile(fi) {
+    const f = DIFF.files[fi];
+    const sec = $(f.id);
+    sec.replaceChildren();
+    targets[fi] = { old: [], new: [] };
+    const head = el("div", "fhead");
+    head.setAttribute("data-uncommentable", "");
+    const st = f.binary ? "B" : f.status;
+    head.append(el("span", "chip st-" + st, f.binary ? "Binary" : STATUS[f.status]));
+    const p = el("h2", "path");
+    if (f.oldPath) p.append(el("span", "from", f.oldPath + " → "));
+    p.append(f.path);
+    head.append(p);
+    if (f.source !== "committed") head.append(el("span", "src", f.source));
+    const c = counts(f);
+    if (!f.binary) {
+      const n = el("span", "totals");
+      n.append(el("span", "plus", "+" + c.add), " ", el("span", "minus", "−" + c.del));
+      head.append(n);
+    }
+    head.append(el("span", "spacer"));
+    const body = el("div", "fbody");
+    if (f.hunks) {
+      const v = fileView(f);
+      if (!(narrowMq.matches || f.status === "A" || f.status === "D")) {
+        const tog = el("button", "tog", v === "split" ? "Unified" : "Side-by-side");
+        tog.type = "button";
+        tog.addEventListener("click", () => setView(fi, v === "split" ? "unified" : "split"));
+        head.append(tog);
+      }
+      const fold = el("button", "fold", "Collapse");
+      fold.type = "button";
+      fold.addEventListener("click", () => setCollapsed(fi, !body.hidden));
+      head.append(fold);
+    }
+    const lab = el("label");
+    const cb = el("input");
+    cb.type = "checkbox";
+    cb.id = "viewed-" + f.id;
+    cb.checked = isViewed(f);
+    cb.addEventListener("change", () => setViewed(fi, cb.checked));
+    lab.append(cb, "Viewed");
+    head.append(lab);
+    sec.append(head);
+    if (f.binary) body.append(el("div", "note", "Binary file changed."));
+    else if (f.stub) body.append(el("div", "note", f.stub));
+    else {
+      const scroll = el("div", "scroll");
+      const table = el("table");
+      (fileView(f) === "split" ? renderSplit : renderUnified)(f, fi, table);
+      scroll.append(table);
+      body.append(scroll);
+      scroll.addEventListener("scroll", reportPins, { passive: true });
+    }
+    body.hidden = collapsed.has(f.path);
+    if (f.hunks && body.hidden) head.querySelector(".fold").textContent = "Expand";
+    sec.append(body);
+  }
+  let rendered = false;
+  function renderFiles() {
+    const root = $("diffs");
+    root.replaceChildren();
+    DIFF.files.forEach((f, fi) => {
+      if (!rendered && isViewed(f) && f.hunks) collapsed.add(f.path);
+      const sec = el("section", "file");
+      sec.id = f.id;
+      sec.classList.toggle("cur", fi === current);
+      root.append(sec);
+      renderFile(fi);
+    });
+    rendered = true;
+    reportPins();
+  }
+
+  // ---- current file ----
+  function setCurrent(fi, scroll) {
+    current = Math.max(0, Math.min(DIFF.files.length - 1, fi));
+    document
+      .querySelectorAll("section.file")
+      .forEach((s, i) => s.classList.toggle("cur", i === current));
+    document
+      .querySelectorAll("#file-list li:not(.dir)")
+      .forEach((li) => li.classList.toggle("cur", li.id === "li-" + DIFF.files[current].id));
+    if (!scroll) return;
+    // The scroll this starts must not move the current file on to a short file below it.
+    jumpUntil = Date.now() + 300;
+    $(DIFF.files[current].id).scrollIntoView({
+      block: "start",
+      behavior: reduced.matches ? "auto" : "smooth",
+    });
+  }
+  let scrollTick = 0;
+  let jumpUntil = 0;
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (Date.now() < jumpUntil) {
+        jumpUntil = Date.now() + 300;
+        return;
+      }
+      if (scrollTick) return;
+      scrollTick = requestAnimationFrame(() => {
+        scrollTick = 0;
+        const secs = document.querySelectorAll("section.file");
+        let best = 0;
+        secs.forEach((s, i) => {
+          if (s.getBoundingClientRect().top < 40) best = i;
+        });
+        if (best !== current) setCurrent(best, false);
+      });
+    },
+    { passive: true },
+  );
+
+  document.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target.closest && e.target.closest("input, textarea, select, [contenteditable]")) return;
+    const k = e.key;
+    if (k === "j") setCurrent(current + 1, true);
+    else if (k === "k") setCurrent(current - 1, true);
+    else if (k === "x") {
+      const f = DIFF.files[current];
+      setCollapsed(current, !collapsed.has(f.path));
+    } else if (k === "u") setView(current, "unified");
+    else if (k === "s") setView(current, "split");
+    else if (k === "v") setViewed(current, !isViewed(DIFF.files[current]));
+    else return;
+    e.preventDefault();
+  });
+
+  // ---- pins ----
+  function targetFor(anchor) {
+    const m = /#(f-[A-Za-z0-9_-]+)/.exec(anchor || "");
+    if (m)
+      return document.getElementById(m[1]) || document.querySelector('[data-alt="' + m[1] + '"]');
+    try {
+      return document.querySelector(anchor);
+    } catch {
+      return null;
+    }
+  }
+  function reportPins() {
+    if (!anchors) return;
+    const map = {};
+    for (const t of threads) {
+      const target =
+        actAnchor && t.anchor === actAnchor.path
+          ? $("act").hidden
+            ? null
+            : $("act")
+          : targetFor(t.anchor);
+      if (!target || !target.offsetParent) continue;
+      // Line threads pin to their side's line-number cell: the row's first cell in unified, the cell before the code in side-by-side.
+      const gutter =
+        target.tagName === "TR"
+          ? target.firstElementChild
+          : target.tagName === "TD"
+            ? target.previousElementSibling || target
+            : target;
+      const r = gutter.getBoundingClientRect();
+      const x =
+        gutter === target && target.tagName !== "TD"
+          ? Math.min(r.right, window.innerWidth) - 16
+          : r.left + 6;
+      map[t.id] = { x: x + window.scrollX, y: r.top + r.height / 2 + window.scrollY };
+    }
+    anchors.placed(map);
+  }
+  window.addEventListener("resize", reportPins);
+  narrowMq.addEventListener("change", renderFiles);
+
+  document.addEventListener("click", (e) => {
+    if (!anchors || !document.body.classList.contains("commenting")) return;
+    const cell = e.target.closest && e.target.closest("td[data-side]");
+    if (!cell || e.target.closest(".cbtn")) return;
+    e.preventDefault();
+    const fi = +cell.dataset.fi,
+      side = cell.dataset.side,
+      idx = +cell.dataset.idx;
+    commentOn(fi, side, idx);
+  });
+
+  if (window.matchMedia("(max-width: 860px)").matches) $("files").open = false;
+  renderSummary();
+  renderList();
+  renderFiles();
+
+  async function setupComments() {
+    if (typeof window.claude?.use !== "function") return;
+    try {
+      comments = await window.claude.use("comments");
+    } catch {
+      comments = null;
+    }
+    if (!comments) return;
+    $("comment-hint").hidden = false;
+    try {
+      anchors = await comments.customAnchors({
+        mode(on) {
+          document.body.classList.toggle("commenting", on);
+          reportPins();
+        },
+        threads(list) {
+          threads = list;
+          if (
+            pendingAnchor &&
+            list.filter((t) => t.anchor === pendingAnchor).length > pendingBefore
+          )
+            posted = true;
+          // Remember which lines have open threads so view mode can mark them.
+          const open = new Set(
+            list
+              .filter((t) => !t.resolved)
+              .map((t) => idOf(t.anchor))
+              .filter(Boolean),
+          );
+          const changed =
+            [...known].some((id) => !open.has(id)) || [...open].some((id) => !known.has(id));
+          known.clear();
+          for (const id of open) known.add(id);
+          store(knownKey, JSON.stringify([...known]));
+          if (changed) renderFiles();
+          else reportPins();
+        },
+        reveal(id) {
+          const t = threads.find((x) => x.id === id);
+          const target = t && targetFor(t.anchor);
+          if (!target) return;
+          const sec = target.closest("section.file");
+          const fi = [...document.querySelectorAll("section.file")].indexOf(sec);
+          if (fi >= 0 && collapsed.has(DIFF.files[fi].path)) setCollapsed(fi, false);
+          target.scrollIntoView({ block: "center", behavior: reduced.matches ? "auto" : "smooth" });
+          setTimeout(reportPins, 400);
+        },
+        composing(open) {
+          if (open || !document.body.classList.contains("commenting")) return;
+          // Leave comment mode only after a post, so opening a line to read its comments keeps the mode on.
+          setTimeout(() => {
+            if (posted) {
+              posted = false;
+              pendingAnchor = null;
+              anchors.exitMode();
+            }
+          }, 600);
+        },
+      });
+    } catch {
+      anchors = null;
+    }
+    renderFiles();
+    const act = $("act");
+    async function refreshAct() {
+      try {
+        actAnchor = await comments.anchorFor($("finish-review"));
+      } catch {
+        actAnchor = null;
+      }
+      let state = "off";
+      try {
+        state = await comments.canSendToClaude();
+      } catch {}
+      const ok = state === "available" && actAnchor;
+      act.hidden = !ok;
+      $("act-hint").textContent = ok
+        ? "Hands back to Claude to act on comments."
+        : "When you are done, tell Claude in the terminal to act on your comments.";
+      reportPins();
+    }
+    await refreshAct();
+    const poll = setInterval(() => {
+      if (!document.hidden && !act.disabled) refreshAct();
+    }, 15000);
+    act.addEventListener("click", () => {
+      act.disabled = true;
+      act.textContent = "Sending…";
+      comments
+        .sendToClaude({ anchor: actAnchor, text: "Finish review: act on all feedback" })
+        .then(() => {
+          clearInterval(poll);
+          act.textContent = "Review sent";
+          $("act-hint").textContent =
+            "Claude is acting on your comments and will reply in each thread. You can close this tab.";
+        })
+        .catch((e) => {
+          act.disabled = false;
+          act.textContent = "Finish review";
+          const code = e && e.code;
+          $("act-hint").textContent =
+            code === "rate_limited"
+              ? "Too many sends. Wait a moment and try again."
+              : code === "consent_required" || code === "forbidden"
+                ? "Commenting was not allowed. Tell Claude in the terminal instead."
+                : "Could not reach Claude. Tell Claude in the terminal instead.";
+        });
+    });
+  }
+  setupComments();
+</script>
