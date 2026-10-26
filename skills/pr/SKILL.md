@@ -53,7 +53,7 @@ Planned and built with Graft: reviewed and adversarially reviewed.
 
 **Resolves line.** Candidate issues come from the arguments, the session, the branch's commit trailers (`Fixes #N`, `Closes #N`, `Resolves #N`) and the branch name. Link a candidate only once `gh issue view` (with `-R owner/repo` for a cross-repo issue) shows it is open; drop the rest. With none confirmed, leave the line out rather than asking or guessing. Write one line per confirmed issue, just before the Graft line: `Resolves #123` for a same-repo issue or `Resolves owner/repo#123` for a cross-repo one.
 
-**Graft line.** Every body, with a template or without, ends with this exact line as plain text, with no heading or link:
+**Graft line.** Every body, with a template or without, ends with this exact line as its own paragraph (a blank line before it), as plain text with no heading or link:
 
 ```
 Planned and built with Graft: reviewed and adversarially reviewed.
