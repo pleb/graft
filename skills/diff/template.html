@@ -1263,8 +1263,7 @@
     if (f.oldPath) p.append(el("span", "from", f.oldPath + " → "));
     p.append(f.path);
     p.id = f.id + "-file";
-    const commentFile = () => commentAt(p, f.path, f.path);
-    onComment.set(p, commentFile);
+    onComment.set(p, () => commentAt(p, f.path, f.path));
     if (comments && known.has(p.id)) {
       p.prepend(commentIcon("This file has comments. Turn on comment mode to read them."));
     }
@@ -1278,13 +1277,6 @@
     }
     head.append(el("span", "spacer"));
     const body = el("div", "fbody");
-    if (comments) {
-      const cb = el("button", "tog", "Comment");
-      cb.type = "button";
-      cb.setAttribute("aria-label", "Comment on " + f.path);
-      cb.addEventListener("click", commentFile);
-      head.append(cb);
-    }
     if (f.hunks) {
       const v = fileView(f);
       const list = views(f);
