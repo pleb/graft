@@ -47,13 +47,13 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 
 - Commit each milestone once its worker reports it verified, before any review, in the repo's commit style, staging only that milestone's files.
 - After each commit, decide whether to review now or go on. Go on while the unreviewed commits are small. Review when the unreviewed change is substantial, or before starting a milestone that builds on an unreviewed risky change.
-- After the last milestone, run a final pass before clean-up, even when no commits are unreviewed. It reviews the commits not yet reviewed, so the reviewer sees every milestone commit and every earlier pass's fixes once. Apart from the final adversarial range, no pass at the end repeats reviewed commits.
+- After the last milestone, run a final pass before clean-up, even when every commit is reviewed. It covers the commits not yet reviewed, so every milestone commit and every earlier pass's fixes are reviewed once. Only its adversarial range, below, may repeat reviewed commits.
 - A pass and its fixes finish before the next milestone starts, and no pass starts while any worker is running.
 
 ### Each pass
 
 - Review from the commit the previous pass ended at (for the first pass, the commit Execute started from) to HEAD. The intent is the milestones the range covers and the findings each fix commit addresses. Fix commits from the final pass get no further pass; check them yourself.
-- Run a `graft:reviewer` agent on every pass whose range holds commits, and a `graft:adversarial-reviewer` agent in parallel when the range holds a risky change, each on the reviewer model. In the final pass, run the adversarial reviewer when its range holds a risky change or any milestone has had no adversarial review; in the latter case its range starts at the commit before the first milestone no adversarial review covered. Give each reviewer its range and what that range is meant to do.
+- Run a `graft:reviewer` agent on every pass whose range holds commits, and a `graft:adversarial-reviewer` agent in parallel when the range holds a risky change, each on the reviewer model. In the final pass, run the adversarial reviewer when its range holds a risky change or any milestone has had no adversarial review; in the latter case its range starts at the commit before the first such milestone. Give each reviewer its range and what that range is meant to do.
 - Wait for every reviewer in the pass to report, then weigh the reports, decide which findings to act on, and send fixes to a worker. When both reviewers ran, a finding both raise carries more weight; a finding from either still needs its failure path to hold up. Commit fixes separately, in the repo's commit style.
 
 ## Clean up
