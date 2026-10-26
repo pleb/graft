@@ -47,7 +47,7 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 
 - Commit each milestone once its worker reports it verified, before any review, in the repo's commit style, staging only that milestone's files.
 - After each commit, decide whether to review now or go on. Go on while the unreviewed commits are small. Review when the unreviewed change is substantial, or before starting a milestone that builds on an unreviewed risky change.
-- After the last milestone, review the commits not yet reviewed in a final pass, before clean-up, so every milestone commit and every earlier pass's fixes are reviewed once. No pass at the end repeats the whole branch.
+- After the last milestone, review the commits not yet reviewed in a final pass, before clean-up, so every milestone commit and every earlier pass's fixes are reviewed once. On completion, run a review and an adversarial review over the changes, unless every part has already had both.
 - A pass and its fixes finish before the next milestone starts, and no pass starts while any worker is running.
 
 ### Each pass
