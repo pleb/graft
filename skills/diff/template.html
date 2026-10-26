@@ -407,28 +407,6 @@
   tr.line {
     position: relative;
   }
-  .cbtn {
-    position: absolute;
-    left: 2px;
-    margin-top: 1px;
-    width: 18px;
-    height: 18px;
-    border-radius: 4px;
-    border: 0;
-    background: var(--accent);
-    color: var(--accent-fg);
-    font: 600 13px/18px var(--font-ui);
-    cursor: pointer;
-    opacity: 0;
-    padding: 0;
-  }
-  tr.line:hover .cbtn,
-  .cbtn:focus-visible {
-    opacity: 1;
-  }
-  body:not(.commenting) .cbtn {
-    display: none;
-  }
   .proto {
     font-size: 12px;
     color: var(--muted);
@@ -527,14 +505,6 @@
 
   td.num {
     position: relative;
-  }
-  .cbtn {
-    left: auto;
-    right: 2px;
-    top: 1px;
-  }
-  tr.line:hover .cbtn {
-    opacity: 1;
   }
   .files .bar {
     display: flex;
@@ -648,17 +618,9 @@
     position: relative;
     padding-left: 28px;
   }
-  tr.hunk .cbtn {
-    left: 5px;
-    right: auto;
-    top: 3px;
-  }
   tr.hunk .cicon {
     left: 6px;
     top: 4px;
-  }
-  tr.hunk:hover .cbtn {
-    opacity: 1;
   }
   body.commenting tr.hunk,
   body.commenting .fhead .path,
@@ -716,17 +678,9 @@
     background: var(--add-bg);
     border-left-color: var(--add-fg);
   }
-  .mdb > .cbtn {
-    left: 6px;
-    right: auto;
-    top: 6px;
-  }
   .mdb > .cicon {
     left: 7px;
     top: 7px;
-  }
-  .mdb:hover > .cbtn {
-    opacity: 1;
   }
   .md a {
     color: var(--accent);
@@ -1081,30 +1035,15 @@
     ic.setAttribute("aria-label", title);
     return ic;
   }
-  function commentButton(aria, onClick) {
-    const b = el("button", "cbtn", "+");
-    b.type = "button";
-    b.setAttribute("aria-label", aria);
-    b.addEventListener("click", (e) => {
-      e.stopPropagation();
-      onClick();
-    });
-    return b;
-  }
-
-  // A target is one commentable line on one side: its gutter cell selects it, its + comments on it.
+  // A target is one commentable line on one side: clicking it in comment mode comments on it.
   function addTarget(f, fi, side, n, cells, el0, code, pair) {
     const list = targets[fi][side];
     const idx = list.length;
     el0.id = lineId(f, side, n);
     list.push({ n, el: el0, cells, code, pair });
     const gutter = cells[0];
-    if (comments) {
-      const aria = "Comment on " + f.path + (side === "old" ? " old line " : " line ") + n;
-      gutter.prepend(commentButton(aria, () => commentOn(fi, side, idx)));
-      if (known.has(el0.id) || (el0.dataset.alt && known.has(el0.dataset.alt))) {
-        gutter.prepend(commentIcon("This line has comments. Turn on comment mode to read them."));
-      }
+    if (comments && (known.has(el0.id) || (el0.dataset.alt && known.has(el0.dataset.alt)))) {
+      gutter.prepend(commentIcon("This line has comments. Turn on comment mode to read them."));
     }
     for (const c of cells) {
       c.dataset.fi = fi;
@@ -1132,9 +1071,7 @@
     const range = m[0];
     const comment = () => commentAt(hr, f.path + " " + range, h.header);
     onComment.set(hr, comment);
-    if (!comments) return;
-    c.prepend(commentButton("Comment on " + f.path + " hunk " + range, comment));
-    if (known.has(hr.id)) {
+    if (comments && known.has(hr.id)) {
       c.prepend(commentIcon("This hunk has comments. Turn on comment mode to read them."));
     }
   }
@@ -1534,7 +1471,7 @@
 
   document.addEventListener("click", (e) => {
     if (!anchors || !document.body.classList.contains("commenting")) return;
-    if (!e.target.closest || e.target.closest(".cbtn")) return;
+    if (!e.target.closest) return;
     const other = e.target.closest("tr.hunk, h2.path");
     if (other && onComment.has(other)) {
       e.preventDefault();

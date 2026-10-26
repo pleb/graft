@@ -908,7 +908,6 @@ describe("template", () => {
       templateSource("const td = "),
       templateSource("const onComment = "),
       templateSource("function commentIcon("),
-      templateSource("function commentButton("),
       templateSource("function hunkRow("),
       templateSource("function colgroup("),
       templateSource("function addTarget("),
@@ -931,7 +930,7 @@ describe("template", () => {
     renderUnified(file, 0, table);
     const hunk = table.children[1];
     expect(hunk.id).toBe("f-a-hunk-5");
-    expect(hunk.children[0].children.map((child) => child.className)).toEqual(["cicon", "cbtn"]);
+    expect(hunk.children[0].children.map((child) => child.className)).toEqual(["cicon"]);
     const row = table.children[2];
     expect(row.id).toBe("f-a-new-5");
     expect(row.dataset.alt).toBe("f-a-old-3");
