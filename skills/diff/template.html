@@ -426,6 +426,9 @@
   .cbtn:focus-visible {
     opacity: 1;
   }
+  body:not(.commenting) .cbtn {
+    display: none;
+  }
   .proto {
     font-size: 12px;
     color: var(--muted);
@@ -828,7 +831,8 @@
     <div class="proto" style="flex-basis: 100%">
       Comments are collected; nothing changes until you press Finish review.
       <span id="comment-hint" hidden
-        >Hover a line and press + to comment on it, or turn on comment mode and click a line.</span
+        >Turn on comment mode, then click a line, hunk header, file path or rendered block to
+        comment on it.</span
       >
     </div>
   </header>
