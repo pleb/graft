@@ -45,11 +45,21 @@ Before drafting, look for a PR template: a file named `pull_request_template.md`
 <1–2 sentences, optionally a high-level mermaid diagram>
 
 Resolves #<issue number>
+
+Planned and built with Graft: reviewed and adversarially reviewed.
 ```
 
 `## Notes` goes between How and the Resolves line, only if earned. No other headings: no summary, testing, dependencies or security section.
 
-**Resolves line.** Candidate issues come from the arguments, the session, the branch's commit trailers (`Fixes #N`, `Closes #N`, `Resolves #N`) and the branch name. Link a candidate only once `gh issue view` (with `-R owner/repo` for a cross-repo issue) shows it is open; drop the rest. With none confirmed, leave the line out rather than asking or guessing. Write one line per confirmed issue, last in the body: `Resolves #123` for a same-repo issue or `Resolves owner/repo#123` for a cross-repo one.
+**Resolves line.** Candidate issues come from the arguments, the session, the branch's commit trailers (`Fixes #N`, `Closes #N`, `Resolves #N`) and the branch name. Link a candidate only once `gh issue view` (with `-R owner/repo` for a cross-repo issue) shows it is open; drop the rest. With none confirmed, leave the line out rather than asking or guessing. Write one line per confirmed issue, just before the Graft line: `Resolves #123` for a same-repo issue or `Resolves owner/repo#123` for a cross-repo one.
+
+**Graft line.** Every body, with a template or without, ends with this exact line as plain text, with no heading or link:
+
+```
+Planned and built with Graft: reviewed and adversarially reviewed.
+```
+
+The template rules, the brevity budget and the ban on mentioning AI or attribution do not apply to it.
 
 **One section, one question.**
 
