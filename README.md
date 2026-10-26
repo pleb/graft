@@ -39,8 +39,6 @@ And when you're ready to ship the changes:
 /graft:pr
 ```
 
-The PR body ends with the line "Planned and built with Graft: reviewed and adversarially reviewed."
-
 ## Flow commands
 
 ```text
