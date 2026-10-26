@@ -17,7 +17,7 @@ To install Graft on another machine, or again after `/graft:uninstall`, run the 
 
 ## How it works
 
-![Graft's flow: /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:diff publishes the commits for you to comment on, then acts on your comments. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
+![Graft's flow: /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:diff publishes a Claude Code artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
 
 Start by creating a plan. Plans are automatically saved to `.claude/plans` in the repo. The first time, Graft asks whether to ignore them.
 
@@ -47,8 +47,6 @@ And when you're ready to ship the changes:
 /graft:diff
 /graft:pr [guidance] [state: draft (default) | ready-state]
 ```
-
-`/graft:diff` publishes the branch's changes against the default branch as a private claude.ai artifact for you to comment on. When you press Finish review, or tell Claude in the terminal, it acts on your comments in one batch.
 
 ## Utility commands
 

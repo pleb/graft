@@ -9,11 +9,11 @@ You publish the working tree's changes against the default branch as a private c
 
 **Collect, then batch.** When a comment notification arrives for the diff artifact, change no code and post nothing. Act on comments only in `## Batch`.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its section `## Ask the user`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user` and `## Command failures`.
 
 ## Tools
 
-Check that the `Artifact` and `ArtifactComments` tools are available. Either may be a deferred tool: load it with `ToolSearch` (`select:Artifact,ArtifactComments`). If either is still unavailable, say diff needs Claude Code signed in to claude.ai, with the `Artifact` and `ArtifactComments` tools, and stop.
+Check that the `Artifact` and `ArtifactComments` tools are available. Either may be a deferred tool: load it with `ToolSearch` (`select:Artifact,ArtifactComments`).
 
 ## Base
 
@@ -31,8 +31,6 @@ List the changes.
 ```bash
 node ${CLAUDE_SKILL_DIR}/build.ts files --default <branch>
 ```
-
-If `node` is not found, or the command fails with `diff needs Node 24 or later`, `ERR_UNKNOWN_FILE_EXTENSION` or a SyntaxError, say diff needs Node 24 or later and stop. When it exits 1 with another message, show it to the user and stop.
 
 It prints `{root, name, base, baseRef, tracked, untracked}`.
 
@@ -65,7 +63,7 @@ Write the input file:
 node ${CLAUDE_SKILL_DIR}/build.ts build --input <input file> --out <page>
 ```
 
-When it exits 1, show the user its message and stop. Otherwise show the line after `Wrote`.
+Show the user the line after `Wrote`.
 
 ## Publish
 
@@ -97,7 +95,7 @@ The file is the path as the diff shows it, the new path for a renamed file. A `[
 
 The batch starts when the user says so in the terminal, or when a thread anchored at `#finish-review` arrives. First re-read this section of `${CLAUDE_SKILL_DIR}/SKILL.md`, then follow the steps below. Every reply you post passes `acknowledge_duplicate: true`.
 
-1. Read every thread as `## Threads` describes. Pending work is the open threads sent to Claude, other than the Finish review threads. Quote the open threads not sent to Claude in the terminal and ask the user to send the ones they want acted on.
+1. Read every thread as `## Threads` describes. Pending work is the open threads sent to Claude, other than the Finish review threads. In the terminal, quote each open thread not sent to Claude and ask the user to send the ones they want acted on, then wait for their answer before going on.
 2. Locate each pending thread's code. A thread with a `[location]` has its file and place from `## Threads`, and its `[anchor detail]` is the source of truth, with the line number only narrowing the search.
    - File: the thread acts on the file as a whole.
    - Hunk: locate the hunk by its range and `[anchor detail]` (the hunk header).
