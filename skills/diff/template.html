@@ -774,6 +774,46 @@
     border-left: 3px solid var(--border);
     color: var(--muted);
   }
+  .svgcmp {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 12px;
+  }
+  .svgcmp figure {
+    margin: 0;
+    min-width: 0;
+  }
+  .svgcmp figcaption {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  /* A light checkerboard in both themes, so transparent SVGs drawn for light pages stay legible. */
+  .svgpane {
+    display: grid;
+    place-items: center;
+    min-height: 120px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: repeating-conic-gradient(#e6e8ec 0% 25%, #ffffff 0% 50%) 0 0 / 16px 16px;
+  }
+  .svgpane img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+  .svgnone {
+    color: #5d6778;
+    font-size: 13px;
+  }
+  @media (max-width: 760px) {
+    .svgcmp {
+      grid-template-columns: 1fr;
+    }
+  }
   @media (max-width: 860px) {
     .keys {
       display: none;
@@ -845,6 +885,7 @@
     for (const k of ["id", "path", "oldPath", "stub", "note"]) if (k in f) f[k] = joined(f[k]);
     for (const h of f.hunks || []) for (const l of h.lines) l[3] = joined(l[3]);
     if (f.content) f.content = f.content.map(joined).join("\n");
+    for (const k of ["svgOld", "svgNew"]) if (f[k]) f[k] = f[k].map(joined).join("\n");
   }
 
   const $ = (id) => document.getElementById(id);
@@ -1164,10 +1205,11 @@
   }
 
   const VIEWS = { unified: "Unified", split: "Side-by-side", rendered: "Rendered" };
+  const isSvg = (f) => f.svgOld != null || f.svgNew != null;
   function views(f) {
     const list = ["unified"];
     if (!(narrowMq.matches || f.status === "A" || f.status === "D")) list.push("split");
-    if (f.content != null && mdReady) list.push("rendered");
+    if ((f.content != null && mdReady) || isSvg(f)) list.push("rendered");
     return list;
   }
   function fileView(f) {
@@ -1249,6 +1291,26 @@
       addBlock(block, lineAt(from), tok.raw);
     }
   }
+  // Before and after as images, which run no scripts.
+  function renderSvg(f, box) {
+    for (const [label, svg] of [
+      ["Before", f.svgOld],
+      ["After", f.svgNew],
+    ]) {
+      const fig = el("figure");
+      fig.append(el("figcaption", null, label));
+      const pane = el("div", "svgpane");
+      if (svg == null) pane.append(el("span", "svgnone", "No file"));
+      else {
+        const img = el("img");
+        img.alt = label + ": " + f.path;
+        img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+        pane.append(img);
+      }
+      fig.append(pane);
+      box.append(fig);
+    }
+  }
   function renderFile(sec, fi) {
     const f = DIFF.files[fi];
     sec.replaceChildren();
@@ -1316,7 +1378,11 @@
     if (f.note) body.append(el("div", "note", f.note));
     if (f.binary) body.append(el("div", "note", "Binary file changed."));
     else if (f.stub) body.append(el("div", "note", f.stub));
-    else if (fileView(f) === "rendered") {
+    else if (fileView(f) === "rendered" && isSvg(f)) {
+      const box = el("div", "svgcmp");
+      renderSvg(f, box);
+      body.append(box);
+    } else if (fileView(f) === "rendered") {
       const box = el("div", "md");
       renderMarkdown(f, fi, box);
       body.append(box);

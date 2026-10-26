@@ -9,10 +9,11 @@ const LARGEST_SHOWN = 5;
 // The longest escaped piece of line text on one line of the page, so Claude's Read tool sees whole lines.
 const CHUNK = 500;
 // Arrays whose items each go on their own line of the page.
-const LISTED = new Set(["threads", "files", "hunks", "lines", "content"]);
+const LISTED = new Set(["threads", "files", "hunks", "lines", "content", "svgOld", "svgNew"]);
 // Fields whose text is split into pieces when long, as line text is.
 const CHUNKED = new Set(["id", "path", "oldPath", "stub", "note"]);
 const MARKDOWN = new Set([".md", ".markdown", ".mdx"]);
+const SVG = ".svg";
 const REMOVED_FROM_INDEX = "Removed from the index; kept as an untracked file.";
 
 // The largest page Claude reads in full before publishing it.
@@ -100,6 +101,9 @@ export interface PageFile {
   hunks?: Hunk[];
   // A Markdown file's full new content, one item per line, for the rendered view.
   content?: string[];
+  // An SVG file's old and new content, one item per line, for the rendered view.
+  svgOld?: string[];
+  svgNew?: string[];
 }
 
 export interface PageData {
@@ -593,18 +597,40 @@ function fileMode(file: ParsedFile): string | undefined {
   return file.newMode ?? file.index?.split(" ")[1];
 }
 
-// A shown, regular Markdown file's new content, from HEAD when committed and the working tree otherwise.
+// A file's new content, from HEAD when committed and the working tree otherwise.
+function newContent(root: string, page: PageFile): string[] {
+  const text =
+    page.source === "committed"
+      ? git(root, ["show", `HEAD:${page.path}`]).stdout
+      : readFileSync(join(root, page.path), "utf8");
+  return text.split("\n");
+}
+
+// A shown, regular Markdown file's new content.
 function markdownContent(root: string, file: ParsedFile, page: PageFile): string[] | undefined {
   if (!page.hunks || page.status === "D" || !MARKDOWN.has(extname(page.path).toLowerCase())) {
     return undefined;
   }
   const mode = fileMode(file);
   if (mode !== undefined && modeType(mode) !== "10") return undefined;
-  const text =
-    page.source === "committed"
-      ? git(root, ["show", `HEAD:${page.path}`]).stdout
-      : readFileSync(join(root, page.path), "utf8");
-  return text.split("\n");
+  return newContent(root, page);
+}
+
+// A shown SVG file's old content from the merge base and new content, each side kept only when it is a regular file.
+function svgSides(
+  root: string,
+  base: string,
+  file: ParsedFile,
+  page: PageFile,
+): Pick<PageFile, "svgOld" | "svgNew"> {
+  if (!page.hunks || extname(page.path).toLowerCase() !== SVG) return {};
+  const regular = (mode: string | undefined) => mode === undefined || modeType(mode) === "10";
+  const sides: Pick<PageFile, "svgOld" | "svgNew"> = {};
+  if (page.status !== "A" && regular(file.oldMode ?? file.index?.split(" ")[1])) {
+    sides.svgOld = git(root, ["show", `${base}:${page.oldPath ?? page.path}`]).stdout.split("\n");
+  }
+  if (page.status !== "D" && regular(fileMode(file))) sides.svgNew = newContent(root, page);
+  return sides;
 }
 
 export function collectPage(cwd: string, input: BuildInput): PageData {
@@ -634,6 +660,7 @@ export function collectPage(cwd: string, input: BuildInput): PageData {
     const page = toPageFile(file, source);
     const content = markdownContent(root, file, page);
     if (content) page.content = content;
+    Object.assign(page, svgSides(root, base, file, page));
     return page;
   });
   if (!files.length) throw new BuildError(`No changes against ${baseRef}`);

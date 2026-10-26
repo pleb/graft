@@ -466,6 +466,45 @@ describe("collectPage", () => {
     }
   });
 
+  it("embeds the old and new content of shown SVG files only", () => {
+    const dir = newRepo({
+      "mod.svg": "<svg>old</svg>\n",
+      "gone.SVG": "<svg>gone</svg>\n",
+      "from.svg": "<svg>\nmoved\n1\n2\n3\n</svg>\n",
+      "x.min.svg": "<svg/>\n",
+      "code.ts": "a\n",
+    });
+    git(dir, "checkout", "-q", "-b", "feature");
+    rmSync(join(dir, "gone.SVG"));
+    rmSync(join(dir, "from.svg"));
+    write(dir, {
+      "mod.svg": "<svg>committed</svg>\n",
+      "to.svg": "<svg>\nmoved\n1\n2\n3\n</svg>\nmore\n",
+      "x.min.svg": "<svg></svg>\n",
+      "code.ts": "b\n",
+    });
+    commitAll(dir, "feature");
+    write(dir, { "mod.svg": "<svg>working</svg>\n", "new.svg": "<svg>new</svg>" });
+    const files = byPath(collectPage(dir, input({ untracked: ["new.svg"] })));
+    expect(files.get("mod.svg")).toMatchObject({
+      svgOld: ["<svg>old</svg>", ""],
+      svgNew: ["<svg>working</svg>", ""],
+    });
+    expect(files.get("gone.SVG")!.svgOld).toEqual(["<svg>gone</svg>", ""]);
+    expect(files.get("gone.SVG")!.svgNew).toBeUndefined();
+    expect(files.get("new.svg")!.svgOld).toBeUndefined();
+    expect(files.get("new.svg")!.svgNew).toEqual(["<svg>new</svg>"]);
+    expect(files.get("to.svg")).toMatchObject({
+      oldPath: "from.svg",
+      svgOld: ["<svg>", "moved", "1", "2", "3", "</svg>", ""],
+      svgNew: ["<svg>", "moved", "1", "2", "3", "</svg>", "more", ""],
+    });
+    for (const path of ["x.min.svg", "code.ts"]) {
+      expect(files.get(path)!.svgOld).toBeUndefined();
+      expect(files.get(path)!.svgNew).toBeUndefined();
+    }
+  });
+
   it("includes only the untracked files asked for and leaves out exclusions", () => {
     const dir = featureRepo();
     write(dir, { "other.md": "other\n" });
@@ -775,6 +814,40 @@ describe("renderPage", () => {
     const both = collectPage(dir, input());
     expect(() => renderPage(TEMPLATE, both)).toThrow(/Largest files: big\.md \(\d+ KB\)/);
     const text = collectPage(dir, input({ exclude: ["big.md"] }));
+    expect(() => renderPage(TEMPLATE, text)).not.toThrow();
+  });
+
+  it("chunks long SVG content lines, which the page joins back", () => {
+    const old = `<svg>${"<g/>&".repeat(600)}</svg>`;
+    const dir = newRepo({ "a.svg": `${old}\n` });
+    write(dir, { "a.svg": `${old}\n<!-- x -->\n` });
+    const html = renderPage(TEMPLATE, collectPage(dir, input()));
+    expect(Math.max(...html.split("\n").map((line) => line.length))).toBeLessThanOrEqual(1000);
+    const page = embedded(html);
+    const before = page.files[0].svgOld as unknown[];
+    expect(Array.isArray(before[0])).toBe(true);
+    expect((page.files[0].svgNew as unknown[])[1]).toBe("<!-- x -->");
+    const join = new Function(
+      "DIFF",
+      [templateSource("const joined = "), templateSource("for (const f of DIFF.files) {")].join(
+        "\n",
+      ),
+    );
+    join(page);
+    expect(page.files[0].svgOld).toBe(`${old}\n`);
+    expect(page.files[0].svgNew).toBe(`${old}\n<!-- x -->\n`);
+  });
+
+  it("counts SVG content toward the size cap", () => {
+    const body = lines("<text>a fairly long line of text in a big file</text>", 3500);
+    const dir = newRepo({ "big.svg": body, "big.txt": body });
+    write(dir, {
+      "big.svg": body.replace("file</text> 5\n", "changed 5\n"),
+      "big.txt": body.replace("file</text> 5\n", "changed 5\n"),
+    });
+    const both = collectPage(dir, input());
+    expect(() => renderPage(TEMPLATE, both)).toThrow(/Largest files: big\.svg \(\d+ KB\)/);
+    const text = collectPage(dir, input({ exclude: ["big.svg"] }));
     expect(() => renderPage(TEMPLATE, text)).not.toThrow();
   });
 
