@@ -939,7 +939,6 @@ describe("template", () => {
   });
 
   it("comments only on registered cells, past data-side markup from rendered Markdown", () => {
-    // A node whose closest() matches attribute selectors against its dataset and its ancestors'.
     class Node {
       dataset: Record<string, string>;
       parentElement: Node | null;
@@ -973,7 +972,6 @@ describe("template", () => {
 
   describe("rebuilds a Markdown file's old source", () => {
     const oldSource = new Function(`${templateSource("function oldSource(")}\nreturn oldSource;`)();
-    // The rebuilt old text of each Markdown file, from the content as the page joins it.
     function rebuilt(dir: string, over: Partial<BuildInput> = {}): Map<string, string | null> {
       const result = new Map<string, string | null>();
       for (const file of collectPage(dir, input(over)).files) {

@@ -1254,7 +1254,7 @@
   // Markdown source as one rendered block per top-level token, each an element of class cls with
   // its first and last line in data-start and data-end.
   function mdBlocks(src, cls) {
-    // The source as marked lexes it, with the same line count, so each token's raw text is found in it.
+    // Normalised as marked lexes it, keeping the line count, so each token's raw text is found in src.
     src = src
       .replace(/\r\n/g, "\n")
       .replace(/\r/g, " ")
@@ -1293,7 +1293,6 @@
     }
     return blocks;
   }
-  // The new file rendered as Markdown, each block commentable as the new-side line it starts on.
   function renderMarkdown(f, fi, box) {
     const added = new Set();
     for (const h of f.hunks) for (const l of h.lines) if (l[0] === "+") added.add(l[2]);
@@ -1310,9 +1309,7 @@
       }
     }
   }
-  // The old file rebuilt from the new content and the hunks: untouched new lines are copied and each
-  // hunk's new range is swapped for its context and removed lines. Null when a hunk's lines do not
-  // match the content.
+  // Null when a hunk's lines do not match the content.
   function oldSource(f) {
     const strip = (s) => s.replace(/\r$/, "");
     const lines = f.content.split("\n");
@@ -1349,7 +1346,6 @@
     copy(lines.length + 1);
     return out.join("\n") + (out.length && nl ? "\n" : "");
   }
-  // Each hunk's unified rows, then the Markdown blocks they touch, rendered read-only before and after.
   function renderChunked(f, fi, box) {
     const sides = [
       ["Before", "old", mdBlocks(oldOf(f), "cblock"), "-"],
@@ -1573,7 +1569,7 @@
       const found =
         document.getElementById(m[1]) || document.querySelector('[data-alt="' + m[1] + '"]');
       if (found) return found;
-      // A new-side line maps to the block that holds it: in Rendered view, or in a Chunked After pane.
+      // A new-side line with no row of its own resolves to the Markdown block that holds it.
       const line = /^(f-[A-Za-z0-9_]*)-new-(\d+)$/.exec(m[1]);
       const sec = line && document.getElementById(line[1]);
       if (!sec) return null;
@@ -1624,7 +1620,7 @@
   window.addEventListener("resize", reportPins);
   narrowMq.addEventListener("change", renderFiles);
 
-  // The registered comment cell a click lands in, passing over data-side markup from rendered Markdown.
+  // Rendered Markdown can carry its own data-side attributes, so only cells registered in targets count.
   function commentCell(node) {
     if (node.closest("[data-uncommentable]")) return null;
     for (let c = node.closest("[data-side]"); c; c = c.parentElement?.closest("[data-side]")) {
