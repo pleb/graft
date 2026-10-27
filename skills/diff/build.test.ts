@@ -938,6 +938,39 @@ describe("template", () => {
     expect(row.children[1].children.map((child) => child.className)).toContain("cicon");
   });
 
+  it("comments only on registered cells, past data-side markup from rendered Markdown", () => {
+    // A node whose closest() matches attribute selectors against its dataset and its ancestors'.
+    class Node {
+      dataset: Record<string, string>;
+      parentElement: Node | null;
+      constructor(parent: Node | null, dataset: Record<string, string> = {}) {
+        this.parentElement = parent;
+        this.dataset = dataset;
+      }
+      closest(selector: string): Node | null {
+        const key = /^\[data-(\w+)\]$/.exec(selector)![1];
+        return key in this.dataset ? this : (this.parentElement?.closest(selector) ?? null);
+      }
+    }
+    const block = new Node(null, { fi: "0", side: "new", idx: "0" });
+    const fake = new Node(block, { fi: "0", side: "new", idx: "0" });
+    const inner = new Node(fake);
+    const loose = new Node(new Node(null), { fi: "0", side: "new", idx: "0" });
+    const proto = new Node(null, { fi: "0", side: "__proto__", idx: "0" });
+    const pane = new Node(null, { uncommentable: "" });
+    const inPane = new Node(new Node(pane), { fi: "0", side: "new", idx: "0" });
+    const targets = [{ old: [], new: [{ cells: [block] }] }];
+    const commentCell = new Function(
+      "targets",
+      `${templateSource("function commentCell(")}\nreturn commentCell;`,
+    )(targets);
+    expect(commentCell(block)).toBe(block);
+    expect(commentCell(inner)).toBe(block);
+    expect(commentCell(loose)).toBeNull();
+    expect(commentCell(proto)).toBeNull();
+    expect(commentCell(inPane)).toBeNull();
+  });
+
   describe("rebuilds a Markdown file's old source", () => {
     const oldSource = new Function(`${templateSource("function oldSource(")}\nreturn oldSource;`)();
     // The rebuilt old text of each Markdown file, from the content as the page joins it.

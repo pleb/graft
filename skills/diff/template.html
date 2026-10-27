@@ -1254,6 +1254,11 @@
   // Markdown source as one rendered block per top-level token, each an element of class cls with
   // its first and last line in data-start and data-end.
   function mdBlocks(src, cls) {
+    // The source as marked lexes it, with the same line count, so each token's raw text is found in it.
+    src = src
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, " ")
+      .replace(/^( *)(\t+)/gm, (_, lead, tabs) => lead + "    ".repeat(tabs.length));
     const blocks = [];
     const lineAt = (offset) => src.slice(0, offset).split("\n").length;
     const add = (node, start, raw) => {
@@ -1361,10 +1366,16 @@
       const panes = el("div", "cpanes");
       panes.setAttribute("data-uncommentable", "");
       sides.forEach(([label, side, blocks, sign], i) => {
-        const nums = h.lines.map((l) => l[i + 1]).filter((n) => n != null);
-        const changed = new Set(h.lines.filter((l) => l[0] === sign).map((l) => l[i + 1]));
-        const lo = Math.min(...nums),
-          hi = Math.max(...nums);
+        const changed = new Set();
+        let lo = Infinity,
+          hi = -Infinity;
+        for (const l of h.lines) {
+          const n = l[i + 1];
+          if (n == null) continue;
+          if (n < lo) lo = n;
+          if (n > hi) hi = n;
+          if (l[0] === sign) changed.add(n);
+        }
         const pane = el("div", "cpane " + side);
         const md = el("div", "md");
         for (const b of blocks) {
@@ -1613,6 +1624,15 @@
   window.addEventListener("resize", reportPins);
   narrowMq.addEventListener("change", renderFiles);
 
+  // The registered comment cell a click lands in, passing over data-side markup from rendered Markdown.
+  function commentCell(node) {
+    if (node.closest("[data-uncommentable]")) return null;
+    for (let c = node.closest("[data-side]"); c; c = c.parentElement?.closest("[data-side]")) {
+      const t = targets[+c.dataset.fi]?.[c.dataset.side]?.[+c.dataset.idx];
+      if (t && t.cells.includes(c)) return c;
+    }
+    return null;
+  }
   document.addEventListener("click", (e) => {
     if (!anchors || !document.body.classList.contains("commenting")) return;
     if (!e.target.closest) return;
@@ -1622,7 +1642,7 @@
       onComment.get(other)();
       return;
     }
-    const cell = e.target.closest("[data-side]");
+    const cell = commentCell(e.target);
     if (!cell) return;
     e.preventDefault();
     const fi = +cell.dataset.fi,
