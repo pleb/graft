@@ -766,8 +766,61 @@
     color: #5d6778;
     font-size: 13px;
   }
+  .chunk + .chunk {
+    border-top: 1px solid var(--border);
+  }
+  .cpanes {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .cpane {
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .cpane h3 {
+    margin: 0;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--sunken);
+    border-bottom: 1px solid var(--border);
+  }
+  .cblock {
+    position: relative;
+    padding: 1px 52px 1px 32px;
+    border-left: 3px solid transparent;
+  }
+  .cpane.old .cblock.chg {
+    background: var(--del-bg);
+    border-left-color: var(--del-fg);
+  }
+  .cpane.new .cblock.chg {
+    background: var(--add-bg);
+    border-left-color: var(--add-fg);
+  }
+  .cline {
+    position: absolute;
+    right: 8px;
+    top: 4px;
+    font-family: var(--font-code);
+    font-size: 12px;
+    color: var(--muted);
+    user-select: none;
+  }
+  .cnone {
+    padding: 4px 16px;
+    color: var(--muted);
+    font-size: 13px;
+  }
   @media (max-width: 760px) {
-    .svgcmp {
+    .svgcmp,
+    .cpanes {
       grid-template-columns: 1fr;
     }
   }
@@ -1084,30 +1137,31 @@
     for (const k of kinds) g.append(el("col", k));
     table.append(g);
   }
+  function unifiedRows(f, fi, h, table) {
+    hunkRow(f, fi, h, table);
+    for (const l of h.lines) {
+      const [t, o, n, s] = l;
+      const k = t === "+" ? "add" : t === "-" ? "del" : "";
+      const tr = el("tr", "line");
+      const cells = [
+        td("num " + k, o),
+        td("num " + k, n),
+        td("sign " + k, t === " " ? "" : t === "-" ? "−" : "+"),
+        codeTd("code " + k, l),
+      ];
+      tr.append(...cells);
+      table.append(tr);
+      if (t === "-") addTarget(f, fi, "old", o, [cells[0], cells[1], cells[2], cells[3]], tr, s);
+      else {
+        if (t === " ") tr.dataset.alt = lineId(f, "old", o);
+        addTarget(f, fi, "new", n, [cells[1], cells[0], cells[2], cells[3]], tr, s);
+      }
+    }
+  }
   function renderUnified(f, fi, table) {
     table.className = "unified";
     colgroup(f, table, ["cn", "cn", "cs", ""]);
-    for (const h of f.hunks) {
-      hunkRow(f, fi, h, table);
-      for (const l of h.lines) {
-        const [t, o, n, s] = l;
-        const k = t === "+" ? "add" : t === "-" ? "del" : "";
-        const tr = el("tr", "line");
-        const cells = [
-          td("num " + k, o),
-          td("num " + k, n),
-          td("sign " + k, t === " " ? "" : t === "-" ? "−" : "+"),
-          codeTd("code " + k, l),
-        ];
-        tr.append(...cells);
-        table.append(tr);
-        if (t === "-") addTarget(f, fi, "old", o, [cells[0], cells[1], cells[2], cells[3]], tr, s);
-        else {
-          if (t === " ") tr.dataset.alt = lineId(f, "old", o);
-          addTarget(f, fi, "new", n, [cells[1], cells[0], cells[2], cells[3]], tr, s);
-        }
-      }
-    }
+    for (const h of f.hunks) unifiedRows(f, fi, h, table);
   }
   function renderSplit(f, fi, table) {
     table.className = "split";
@@ -1145,12 +1199,24 @@
     }
   }
 
-  const VIEWS = { unified: "Unified", split: "Side-by-side", rendered: "Rendered" };
+  const VIEWS = {
+    unified: "Unified",
+    split: "Side-by-side",
+    rendered: "Rendered",
+    chunked: "Chunked",
+  };
   const isSvg = (f) => f.svgOld != null || f.svgNew != null;
+  const olds = new Map();
+  const oldOf = (f) => {
+    if (!olds.has(f)) olds.set(f, oldSource(f));
+    return olds.get(f);
+  };
   function views(f) {
     const list = ["unified"];
-    if (!(narrowMq.matches || f.status === "A" || f.status === "D")) list.push("split");
+    const both = f.status !== "A" && f.status !== "D";
+    if (both && !narrowMq.matches) list.push("split");
     if ((f.content != null && mdReady) || isSvg(f)) list.push("rendered");
+    if (both && f.content != null && mdReady && oldOf(f) != null) list.push("chunked");
     return list;
   }
   function fileView(f) {
@@ -1185,37 +1251,26 @@
     setCollapsed(fi, on);
     renderList();
   }
-  // The new file rendered as Markdown, one block per top-level token, each commentable as the
-  // new-side line it starts on.
-  function renderMarkdown(f, fi, box) {
-    const added = new Set();
-    for (const h of f.hunks) for (const l of h.lines) if (l[0] === "+") added.add(l[2]);
-    const src = f.content;
+  // Markdown source as one rendered block per top-level token, each an element of class cls with
+  // its first and last line in data-start and data-end.
+  function mdBlocks(src, cls) {
+    const blocks = [];
     const lineAt = (offset) => src.slice(0, offset).split("\n").length;
-    const addBlock = (block, start, raw) => {
+    const add = (node, start, raw) => {
       const end = start + raw.replace(/\n+$/, "").split("\n").length - 1;
-      block.dataset.start = start;
-      block.dataset.end = end;
-      let has = false;
-      for (let n = start; n <= end; n++) {
-        if (added.has(n)) block.classList.add("chg");
-        if (n > start && known.has(lineId(f, "new", n))) has = true;
-      }
-      box.append(block);
-      addTarget(f, fi, "new", start, [block], block, raw);
-      if (comments && has && !block.querySelector(":scope > .cicon")) {
-        block.prepend(commentIcon("This block has comments. Turn on comment mode to read them."));
-      }
+      node.dataset.start = start;
+      node.dataset.end = end;
+      blocks.push({ node, start, end, raw });
     };
     // YAML frontmatter shows as a code block.
     const fm = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/.exec(src);
     let cursor = 0;
     if (fm) {
-      const block = el("div", "mdb");
+      const block = el("div", cls);
       const pre = el("pre");
       pre.append(el("code", null, fm[0].replace(/\r?\n$/, "")));
       block.append(pre);
-      addBlock(block, 1, fm[0]);
+      add(block, 1, fm[0]);
       cursor = fm[0].length;
     }
     const tokens = marked.lexer(src.slice(cursor));
@@ -1227,9 +1282,104 @@
       if (tok.type === "space") continue;
       const one = [tok];
       one.links = tokens.links;
-      const block = el("div", "mdb");
+      const block = el("div", cls);
       block.innerHTML = DOMPurify.sanitize(marked.parser(one), { SANITIZE_NAMED_PROPS: true });
-      addBlock(block, lineAt(from), tok.raw);
+      add(block, lineAt(from), tok.raw);
+    }
+    return blocks;
+  }
+  // The new file rendered as Markdown, each block commentable as the new-side line it starts on.
+  function renderMarkdown(f, fi, box) {
+    const added = new Set();
+    for (const h of f.hunks) for (const l of h.lines) if (l[0] === "+") added.add(l[2]);
+    for (const { node: block, start, end, raw } of mdBlocks(f.content, "mdb")) {
+      let has = false;
+      for (let n = start; n <= end; n++) {
+        if (added.has(n)) block.classList.add("chg");
+        if (n > start && known.has(lineId(f, "new", n))) has = true;
+      }
+      box.append(block);
+      addTarget(f, fi, "new", start, [block], block, raw);
+      if (comments && has && !block.querySelector(":scope > .cicon")) {
+        block.prepend(commentIcon("This block has comments. Turn on comment mode to read them."));
+      }
+    }
+  }
+  // The old file rebuilt from the new content and the hunks: untouched new lines are copied and each
+  // hunk's new range is swapped for its context and removed lines. Null when a hunk's lines do not
+  // match the content.
+  function oldSource(f) {
+    const strip = (s) => s.replace(/\r$/, "");
+    const lines = f.content.split("\n");
+    const endsNl = lines.at(-1) === "";
+    if (endsNl) lines.pop();
+    const out = [];
+    let next = 1,
+      nl = endsNl;
+    const copy = (to) => {
+      for (; next < to; next++) {
+        out.push(lines[next - 1]);
+        nl = next < lines.length || endsNl;
+      }
+    };
+    for (const h of f.hunks) {
+      const m = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(h.header);
+      if (!m) return null;
+      const count = m[2] == null ? 1 : +m[2];
+      // In a +n,0 range, n is the line before the insertion point.
+      const start = count === 0 ? +m[1] + 1 : +m[1];
+      if (start < next || start + count - 1 > lines.length) return null;
+      copy(start);
+      for (const l of h.lines) {
+        if (l[0] !== "-" && (l[2] > lines.length || strip(lines[l[2] - 1]) !== strip(l[3]))) {
+          return null;
+        }
+        if (l[0] === "+") continue;
+        if (l[1] !== out.length + 1) return null;
+        out.push(l[3]);
+        nl = !l[4];
+      }
+      next = start + count;
+    }
+    copy(lines.length + 1);
+    return out.join("\n") + (out.length && nl ? "\n" : "");
+  }
+  // Each hunk's unified rows, then the Markdown blocks they touch, rendered read-only before and after.
+  function renderChunked(f, fi, box) {
+    const sides = [
+      ["Before", "old", mdBlocks(oldOf(f), "cblock"), "-"],
+      ["After", "new", mdBlocks(f.content, "cblock"), "+"],
+    ];
+    for (const h of f.hunks) {
+      const chunk = el("div", "chunk");
+      const scroll = el("div", "scroll");
+      const table = el("table", "unified");
+      colgroup(f, table, ["cn", "cn", "cs", ""]);
+      unifiedRows(f, fi, h, table);
+      scroll.append(table);
+      scroll.addEventListener("scroll", reportPins, { passive: true });
+      const panes = el("div", "cpanes");
+      panes.setAttribute("data-uncommentable", "");
+      sides.forEach(([label, side, blocks, sign], i) => {
+        const nums = h.lines.map((l) => l[i + 1]).filter((n) => n != null);
+        const changed = new Set(h.lines.filter((l) => l[0] === sign).map((l) => l[i + 1]));
+        const lo = Math.min(...nums),
+          hi = Math.max(...nums);
+        const pane = el("div", "cpane " + side);
+        const md = el("div", "md");
+        for (const b of blocks) {
+          if (b.end < lo || b.start > hi) continue;
+          const block = b.node.cloneNode(true);
+          block.prepend(el("span", "cline", "L" + b.start));
+          for (let n = b.start; n <= b.end; n++) if (changed.has(n)) block.classList.add("chg");
+          md.append(block);
+        }
+        if (!md.children.length) md.append(el("div", "cnone", "No lines"));
+        pane.append(el("h3", null, label), md);
+        panes.append(pane);
+      });
+      chunk.append(scroll, panes);
+      box.append(chunk);
     }
   }
   // Before and after as images, which run no scripts.
@@ -1319,6 +1469,8 @@
       const box = el("div", "md");
       renderMarkdown(f, fi, box);
       body.append(box);
+    } else if (fileView(f) === "chunked") {
+      renderChunked(f, fi, body);
     } else {
       const scroll = el("div", "scroll");
       const table = el("table");
@@ -1410,13 +1562,13 @@
       const found =
         document.getElementById(m[1]) || document.querySelector('[data-alt="' + m[1] + '"]');
       if (found) return found;
-      // In Rendered view a new-side line maps to the block that holds it.
+      // A new-side line maps to the block that holds it: in Rendered view, or in a Chunked After pane.
       const line = /^(f-[A-Za-z0-9_]*)-new-(\d+)$/.exec(m[1]);
       const sec = line && document.getElementById(line[1]);
       if (!sec) return null;
       const n = +line[2];
       return (
-        [...sec.querySelectorAll(".mdb")].find(
+        [...sec.querySelectorAll(".mdb, .cpane.new .cblock")].find(
           (b) => +b.dataset.start <= n && n <= +b.dataset.end,
         ) || null
       );
@@ -1447,7 +1599,7 @@
             : target;
       const r = gutter.getBoundingClientRect();
       // Rendered Markdown blocks pin beside their first line.
-      const block = target.classList.contains("mdb");
+      const block = target.classList.contains("mdb") || target.classList.contains("cblock");
       const x = block
         ? r.left + 14
         : gutter === target && target.tagName !== "TD"
