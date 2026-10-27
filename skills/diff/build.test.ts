@@ -912,6 +912,7 @@ describe("template", () => {
       templateSource("function colgroup("),
       templateSource("function addTarget("),
       templateSource("function codeTd("),
+      templateSource("function unifiedRows("),
       templateSource("function renderUnified("),
       "return renderUnified;",
     ].join("\n");
@@ -935,6 +936,140 @@ describe("template", () => {
     expect(row.id).toBe("f-a-new-5");
     expect(row.dataset.alt).toBe("f-a-old-3");
     expect(row.children[1].children.map((child) => child.className)).toContain("cicon");
+  });
+
+  it("comments only on registered cells, past data-side markup from rendered Markdown", () => {
+    class Node {
+      dataset: Record<string, string>;
+      parentElement: Node | null;
+      constructor(parent: Node | null, dataset: Record<string, string> = {}) {
+        this.parentElement = parent;
+        this.dataset = dataset;
+      }
+      closest(selector: string): Node | null {
+        const key = /^\[data-(\w+)\]$/.exec(selector)![1];
+        return key in this.dataset ? this : (this.parentElement?.closest(selector) ?? null);
+      }
+    }
+    const block = new Node(null, { fi: "0", side: "new", idx: "0" });
+    const fake = new Node(block, { fi: "0", side: "new", idx: "0" });
+    const inner = new Node(fake);
+    const loose = new Node(new Node(null), { fi: "0", side: "new", idx: "0" });
+    const proto = new Node(null, { fi: "0", side: "__proto__", idx: "0" });
+    const pane = new Node(null, { uncommentable: "" });
+    const inPane = new Node(new Node(pane), { fi: "0", side: "new", idx: "0" });
+    const targets = [{ old: [], new: [{ cells: [block] }] }];
+    const commentCell = new Function(
+      "targets",
+      `${templateSource("function commentCell(")}\nreturn commentCell;`,
+    )(targets);
+    expect(commentCell(block)).toBe(block);
+    expect(commentCell(inner)).toBe(block);
+    expect(commentCell(loose)).toBeNull();
+    expect(commentCell(proto)).toBeNull();
+    expect(commentCell(inPane)).toBeNull();
+  });
+
+  describe("rebuilds a Markdown file's old source", () => {
+    const oldSource = new Function(`${templateSource("function oldSource(")}\nreturn oldSource;`)();
+    function rebuilt(dir: string, over: Partial<BuildInput> = {}): Map<string, string | null> {
+      const result = new Map<string, string | null>();
+      for (const file of collectPage(dir, input(over)).files) {
+        if (file.content) {
+          result.set(file.path, oldSource({ ...file, content: file.content.join("\n") }));
+        }
+      }
+      return result;
+    }
+    function changed(base: Record<string, string>, next: Record<string, string>) {
+      const dir = newRepo(base);
+      write(dir, next);
+      return dir;
+    }
+
+    it("across several hunks, with insertions, deletions and frontmatter", () => {
+      const many = lines("line", 30);
+      const fm = "---\ntitle: Old\ntags: [a]\n---\n\n# Title\n\nBody\n";
+      const ins = lines("keep", 12);
+      const del = lines("drop", 12);
+      const dir = changed(
+        { "many.md": many, "fm.md": fm, "ins.md": ins, "del.md": del },
+        {
+          "many.md": many
+            .replace("line 3\n", "changed 3\n")
+            .replace("line 15\n", "- a\n- b\n")
+            .replace("line 28\n", ""),
+          "fm.md": fm.replace("title: Old", "title: New"),
+          "ins.md": ins.replace("keep 6\n", "keep 6\nnew a\nnew b\n"),
+          "del.md": del.replace("drop 6\ndrop 7\n", ""),
+        },
+      );
+      expect(Object.fromEntries(rebuilt(dir))).toEqual({
+        "many.md": many,
+        "fm.md": fm,
+        "ins.md": ins,
+        "del.md": del,
+      });
+    });
+
+    it("from zero-context hunks, where a +n,0 range names the line before the gap", () => {
+      const base = lines("line", 8);
+      const next = base.replace("line 3\nline 4\n", "").replace("line 6\n", "line 6\nnew\n");
+      const dir = tempDir();
+      write(dir, { "a.md": base, "b.md": next });
+      const out = spawnSync("git", ["diff", "--no-index", "-U0", "--", "a.md", "b.md"], {
+        cwd: dir,
+        encoding: "utf8",
+      }).stdout;
+      const [file] = parseDiff(out);
+      expect(file.hunks.map((hunk) => hunk.header.split(" @@ ")[0])).toEqual([
+        "@@ -3,2 +2,0",
+        "@@ -6,0 +5",
+      ]);
+      expect(oldSource({ content: next, hunks: file.hunks })).toBe(base);
+    });
+
+    it("for an emptied file", () => {
+      for (const base of ["# Gone\n\ntext\n", "# Gone\n\ntext"]) {
+        const dir = changed({ "a.md": base }, { "a.md": "" });
+        expect(rebuilt(dir).get("a.md")).toBe(base);
+      }
+    });
+
+    it("for a file removed from the index and kept untracked", () => {
+      const base = "# Doc\n\none\ntwo\n";
+      const dir = newRepo({ "doc.md": base });
+      git(dir, "rm", "-q", "--cached", "doc.md");
+      write(dir, { "doc.md": "# Doc\n\none\nthree\n" });
+      const page = collectPage(dir, input({ untracked: ["doc.md"] })).files[0];
+      expect(page.hunks!.map((hunk) => hunk.header)).toEqual([
+        "@@ -1,4 +0,0 @@",
+        "@@ -0,0 +1,4 @@",
+      ]);
+      expect(rebuilt(dir, { untracked: ["doc.md"] }).get("doc.md")).toBe(base);
+    });
+
+    it("when only the end-of-file newline changes", () => {
+      for (const [base, next] of [
+        ["# A\n\ntext", "# A\n\ntext\n"],
+        ["# A\n\ntext\n", "# A\n\ntext"],
+        ["# A\n\ntext", "# A\n\nmore"],
+      ]) {
+        const dir = changed({ "a.md": base }, { "a.md": next });
+        expect(rebuilt(dir).get("a.md")).toBe(base);
+      }
+    });
+
+    it("ignoring a trailing carriage return, and declines lines that do not match the content", () => {
+      const [file] = parseDiff(
+        "diff --git a/a.md b/a.md\nindex 1..2 100644\n--- a/a.md\n+++ b/a.md\n@@ -1,2 +1,2 @@\n a\n-b\n+c\n",
+      );
+      expect(oldSource({ content: "a\nc\n", hunks: file.hunks })).toBe("a\nb\n");
+      expect(oldSource({ content: "a\r\nc\r\n", hunks: file.hunks })).toBe("a\nb\n");
+      expect(oldSource({ content: "x\nc\n", hunks: file.hunks })).toBeNull();
+      expect(oldSource({ content: "a\nd\n", hunks: file.hunks })).toBeNull();
+      expect(oldSource({ content: "a\n", hunks: file.hunks })).toBeNull();
+    });
   });
 });
 
