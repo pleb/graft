@@ -46,6 +46,11 @@ If the pull cannot fast-forward, help the user merge `origin/main`; never rebase
 
 Settings live in `~/.my-graft/graft-settings.json`, a JSON object keyed by skill, then by setting (for example, `{"plan": {"outsideRepoPlans": "always"}}`). A missing file means no settings.
 
-Save a setting only when `~/.my-graft` is the Graft clone (`git -C ~/.my-graft rev-parse --show-toplevel` prints it); otherwise the setting holds for this run only. To save, change only that key, then commit `graft-settings.json` alone and push it to `origin main`.
+| Key                      | Values            | Default | What it does                                                                                              |
+| ------------------------ | ----------------- | ------- | --------------------------------------------------------------------------------------------------------- |
+| `plan.outsideRepoPlans`  | `always`          | ask     | Outside a repo, `always` saves plans in `~/.my-graft/.claude/plans/` without asking.                      |
+| `orchestrate.deletePlan` | `always`, `never` | ask     | After every milestone is done, `always` deletes an untracked Graft plan without asking; `never` keeps it. |
+
+Save a setting only when `~/.my-graft` is the Graft clone (`git -C ~/.my-graft rev-parse --show-toplevel` prints it); otherwise the setting holds for this run only. To save, re-read the file, change only that key, then commit `graft-settings.json` alone and push it to `origin main`.
 
 When a "don't ask again" answer cannot be saved, tell the user why.
