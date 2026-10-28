@@ -58,8 +58,8 @@ type World = {
   ) => void;
 };
 
-// Stands for the engine beneath the plugin: HOME, a file system in memory,
-// and git answering as a clean clone on main that is up to date.
+// A fake engine: HOME set, an in-memory file system, and git answering as a
+// clean, up-to-date clone on main.
 function world(
   on: On,
   settings?: string,
@@ -162,7 +162,6 @@ function world(
     head: "c0",
     parent: "",
     subject: "init",
-    // A commit of this save: HEAD moves on, its parent is the old HEAD.
     land: (argv) => {
       w.parent = w.head;
       w.head = `${w.head}+`;

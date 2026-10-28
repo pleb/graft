@@ -1,5 +1,4 @@
-// What the settings pane keeps in `$.state`: whether a save runs, and a count
-// that each finished save bumps so the pane reads the file again.
+// `revision` bumps after each finished save so the pane re-reads the file.
 export type GraftSettingsPane = { isSaving: boolean; revision: number };
 
 declare module "claude-code" {

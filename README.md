@@ -13,7 +13,7 @@ Claude, install Graft https://raw.githubusercontent.com/pleb/graft/main/agent-in
 
 That's it! Install creates (or reuses) a private `<login>/my-graft` repo holding Graft's history. Your mods live there, and `/graft:update` merges the latest Graft into it.
 
-Graft needs Claude Code 2.1.273 or later. Update Claude Code before running `/graft:update`.
+Graft requires Claude Code 2.1.273 or later. Update Claude Code before running `/graft:update`.
 
 To install Graft on another machine, or again after `/graft:uninstall`, run the same command. Install clones your existing `my-graft` repo, so your mods come with it.
 
@@ -64,7 +64,7 @@ Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps 
 
 `/graft:tune` finds corrections you keep making to plan and orchestrate runs and turns the ones you pick into mods.
 
-`/graft-settings` opens the settings pane, which lists each Graft setting with its allowed values, default and current value. A change is saved to `~/.my-graft/graft-settings.json`, then committed and pushed.
+`/graft-settings` opens a pane listing each Graft setting with its allowed values, default and current value. A change is saved to `~/.my-graft/graft-settings.json`, then committed and pushed.
 
 ![How your copy of Graft stays current: /graft:update merges the latest Graft from pleb/graft into your clone at ~/.my-graft, keeping your mods. /graft:modify commits a mod to the clone, recorded in MODS.md. /graft:tune finds corrections you keep making and hands the ones you pick to /graft:modify. The clone pushes to your private \<login\>/my-graft repo, and your other machines pull from it. Claude Code loads Graft from the clone, and /reload-plugins picks up changes.](./docs/update.svg)
 

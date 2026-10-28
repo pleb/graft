@@ -1,5 +1,5 @@
-// Reads the settings catalog, the table under `## Settings` in common.md.
-// Pure: the settings pane (hooks/register.tsx) and vitest both import it.
+// Parses the table under `## Settings` in common.md. Keep it free of JSX and
+// Node or claude-code imports: hooks/register.tsx and vitest both load it.
 
 export type CatalogSetting = {
   key: string;

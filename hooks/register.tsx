@@ -81,8 +81,6 @@ async function load($: EngineInterface): Promise<Loaded> {
   }
 }
 
-// Every key in the file, `<skill>.<setting>`; a skill entry that is not an
-// object stands as its own key.
 function flatten(settings: Json): Map<string, unknown> {
   const keys = new Map<string, unknown>();
   for (const [skill, entry] of Object.entries(settings)) {
@@ -104,8 +102,7 @@ function currentOf(settings: Json, setting: CatalogSetting): unknown {
   return isObject(entry) ? entry[setting.name] : undefined;
 }
 
-// The read-only text list: the reply where no surface draws the pane, and
-// the pane on mobile.
+// Text form of the settings, for surfaces that draw no pane and for mobile.
 function describe({ catalog, file }: Loaded): string[] {
   const lines = [`Graft settings in ${SHOWN_FILE}`];
   if (!file.isParsed) {
@@ -141,7 +138,7 @@ function describe({ catalog, file }: Loaded): string[] {
   return lines;
 }
 
-// `network` is the environment for a pull or push, which never prompts.
+// Pass `network` (from networkEnv) only for a pull or push, so git never prompts.
 async function run(
   $: EngineInterface,
   argv: readonly string[],
@@ -162,9 +159,8 @@ async function run(
 const firstLine = (ran: Ran) =>
   ran.stderr.trim().split("\n")[0] || ran.stdout.trim().split("\n")[0] || "no output";
 
-// The user's own ssh command (as git picks it), made to fail rather than ask.
-// `-o BatchMode=yes` goes right after the program, since ssh keeps the first
-// value it is given for an option.
+// The user's ssh command, as git picks it, made to fail instead of prompting.
+// `-o BatchMode=yes` goes right after the program because ssh keeps the first value given for an option.
 async function networkEnv($: EngineInterface, clone: string): Promise<Record<string, string>> {
   const command = (await $.env.get("GIT_SSH_COMMAND"))?.trim();
   const config = await run($, ["git", "-C", clone, "config", "core.sshCommand"]);
@@ -182,7 +178,6 @@ async function networkEnv($: EngineInterface, clone: string): Promise<Record<str
   return { GIT_TERMINAL_PROMPT: "0", GIT_SSH_COMMAND: sshCommand };
 }
 
-// The checks before a write; answers why the save is refused, or undefined.
 async function refusal(
   $: EngineInterface,
   clone: string,
@@ -222,8 +217,7 @@ async function refusal(
   return undefined;
 }
 
-// Saves one key (`undefined` clears it); answers a toast, or undefined when
-// the save went through or changed nothing.
+// A `target` of undefined clears the key. Returns a toast, or undefined when saved or unchanged.
 async function saveSetting(
   $: EngineInterface,
   setting: CatalogSetting,
@@ -276,9 +270,8 @@ async function saveSetting(
   const headBefore = await head();
   const added = await git("add", "--", FILE);
   const committed = added.isOk ? await git("commit", "--only", "-m", message, "--", FILE) : added;
-  // A commit can land and still report failure (a timeout during signing):
-  // an unmoved HEAD is undone, and a moved one goes on only when it is this
-  // save's commit.
+  // A commit can land yet report failure (a signing timeout). An unmoved HEAD
+  // restores the file; a moved one is pushed only when it is this save's commit.
   const mayNotBeSaved = (why: string) =>
     `Graft settings: ${setting.key} may not be saved: the commit failed (${firstLine(committed)}) and ${why}. Run \`git -C ~/.my-graft status\` and \`git -C ~/.my-graft log -1\`.`;
   const headAfter = committed.isOk ? undefined : await head();
@@ -349,7 +342,7 @@ export const register: Register = (on) => {
       name: "graft-settings",
       description: "Show and change Graft settings",
     });
-    // A reload drops a save in flight, and $.state keeps its lock.
+    // $.state outlives a reload, which drops any save in flight, so release its lock.
     await $.state.set({ plugin: "graft", key: "isSaving" } as const, false);
 
     return next(e);
