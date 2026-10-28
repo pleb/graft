@@ -15,7 +15,7 @@ The mod registry is `~/.my-graft/MODS.md`.
 
 ## Sync
 
-Follow common.md's `## Sync the clone`.
+Follow common.md's `## Claude Code version`, then its `## Sync the clone`.
 
 ## Read the registry
 

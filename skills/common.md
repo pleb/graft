@@ -24,6 +24,16 @@ Take the first that applies:
 4. Other text: that text is the work.
 5. Nothing: the work in this conversation.
 
+## Claude Code version
+
+Check the Claude Code version.
+
+```bash
+claude --version
+```
+
+If it is below 2.1.273, stop and tell the user to update Claude Code first.
+
 ## Sync the clone
 
 Check that the clone is on `main` with no changed or untracked files.
