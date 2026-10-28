@@ -349,7 +349,7 @@ export const register: Register = (on) => {
   });
 
   on("command.run", { command: "graft-settings" }, async ($) => {
-    const opened = await $.ui.open({ id: PANE, title: TITLE });
+    const opened = await $.ui.open({ id: PANE, title: TITLE, focus: true });
     if (opened.isPlaced) {
       return { text: "Opened the Graft settings pane." };
     }
