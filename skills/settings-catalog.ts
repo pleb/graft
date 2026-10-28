@@ -46,6 +46,10 @@ export function parseCatalog(markdown: string): Catalog {
     }
     rows.push(line);
   }
+  const after = section.slice(first + rows.length).find((line) => line.includes("|"));
+  if (after !== undefined) {
+    return { isParsed: false, error: `cannot read the row: ${after.trim()}` };
+  }
   const [header, separator, ...body] = rows;
   if (header === undefined || cells(header).join("|") !== HEADER.join("|")) {
     return { isParsed: false, error: `the table's columns are not ${HEADER.join(", ")}` };
@@ -64,6 +68,12 @@ export function parseCatalog(markdown: string): Catalog {
     const parsedValues = values.split(", ").map((value) => VALUE.exec(value)?.[1]);
     if (parsedValues.some((value) => value === undefined) || defaultValue === "") {
       return { isParsed: false, error: `cannot read the row: ${row.trim()}` };
+    }
+    if (new Set(parsedValues).size !== parsedValues.length) {
+      return { isParsed: false, error: `a value is listed twice: ${row.trim()}` };
+    }
+    if (settings.some((setting) => setting.key === `${keyMatch[1]}.${keyMatch[2]}`)) {
+      return { isParsed: false, error: `the key is listed twice: ${key}` };
     }
     settings.push({
       key: `${keyMatch[1]}.${keyMatch[2]}`,

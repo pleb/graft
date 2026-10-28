@@ -13,10 +13,6 @@ const ASK = ":ask";
 const UNLISTED = ":unlisted";
 const LOCAL_MS = 30_000;
 const NETWORK_MS = 60_000;
-const NETWORK_ENV = {
-  GIT_TERMINAL_PROMPT: "0",
-  GIT_SSH_COMMAND: "ssh -o BatchMode=yes",
-};
 
 const isSaving = atom({ plugin: "graft", key: "isSaving" } as const, false);
 const revision = atom({ plugin: "graft", key: "revision" } as const, 0);
@@ -145,11 +141,16 @@ function describe({ catalog, file }: Loaded): string[] {
   return lines;
 }
 
-async function run($: EngineInterface, argv: readonly string[], isNetwork = false): Promise<Ran> {
+// `network` is the environment for a pull or push, which never prompts.
+async function run(
+  $: EngineInterface,
+  argv: readonly string[],
+  network?: Record<string, string>,
+): Promise<Ran> {
   try {
     const ran = await $.process.run(argv, {
-      timeoutMs: isNetwork ? NETWORK_MS : LOCAL_MS,
-      ...(isNetwork ? { env: NETWORK_ENV } : {}),
+      timeoutMs: network === undefined ? LOCAL_MS : NETWORK_MS,
+      ...(network === undefined ? {} : { env: network }),
     });
 
     return { isOk: ran.exitCode === 0, stdout: ran.stdout, stderr: ran.stderr };
@@ -161,8 +162,26 @@ async function run($: EngineInterface, argv: readonly string[], isNetwork = fals
 const firstLine = (ran: Ran) =>
   ran.stderr.trim().split("\n")[0] || ran.stdout.trim().split("\n")[0] || "no output";
 
+// The user's own ssh command (as git picks it), made to fail rather than ask.
+async function networkEnv($: EngineInterface, clone: string): Promise<Record<string, string>> {
+  const fromEnv = await $.env.get("GIT_SSH_COMMAND");
+  const fromConfig = await run($, ["git", "-C", clone, "config", "core.sshCommand"]);
+  const ssh =
+    fromEnv !== undefined && fromEnv.trim() !== ""
+      ? fromEnv.trim()
+      : fromConfig.isOk && fromConfig.stdout.trim() !== ""
+        ? fromConfig.stdout.trim()
+        : "ssh";
+
+  return { GIT_TERMINAL_PROMPT: "0", GIT_SSH_COMMAND: `${ssh} -o BatchMode=yes` };
+}
+
 // The checks before a write; answers why the save is refused, or undefined.
-async function refusal($: EngineInterface, clone: string): Promise<string | undefined> {
+async function refusal(
+  $: EngineInterface,
+  clone: string,
+  network: Record<string, string>,
+): Promise<string | undefined> {
   const git = (...args: string[]) => run($, ["git", "-C", clone, ...args]);
   const top = await git("rev-parse", "--show-toplevel");
   const real = await $.fs
@@ -189,7 +208,7 @@ async function refusal($: EngineInterface, clone: string): Promise<string | unde
   if (!ahead.isOk || ahead.stdout.trim() !== "0") {
     return "~/.my-graft has commits not pushed to origin. Run `git -C ~/.my-graft push origin main`.";
   }
-  const pull = await run($, ["git", "-C", clone, "pull", "--ff-only", "origin", "main"], true);
+  const pull = await run($, ["git", "-C", clone, "pull", "--ff-only", "origin", "main"], network);
   if (!pull.isOk) {
     return `pulling origin main failed (${firstLine(pull)}). Run \`git -C ~/.my-graft pull --ff-only origin main\`.`;
   }
@@ -209,7 +228,8 @@ async function saveSetting(
   if (clone === undefined) {
     return `${notSaved} HOME is not set.`;
   }
-  const why = await refusal($, clone);
+  const network = await networkEnv($, clone);
+  const why = await refusal($, clone, network);
   if (why !== undefined) {
     return `${notSaved} ${why}`;
   }
@@ -242,9 +262,21 @@ async function saveSetting(
 
   await $.fs.write(path, `${JSON.stringify(next, null, 2)}\n`);
   const git = (...args: string[]) => run($, ["git", "-C", clone, ...args]);
+  const head = async () => {
+    const ran = await git("rev-parse", "HEAD");
+
+    return ran.isOk ? ran.stdout.trim() : undefined;
+  };
+  const headBefore = await head();
   const added = await git("add", "--", FILE);
   const committed = added.isOk ? await git("commit", "--only", "-m", message, "--", FILE) : added;
-  if (!committed.isOk) {
+  // A commit can land and still report failure (a timeout during signing):
+  // a moved HEAD counts as made, and only an unmoved one is undone.
+  const headAfter = committed.isOk ? undefined : await head();
+  if (!committed.isOk && (headBefore === undefined || headAfter === undefined)) {
+    return `Graft settings: ${setting.key} may not be saved: the commit failed (${firstLine(committed)}) and HEAD could not be read to tell whether it landed. Run \`git -C ~/.my-graft status\` and \`git -C ~/.my-graft log -1\`.`;
+  }
+  if (!committed.isOk && headAfter === headBefore) {
     if (before === undefined) {
       await run($, ["rm", "-f", "--", path]);
     } else {
@@ -254,7 +286,7 @@ async function saveSetting(
 
     return `${notSaved} the commit failed (${firstLine(committed)}), so ${FILE} was restored. Run \`git -C ~/.my-graft status\` to see why.`;
   }
-  const pushed = await run($, ["git", "-C", clone, "push", "origin", "main"], true);
+  const pushed = await run($, ["git", "-C", clone, "push", "origin", "main"], network);
   if (!pushed.isOk) {
     return `Graft settings: ${setting.key} is committed but not pushed (${firstLine(pushed)}). Run \`git -C ~/.my-graft push origin main\`.`;
   }
@@ -294,6 +326,8 @@ export const register: Register = (on) => {
       name: "graft-settings",
       description: "Show and change Graft settings",
     });
+    // A reload drops a save in flight, and $.state keeps its lock.
+    await $.state.set({ plugin: "graft", key: "isSaving" } as const, false);
 
     return next(e);
   });

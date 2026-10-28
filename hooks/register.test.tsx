@@ -48,6 +48,7 @@ type World = {
   inits: { argv: readonly string[]; timeoutMs?: number; env?: Record<string, string> }[];
   placed: { isPlaced: true } | { isPlaced: false; reason: string };
   toasts: string[];
+  head: string;
   git: (
     sub: string,
     answer: Answer | ((argv: readonly string[]) => Promise<Answer> | Answer),
@@ -56,7 +57,12 @@ type World = {
 
 // Stands for the engine beneath the plugin: HOME, a file system in memory,
 // and git answering as a clean clone on main that is up to date.
-function world(on: On, settings?: string, common = COMMON): World {
+function world(
+  on: On,
+  settings?: string,
+  common = COMMON,
+  env: Record<string, string> = {},
+): World {
   const files = new Map<string, string>();
   files.set("common", common);
   if (settings !== undefined) {
@@ -71,10 +77,20 @@ function world(on: On, settings?: string, common = COMMON): World {
     ["rev-parse -q", () => ({ exitCode: 1 })],
     ["status", () => ({ exitCode: 0, stdout: "" })],
     ["rev-list", () => ({ exitCode: 0, stdout: "0\n" })],
+    ["rev-parse HEAD", () => ({ exitCode: 0, stdout: `${w.head}\n` })],
+    ["config core.sshCommand", () => ({ exitCode: 1 })],
+    [
+      "commit",
+      () => {
+        w.head = `${w.head}+`;
+
+        return { exitCode: 0 };
+      },
+    ],
   ]);
   const path = (p: string) => (p.endsWith("/skills/common.md") ? "common" : p);
 
-  mock.env(on, { HOME });
+  mock.env(on, { HOME, ...env });
   on("fs.exists", (_, e) => ({ value: files.has(path(e.path)) }));
   on("fs.read", (_, e) => {
     const text = files.get(path(e.path));
@@ -138,6 +154,7 @@ function world(on: On, settings?: string, common = COMMON): World {
     inits,
     placed: { isPlaced: true },
     toasts,
+    head: "c0",
     git: (sub, answer) => answers.set(sub, typeof answer === "function" ? answer : () => answer),
   };
 
@@ -230,12 +247,14 @@ test("a first save to a missing file creates, adds, commits and pushes it", asyn
 
   expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual({ orchestrate: { deletePlan: "never" } });
   expect(w.runs.filter((argv) => argv[0] === "git").map((argv) => argv[3])).toEqual([
+    "config",
     "rev-parse",
     "symbolic-ref",
     "rev-parse",
     "status",
     "rev-list",
     "pull",
+    "rev-parse",
     "add",
     "commit",
     "push",
@@ -370,6 +389,44 @@ for (const [name, answer] of [
     await ui.unmount();
   });
 
+  test(`a ${name} commit that moved HEAD counts as made and is pushed`, async ($, on) => {
+    const w = world(on, '{"plan":{"outsideRepoPlans":"always"}}');
+    w.git("commit", () => {
+      w.head = "c1";
+
+      return answer;
+    });
+    const ui = await mountOn($, "terminal");
+    await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+    expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual({
+      plan: { outsideRepoPlans: "always" },
+      orchestrate: { deletePlan: "never" },
+    });
+    expect(gitRuns(w, "reset")).toHaveLength(0);
+    expect(gitRuns(w, "push")).toHaveLength(1);
+    expect(w.toasts).toEqual([]);
+    await ui.unmount();
+  });
+
+  test(`a ${name} commit with an unreadable HEAD is left for the user`, async ($, on) => {
+    const w = world(on, '{"plan":{"outsideRepoPlans":"always"}}');
+    w.git("commit", answer);
+    let heads = 0;
+    w.git("rev-parse HEAD", () => {
+      heads += 1;
+
+      return heads === 1 ? { exitCode: 0, stdout: "c0\n" } : "reject";
+    });
+    const ui = await mountOn($, "terminal");
+    await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+    expect(gitRuns(w, "reset")).toHaveLength(0);
+    expect(gitRuns(w, "push")).toHaveLength(0);
+    expect(w.toasts[0]).toMatch(/may not be saved: .*HEAD could not be read/);
+    await ui.unmount();
+  });
+
   test(`a ${name} push keeps the commit and says what to run`, async ($, on) => {
     const w = world(on);
     w.git("push", answer);
@@ -401,6 +458,37 @@ test("network calls never prompt and every call has a timeout", async ($, on) =>
   await ui.unmount();
 });
 
+const sshCommands = (w: World) =>
+  w.inits
+    .filter((init) => init.argv[3] === "pull" || init.argv[3] === "push")
+    .map((init) => init.env?.GIT_SSH_COMMAND);
+
+test("network calls keep the ssh command from core.sshCommand", async ($, on) => {
+  const w = world(on);
+  w.git("config core.sshCommand", { exitCode: 0, stdout: "ssh -i ~/.ssh/graft\n" });
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+  expect(sshCommands(w)).toEqual([
+    "ssh -i ~/.ssh/graft -o BatchMode=yes",
+    "ssh -i ~/.ssh/graft -o BatchMode=yes",
+  ]);
+  await ui.unmount();
+});
+
+test("network calls prefer GIT_SSH_COMMAND from the environment", async ($, on) => {
+  const w = world(on, undefined, COMMON, { GIT_SSH_COMMAND: "ssh -i ~/.ssh/env" });
+  w.git("config core.sshCommand", { exitCode: 0, stdout: "ssh -i ~/.ssh/graft\n" });
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+  expect(sshCommands(w)).toEqual([
+    "ssh -i ~/.ssh/env -o BatchMode=yes",
+    "ssh -i ~/.ssh/env -o BatchMode=yes",
+  ]);
+  await ui.unmount();
+});
+
 test("the selects give way to text while a save runs", async ($, on) => {
   const clock = mock.clock(on);
   const w = world(on);
@@ -425,6 +513,41 @@ test("the selects give way to text while a save runs", async ($, on) => {
   expect(await other.findAll({ type: "Select" })).toHaveLength(2);
   await ui.unmount();
   await other.unmount();
+});
+
+test("a session start clears a lock that a reload left behind", async ($, on) => {
+  const clock = mock.clock(on);
+  const w = world(on);
+  w.git("push", async () => {
+    await clock.sleep(1000);
+
+    return { exitCode: 0 };
+  });
+  const ui = await mountOn($, "terminal");
+  const first = ui.select({ key: "orchestrate.deletePlan", value: "never" });
+  await clock.settle();
+  expect(await ui.find({ type: "Select" })).toBeUndefined();
+
+  await $.session.start({ cwd: "/", surface: "terminal", isInteractive: true });
+  expect(await ui.findAll({ type: "Select" })).toHaveLength(2);
+
+  await clock.advance(1000);
+  await first;
+  await ui.unmount();
+});
+
+test("a save that loses the race for the lock says a save is running", async ($, on) => {
+  const w = world(on);
+  on("state.set", { plugin: "graft", key: "isSaving" }, (_, e, next) =>
+    e.value === true ? { value: { isSet: false, version: 7 } } : next(e),
+  );
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+  expect(w.toasts).toEqual(["Graft settings: a save is still running. Try again when it ends."]);
+  expect(w.runs).toEqual([]);
+  expect(w.files.has(SETTINGS)).toBe(false);
+  await ui.unmount();
 });
 
 test("the command opens the pane where a surface draws it", async ($, on) => {

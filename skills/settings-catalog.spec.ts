@@ -15,6 +15,11 @@ After.
 ## Next
 `;
 
+const TWO_ROWS = TABLE.replace(
+  "| Does one.    |\n",
+  "| Does one.    |\n| `b.two` | `on`              | ask     | Does two.    |\n",
+);
+
 describe("parseCatalog", () => {
   it("reads every setting in the real common.md", () => {
     const markdown = readFileSync(new URL("./common.md", import.meta.url), "utf8");
@@ -77,6 +82,37 @@ describe("parseCatalog", () => {
   it("refuses an extra cell", () => {
     expect(parseCatalog(TABLE.replace("Does one.    |", "Does one. | x |"))).toMatchObject({
       isParsed: false,
+    });
+  });
+
+  it("reads a second row", () => {
+    const catalog = parseCatalog(TWO_ROWS);
+    expect(catalog.isParsed && catalog.settings.map((setting) => setting.key)).toEqual([
+      "a.one",
+      "b.two",
+    ]);
+  });
+
+  it("refuses a row that lost its leading pipe, so no setting is dropped", () => {
+    expect(parseCatalog(TWO_ROWS.replace("| `a.one`", "`a.one`"))).toMatchObject({
+      isParsed: false,
+    });
+    expect(parseCatalog(TWO_ROWS.replace("| `b.two`", "`b.two`"))).toMatchObject({
+      isParsed: false,
+    });
+  });
+
+  it("refuses a duplicate key", () => {
+    expect(parseCatalog(TWO_ROWS.replace("`b.two`", "`a.one`"))).toMatchObject({
+      isParsed: false,
+      error: expect.stringContaining("listed twice"),
+    });
+  });
+
+  it("refuses a value listed twice in a row", () => {
+    expect(parseCatalog(TABLE.replace("`never`", "`always`"))).toMatchObject({
+      isParsed: false,
+      error: expect.stringContaining("listed twice"),
     });
   });
 });
