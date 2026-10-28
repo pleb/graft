@@ -163,17 +163,23 @@ const firstLine = (ran: Ran) =>
   ran.stderr.trim().split("\n")[0] || ran.stdout.trim().split("\n")[0] || "no output";
 
 // The user's own ssh command (as git picks it), made to fail rather than ask.
+// `-o BatchMode=yes` goes right after the program, since ssh keeps the first
+// value it is given for an option.
 async function networkEnv($: EngineInterface, clone: string): Promise<Record<string, string>> {
-  const fromEnv = await $.env.get("GIT_SSH_COMMAND");
-  const fromConfig = await run($, ["git", "-C", clone, "config", "core.sshCommand"]);
-  const ssh =
-    fromEnv !== undefined && fromEnv.trim() !== ""
-      ? fromEnv.trim()
-      : fromConfig.isOk && fromConfig.stdout.trim() !== ""
-        ? fromConfig.stdout.trim()
-        : "ssh";
+  const command = (await $.env.get("GIT_SSH_COMMAND"))?.trim();
+  const config = await run($, ["git", "-C", clone, "config", "core.sshCommand"]);
+  const program = (await $.env.get("GIT_SSH"))?.trim();
+  const batch = (ssh: string) => ssh.replace(/^(\S+)/, "$1 -o BatchMode=yes");
+  const sshCommand =
+    command !== undefined && command !== ""
+      ? batch(command)
+      : config.isOk && config.stdout.trim() !== ""
+        ? batch(config.stdout.trim())
+        : program !== undefined && program !== ""
+          ? `'${program.replaceAll("'", "'\\''")}' -o BatchMode=yes`
+          : "ssh -o BatchMode=yes";
 
-  return { GIT_TERMINAL_PROMPT: "0", GIT_SSH_COMMAND: `${ssh} -o BatchMode=yes` };
+  return { GIT_TERMINAL_PROMPT: "0", GIT_SSH_COMMAND: sshCommand };
 }
 
 // The checks before a write; answers why the save is refused, or undefined.
@@ -271,10 +277,27 @@ async function saveSetting(
   const added = await git("add", "--", FILE);
   const committed = added.isOk ? await git("commit", "--only", "-m", message, "--", FILE) : added;
   // A commit can land and still report failure (a timeout during signing):
-  // a moved HEAD counts as made, and only an unmoved one is undone.
+  // an unmoved HEAD is undone, and a moved one goes on only when it is this
+  // save's commit.
+  const mayNotBeSaved = (why: string) =>
+    `Graft settings: ${setting.key} may not be saved: the commit failed (${firstLine(committed)}) and ${why}. Run \`git -C ~/.my-graft status\` and \`git -C ~/.my-graft log -1\`.`;
   const headAfter = committed.isOk ? undefined : await head();
   if (!committed.isOk && (headBefore === undefined || headAfter === undefined)) {
-    return `Graft settings: ${setting.key} may not be saved: the commit failed (${firstLine(committed)}) and HEAD could not be read to tell whether it landed. Run \`git -C ~/.my-graft status\` and \`git -C ~/.my-graft log -1\`.`;
+    return mayNotBeSaved("HEAD could not be read to tell whether it landed");
+  }
+  if (!committed.isOk && headAfter !== headBefore) {
+    const parent = await git("rev-parse", "HEAD^");
+    const isSame = await git("diff", "--quiet", "HEAD", "--", FILE);
+    const subject = await git("log", "-1", "--format=%s");
+    const isOurs =
+      parent.isOk &&
+      parent.stdout.trim() === headBefore &&
+      isSame.isOk &&
+      subject.isOk &&
+      subject.stdout.trim() === message;
+    if (!isOurs) {
+      return mayNotBeSaved("HEAD moved to a commit that is not this save's");
+    }
   }
   if (!committed.isOk && headAfter === headBefore) {
     if (before === undefined) {

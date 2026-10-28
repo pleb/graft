@@ -49,6 +49,9 @@ type World = {
   placed: { isPlaced: true } | { isPlaced: false; reason: string };
   toasts: string[];
   head: string;
+  parent: string;
+  subject: string;
+  land: (argv: readonly string[]) => void;
   git: (
     sub: string,
     answer: Answer | ((argv: readonly string[]) => Promise<Answer> | Answer),
@@ -77,12 +80,14 @@ function world(
     ["rev-parse -q", () => ({ exitCode: 1 })],
     ["status", () => ({ exitCode: 0, stdout: "" })],
     ["rev-list", () => ({ exitCode: 0, stdout: "0\n" })],
+    ["rev-parse HEAD^", () => ({ exitCode: 0, stdout: `${w.parent}\n` })],
     ["rev-parse HEAD", () => ({ exitCode: 0, stdout: `${w.head}\n` })],
+    ["log -1", () => ({ exitCode: 0, stdout: `${w.subject}\n` })],
     ["config core.sshCommand", () => ({ exitCode: 1 })],
     [
       "commit",
-      () => {
-        w.head = `${w.head}+`;
+      (argv) => {
+        w.land(argv);
 
         return { exitCode: 0 };
       },
@@ -155,6 +160,14 @@ function world(
     placed: { isPlaced: true },
     toasts,
     head: "c0",
+    parent: "",
+    subject: "init",
+    // A commit of this save: HEAD moves on, its parent is the old HEAD.
+    land: (argv) => {
+      w.parent = w.head;
+      w.head = `${w.head}+`;
+      w.subject = argv[6]!;
+    },
     git: (sub, answer) => answers.set(sub, typeof answer === "function" ? answer : () => answer),
   };
 
@@ -391,8 +404,8 @@ for (const [name, answer] of [
 
   test(`a ${name} commit that moved HEAD counts as made and is pushed`, async ($, on) => {
     const w = world(on, '{"plan":{"outsideRepoPlans":"always"}}');
-    w.git("commit", () => {
-      w.head = "c1";
+    w.git("commit", (argv) => {
+      w.land(argv);
 
       return answer;
     });
@@ -406,6 +419,45 @@ for (const [name, answer] of [
     expect(gitRuns(w, "reset")).toHaveLength(0);
     expect(gitRuns(w, "push")).toHaveLength(1);
     expect(w.toasts).toEqual([]);
+    await ui.unmount();
+  });
+
+  test(`a ${name} commit with HEAD moved to a foreign commit is left for the user`, async ($, on) => {
+    const w = world(on, '{"plan":{"outsideRepoPlans":"always"}}');
+    w.git("commit", () => {
+      w.parent = "c0";
+      w.head = "f1";
+      w.subject = "Someone else's change";
+
+      return answer;
+    });
+    w.git("diff --quiet", { exitCode: 1 });
+    const ui = await mountOn($, "terminal");
+    await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+    expect(gitRuns(w, "reset")).toHaveLength(0);
+    expect(gitRuns(w, "push")).toHaveLength(0);
+    expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual({
+      plan: { outsideRepoPlans: "always" },
+      orchestrate: { deletePlan: "never" },
+    });
+    expect(w.toasts[0]).toMatch(/may not be saved: .*not this save's.*git -C ~\/\.my-graft log -1/);
+    await ui.unmount();
+  });
+
+  test(`a ${name} commit with HEAD moved past a foreign parent is left for the user`, async ($, on) => {
+    const w = world(on, '{"plan":{"outsideRepoPlans":"always"}}');
+    w.git("commit", (argv) => {
+      w.land(argv);
+      w.parent = "f1";
+
+      return answer;
+    });
+    const ui = await mountOn($, "terminal");
+    await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+    expect(gitRuns(w, "push")).toHaveLength(0);
+    expect(w.toasts[0]).toMatch(/not this save's/);
     await ui.unmount();
   });
 
@@ -470,8 +522,8 @@ test("network calls keep the ssh command from core.sshCommand", async ($, on) =>
   await ui.select({ key: "orchestrate.deletePlan", value: "never" });
 
   expect(sshCommands(w)).toEqual([
-    "ssh -i ~/.ssh/graft -o BatchMode=yes",
-    "ssh -i ~/.ssh/graft -o BatchMode=yes",
+    "ssh -o BatchMode=yes -i ~/.ssh/graft",
+    "ssh -o BatchMode=yes -i ~/.ssh/graft",
   ]);
   await ui.unmount();
 });
@@ -483,9 +535,37 @@ test("network calls prefer GIT_SSH_COMMAND from the environment", async ($, on) 
   await ui.select({ key: "orchestrate.deletePlan", value: "never" });
 
   expect(sshCommands(w)).toEqual([
-    "ssh -i ~/.ssh/env -o BatchMode=yes",
-    "ssh -i ~/.ssh/env -o BatchMode=yes",
+    "ssh -o BatchMode=yes -i ~/.ssh/env",
+    "ssh -o BatchMode=yes -i ~/.ssh/env",
   ]);
+  await ui.unmount();
+});
+
+test("BatchMode=yes comes before a user's own BatchMode=no", async ($, on) => {
+  const w = world(on, undefined, COMMON, { GIT_SSH_COMMAND: "ssh -o BatchMode=no" });
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+  expect(sshCommands(w)[0]).toBe("ssh -o BatchMode=yes -o BatchMode=no");
+  await ui.unmount();
+});
+
+test("network calls use GIT_SSH when no ssh command is set", async ($, on) => {
+  const w = world(on, undefined, COMMON, { GIT_SSH: "/opt/my ssh/bin/ssh" });
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+  expect(sshCommands(w)[0]).toBe("'/opt/my ssh/bin/ssh' -o BatchMode=yes");
+  await ui.unmount();
+});
+
+test("core.sshCommand wins over GIT_SSH", async ($, on) => {
+  const w = world(on, undefined, COMMON, { GIT_SSH: "/usr/bin/ssh" });
+  w.git("config core.sshCommand", { exitCode: 0, stdout: "ssh -i ~/.ssh/graft\n" });
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+  expect(sshCommands(w)[0]).toBe("ssh -o BatchMode=yes -i ~/.ssh/graft");
   await ui.unmount();
 });
 
