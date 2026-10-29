@@ -133,4 +133,38 @@ describe("parseCatalog", () => {
       error: expect.stringContaining("the default is also listed"),
     });
   });
+
+  it("with isDefaultListed, reads a row that lists its default and refuses one that does not", () => {
+    const listed = TABLE.replace("`never`", "`never`, `ask`");
+    expect(parseCatalog(listed, { isDefaultListed: true })).toMatchObject({
+      isParsed: true,
+      settings: [{ values: ["always", "never", "ask"], defaultValue: "ask" }],
+    });
+    expect(parseCatalog(TABLE, { isDefaultListed: true })).toMatchObject({
+      isParsed: false,
+      error: expect.stringContaining("the default is not listed"),
+    });
+  });
+
+  it("matches the README's settings table to common.md", () => {
+    const common = parseCatalog(readFileSync(new URL("./common.md", import.meta.url), "utf8"));
+    const readme = parseCatalog(readFileSync(new URL("../README.md", import.meta.url), "utf8"), {
+      isDefaultListed: true,
+    });
+
+    expect(common).toMatchObject({ isParsed: true });
+    expect(readme).toMatchObject({ isParsed: true });
+    if (!common.isParsed || !readme.isParsed) {
+      return;
+    }
+    expect(readme.settings.map(({ key, defaultValue }) => ({ key, defaultValue }))).toEqual(
+      common.settings.map(({ key, defaultValue }) => ({ key, defaultValue })),
+    );
+    readme.settings.forEach((setting, i) => {
+      const expected = common.settings[i]!;
+      expect(new Set(setting.values), setting.key).toEqual(
+        new Set([...expected.values, expected.defaultValue]),
+      );
+    });
+  });
 });

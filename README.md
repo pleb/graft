@@ -71,6 +71,15 @@ Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps 
 
 `/graft-settings` opens a pane listing each Graft setting with its allowed values, default and current value. A change is saved to `~/.my-graft/graft-settings.json`, then committed and pushed.
 
+| Key                      | Values                    | Default | What it does                                                                                                                                                     |
+| ------------------------ | ------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common.reviewerModel`   | `fable`, `opus`, `sonnet` | opus    | The model Graft's reviewers run on when the command names none.                                                                                                  |
+| `plan.outsideRepoPlans`  | `always`, `ask`, `never`  | ask     | Whether `/graft:plan` run outside a repo saves its plan in `~/.my-graft/.claude/plans/`: `always` saves without asking, `ask` asks first, `never` stops instead. |
+| `plan.questionsPerRound` | `1`, `2`, `3`, `4`        | 3       | The most questions `/graft:plan` asks you at once.                                                                                                               |
+| `orchestrate.deletePlan` | `always`, `ask`, `never`  | never   | Whether `/graft:orchestrate` deletes an untracked plan once every milestone is done: `always` deletes it, `ask` asks first, `never` keeps it.                    |
+| `pr.state`               | `draft`, `ready`          | draft   | Whether `/graft:pr` opens a new PR as a draft or ready for review when the command names no state.                                                               |
+| `update.mode`            | `ask`, `auto`             | ask     | Whether `/graft:update` asks before merging (`ask`) or merges straight away (`auto`) when the command names no mode.                                             |
+
 ## Acknowledgements
 
 Inspired by:
