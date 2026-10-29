@@ -9,7 +9,7 @@ const PANE = "graft-settings";
 const TITLE = "Graft settings";
 const FILE = "graft-settings.json";
 const SHOWN_FILE = `~/.my-graft/${FILE}`;
-const ASK = ":ask";
+const DEFAULT = ":default";
 const UNLISTED = ":unlisted";
 const LOCAL_MS = 30_000;
 const NETWORK_MS = 60_000;
@@ -102,6 +102,15 @@ function currentOf(settings: Json, setting: CatalogSetting): unknown {
   return isObject(entry) ? entry[setting.name] : undefined;
 }
 
+const isNumeric = (value: string) => value.trim() !== "" && Number.isFinite(Number(value));
+
+// The values and the default, in numeric order when every one is a number.
+function choicesOf(setting: CatalogSetting): string[] {
+  const choices = [...setting.values, setting.defaultValue];
+
+  return choices.every(isNumeric) ? choices.sort((a, b) => Number(a) - Number(b)) : choices;
+}
+
 // Text form of the settings, for surfaces that draw no pane and for mobile.
 function describe({ catalog, file }: Loaded): string[] {
   const lines = [`Graft settings in ${SHOWN_FILE}`];
@@ -123,7 +132,7 @@ function describe({ catalog, file }: Loaded): string[] {
   for (const setting of catalog.settings) {
     const value = currentOf(file.settings, setting);
     lines.push(
-      `${setting.key}: ${value === undefined ? setting.defaultValue : shown(value)} (${[...setting.values, setting.defaultValue].join(", ")})`,
+      `${setting.key}: ${value === undefined ? setting.defaultValue : shown(value)} (${choicesOf(setting).join(", ")})`,
       `  ${setting.description}`,
     );
     keys.delete(setting.key);
@@ -388,14 +397,18 @@ export const register: Register = (on) => {
         {catalog.settings.map((setting) => {
           keys.delete(setting.key);
           const value = currentOf(file.settings, setting);
+          const isDefault = value === undefined || value === setting.defaultValue;
           const isListed =
-            value === undefined || (typeof value === "string" && setting.values.includes(value));
+            isDefault || (typeof value === "string" && setting.values.includes(value));
           const options = [
-            ...setting.values.map((option) => ({ value: option })),
-            { value: ASK, label: setting.defaultValue },
+            ...choicesOf(setting).map((choice) =>
+              choice === setting.defaultValue
+                ? { value: DEFAULT, label: choice }
+                : { value: choice },
+            ),
             ...(isListed ? [] : [{ value: UNLISTED, label: `${shown(value)} (not allowed)` }]),
           ];
-          const selected = value === undefined ? ASK : isListed ? String(value) : UNLISTED;
+          const selected = isDefault ? DEFAULT : isListed ? String(value) : UNLISTED;
 
           return (
             <Box flexDirection="column" marginTop={1}>
@@ -412,7 +425,7 @@ export const register: Register = (on) => {
                   value={selected}
                   onSelect={(picked) => {
                     if (picked !== UNLISTED) {
-                      void save($, setting, picked === ASK ? undefined : picked);
+                      void save($, setting, picked === DEFAULT ? undefined : picked);
                     }
                   }}
                 />
