@@ -1,13 +1,13 @@
 ---
 name: update
-description: Merges the latest Graft from upstream into your clone, keeping your mods, and pushes it to your Graft repo. Asks before merging unless auto is passed.
+description: Merges the latest Graft from upstream into your clone, keeping your mods, and pushes it to your Graft repo. Asks before merging unless the arguments, or update.mode when they name no mode, say auto.
 argument-hint: "[mode: ask (default) | auto]"
 disable-model-invocation: true
 ---
 
 You bring `~/.my-graft` up to date with Graft and keep the user's mods.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user` and `## Command failures`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Command failures` and `## Settings`.
 
 The mod registry is `~/.my-graft/MODS.md`.
 
@@ -34,7 +34,7 @@ Otherwise, summarise the incoming changes in a few lines from the commit subject
 git -C ~/.my-graft diff --stat HEAD...upstream/main
 ```
 
-Without `auto` in the arguments, ask before merging.
+The mode is `ask` or `auto` from the arguments, else `update.mode`. With `ask`, ask before merging.
 
 ## Merge
 

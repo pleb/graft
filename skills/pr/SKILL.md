@@ -1,7 +1,7 @@
 ---
 name: pr
-description: Raises a PR for the current branch, using the repo's PR template if it has one. Opens as a draft unless ready-state is passed. Rewrites the title and body if the branch already has a PR.
-argument-hint: "[guidance] [state: draft (default) | ready-state]"
+description: Raises a PR for the current branch, using the repo's PR template if it has one. Opens in the state pr.state sets, draft by default; ready-state in the arguments matches pr.state at ready. Rewrites the title and body if the branch already has a PR.
+argument-hint: "[guidance] [state: draft (default) | ready-state (pr.state: ready)]"
 disable-model-invocation: true
 ---
 
@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 Compose a short PR from the repo template, push, and create it.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its section `## Ask the user`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user` and `## Settings`.
 
 **Arguments:** $ARGUMENTS
 
@@ -94,4 +94,4 @@ git push -u origin <branch>
 gh pr create --draft --base <base> --title "<title>" --body "<body>"
 ```
 
-A new PR opens as a draft unless the state is `ready-state`; then drop `--draft`. For an existing PR, only an explicit state changes it, after `gh pr edit`: `ready-state` runs `gh pr ready` and `draft` runs `gh pr ready --undo`. With no state, an existing PR keeps its state. Report the PR URL.
+A new PR opens in the state from the arguments, else in `pr.state`; drop `--draft` for `ready-state` or `ready`. For an existing PR, only an explicit state changes it, after `gh pr edit`: `ready-state` runs `gh pr ready` and `draft` runs `gh pr ready --undo`. With no state, an existing PR keeps its state. Report the PR URL.

@@ -34,11 +34,21 @@ describe("parseCatalog", () => {
       "plan.outsideRepoPlans",
       "plan.questionsPerRound",
       "orchestrate.deletePlan",
+      "pr.state",
+      "update.mode",
     ]);
-    expect(catalog.settings.slice(0, 3)).toMatchObject([
+    expect(catalog.settings).toMatchObject([
       { skill: "common", name: "reviewerModel", values: ["fable", "sonnet"], defaultValue: "opus" },
       { skill: "plan", name: "outsideRepoPlans", values: ["always", "never"], defaultValue: "ask" },
       { skill: "plan", name: "questionsPerRound", values: ["1", "2", "4"], defaultValue: "3" },
+      {
+        skill: "orchestrate",
+        name: "deletePlan",
+        values: ["always", "ask"],
+        defaultValue: "never",
+      },
+      { skill: "pr", name: "state", values: ["ready"], defaultValue: "draft" },
+      { skill: "update", name: "mode", values: ["auto"], defaultValue: "ask" },
     ]);
     for (const setting of catalog.settings) {
       expect(setting.description).not.toBe("");
