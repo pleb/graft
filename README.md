@@ -63,6 +63,14 @@ Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps 
 
 ![How your copy of Graft stays current: /graft:update merges the latest Graft from pleb/graft into your clone at ~/.my-graft, keeping your mods. /graft:modify commits a mod to the clone, recorded in MODS.md. /graft:tune finds corrections you keep making and hands the ones you pick to /graft:modify. The clone pushes to your private \<login\>/my-graft repo, and your other machines pull from it. Claude Code loads Graft from the clone, and /reload-plugins picks up changes.](./docs/update.svg)
 
+## Settings
+
+```text
+/graft-settings
+```
+
+`/graft-settings` opens a pane listing each Graft setting with its allowed values, default and current value. A change is saved to `~/.my-graft/graft-settings.json`, then committed and pushed.
+
 ## Acknowledgements
 
 Inspired by:

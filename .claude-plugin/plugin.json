@@ -7,5 +7,6 @@
     "url": "https://github.com/pleb"
   },
   "license": "MIT",
-  "repository": "https://github.com/pleb/graft"
+  "repository": "https://github.com/pleb/graft",
+  "types": "./types/index.d.ts"
 }

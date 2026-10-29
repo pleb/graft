@@ -9,5 +9,5 @@
     "strict": true,
     "types": ["node"]
   },
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "hooks", "types", ".claude-plugin/types"]
 }
