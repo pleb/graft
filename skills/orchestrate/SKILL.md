@@ -85,4 +85,4 @@ Run this step only when the work is a plan file with the Graft footer and every 
 
 Run `git -C <plan's directory> ls-files --error-unmatch <plan's absolute path>`. Go on only when it fails with `did not match any file(s) known to git`; otherwise keep the plan.
 
-With `orchestrate.deletePlan` set to `always`, delete the plan without asking; with `never`, keep it. Otherwise ask whether to delete it: **Yes**, **Yes, don't ask again** (sets `always`), **No**, or **No, don't ask again** (sets `never`).
+Follow `orchestrate.deletePlan`: with `always`, delete the plan; with `ask`, ask whether to delete it: **Yes** or **No**; otherwise keep it without asking.

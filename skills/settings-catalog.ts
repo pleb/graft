@@ -1,4 +1,5 @@
-// Parses the table under `## Settings` in common.md. Keep it free of JSX and
+// Parses the `## Settings` table in common.md, or in README.md with
+// `isDefaultListed`, where Values include the Default. Keep it free of JSX and
 // Node or claude-code imports: hooks/register.tsx and vitest both load it.
 
 export type CatalogSetting = {
@@ -27,7 +28,7 @@ function cells(line: string): string[] {
     .map((cell) => cell.trim());
 }
 
-export function parseCatalog(markdown: string): Catalog {
+export function parseCatalog(markdown: string, { isDefaultListed = false } = {}): Catalog {
   const lines = markdown.split(/\r?\n/);
   const start = lines.findIndex((line) => line.trim() === "## Settings");
   if (start === -1) {
@@ -71,6 +72,12 @@ export function parseCatalog(markdown: string): Catalog {
     }
     if (new Set(parsedValues).size !== parsedValues.length) {
       return { isParsed: false, error: `a value is listed twice: ${row.trim()}` };
+    }
+    if (!isDefaultListed && parsedValues.includes(defaultValue)) {
+      return { isParsed: false, error: `the default is also listed as a value: ${row.trim()}` };
+    }
+    if (isDefaultListed && !parsedValues.includes(defaultValue)) {
+      return { isParsed: false, error: `the default is not listed as a value: ${row.trim()}` };
     }
     if (settings.some((setting) => setting.key === `${keyMatch[1]}.${keyMatch[2]}`)) {
       return { isParsed: false, error: `the key is listed twice: ${key}` };

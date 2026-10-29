@@ -12,7 +12,7 @@ If a command fails, help the user resolve it, then carry on.
 
 ## Reviewer model
 
-The arguments may name a reviewer model (`fable`, `opus` or `sonnet`) anywhere, such as `sonnet` or `review with sonnet`. Take out the words that set it (all of `review with sonnet`, not just `sonnet`) before reading the rest. A word that belongs to the main text stays in it (for example, `sonnet` in `add sonnet support`); ask when it is unclear. The default is Opus.
+The arguments may name a reviewer model (`fable`, `opus` or `sonnet`) anywhere, such as `sonnet` or `review with sonnet`. Take out the words that set it (all of `review with sonnet`, not just `sonnet`) before reading the rest. A word that belongs to the main text stays in it (for example, `sonnet` in `add sonnet support`); ask when it is unclear. The default is `common.reviewerModel`, else Opus.
 
 ## Find the work
 
@@ -54,13 +54,13 @@ If the pull cannot fast-forward, help the user merge `origin/main`; never rebase
 
 ## Settings
 
-Settings live in `~/.my-graft/graft-settings.json`, a JSON object keyed by skill, then by setting (for example, `{"plan": {"outsideRepoPlans": "always"}}`). A missing file means no settings.
+Settings live in `~/.my-graft/graft-settings.json`, a JSON object keyed by skill (`common` for settings this file's shared sections read), then by setting, with string values (for example, `{"plan": {"questionsPerRound": "2"}}`). A missing file means no settings. A missing key, or a value not in the row's Values, means the Default.
 
-| Key                      | Values            | Default | What it does                                                                                              |
-| ------------------------ | ----------------- | ------- | --------------------------------------------------------------------------------------------------------- |
-| `plan.outsideRepoPlans`  | `always`          | ask     | Outside a repo, `always` saves plans in `~/.my-graft/.claude/plans/` without asking.                      |
-| `orchestrate.deletePlan` | `always`, `never` | ask     | After every milestone is done, `always` deletes an untracked Graft plan without asking; `never` keeps it. |
-
-Save a setting only when `~/.my-graft` is the Graft clone (`git -C ~/.my-graft rev-parse --show-toplevel` prints it); otherwise the setting holds for this run only. To save, re-read the file, change only that key, then commit `graft-settings.json` alone and push it to `origin main`.
-
-When a "don't ask again" answer cannot be saved, tell the user why.
+| Key                      | Values            | Default | What it does                                                                                        |
+| ------------------------ | ----------------- | ------- | --------------------------------------------------------------------------------------------------- |
+| `common.reviewerModel`   | `fable`, `sonnet` | opus    | The reviewer model when the arguments name none.                                                    |
+| `plan.outsideRepoPlans`  | `always`, `never` | ask     | Outside a repo, `always` saves plans in `~/.my-graft/.claude/plans/` without asking; `never` stops. |
+| `plan.questionsPerRound` | `1`, `2`, `4`     | 3       | The most questions plan asks in one round.                                                          |
+| `orchestrate.deletePlan` | `always`, `ask`   | never   | After every milestone is done, `always` deletes an untracked Graft plan; `ask` asks first.          |
+| `pr.state`               | `ready`           | draft   | The state a new PR opens in when the arguments name none.                                           |
+| `update.mode`            | `auto`            | ask     | `auto` merges without asking first when the arguments name no mode.                                 |

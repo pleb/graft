@@ -30,15 +30,26 @@ describe("parseCatalog", () => {
       return;
     }
     expect(catalog.settings.map((setting) => setting.key)).toEqual([
+      "common.reviewerModel",
       "plan.outsideRepoPlans",
+      "plan.questionsPerRound",
       "orchestrate.deletePlan",
+      "pr.state",
+      "update.mode",
     ]);
-    expect(catalog.settings[1]).toMatchObject({
-      skill: "orchestrate",
-      name: "deletePlan",
-      values: ["always", "never"],
-      defaultValue: "ask",
-    });
+    expect(catalog.settings).toMatchObject([
+      { skill: "common", name: "reviewerModel", values: ["fable", "sonnet"], defaultValue: "opus" },
+      { skill: "plan", name: "outsideRepoPlans", values: ["always", "never"], defaultValue: "ask" },
+      { skill: "plan", name: "questionsPerRound", values: ["1", "2", "4"], defaultValue: "3" },
+      {
+        skill: "orchestrate",
+        name: "deletePlan",
+        values: ["always", "ask"],
+        defaultValue: "never",
+      },
+      { skill: "pr", name: "state", values: ["ready"], defaultValue: "draft" },
+      { skill: "update", name: "mode", values: ["auto"], defaultValue: "ask" },
+    ]);
     for (const setting of catalog.settings) {
       expect(setting.description).not.toBe("");
     }
@@ -113,6 +124,47 @@ describe("parseCatalog", () => {
     expect(parseCatalog(TABLE.replace("`never`", "`always`"))).toMatchObject({
       isParsed: false,
       error: expect.stringContaining("listed twice"),
+    });
+  });
+
+  it("refuses a row that lists its default as a value", () => {
+    expect(parseCatalog(TABLE.replace("`never`", "`ask`"))).toMatchObject({
+      isParsed: false,
+      error: expect.stringContaining("the default is also listed"),
+    });
+  });
+
+  it("with isDefaultListed, reads a row that lists its default and refuses one that does not", () => {
+    const listed = TABLE.replace("`never`", "`never`, `ask`");
+    expect(parseCatalog(listed, { isDefaultListed: true })).toMatchObject({
+      isParsed: true,
+      settings: [{ values: ["always", "never", "ask"], defaultValue: "ask" }],
+    });
+    expect(parseCatalog(TABLE, { isDefaultListed: true })).toMatchObject({
+      isParsed: false,
+      error: expect.stringContaining("the default is not listed"),
+    });
+  });
+
+  it("matches the README's settings table to common.md", () => {
+    const common = parseCatalog(readFileSync(new URL("./common.md", import.meta.url), "utf8"));
+    const readme = parseCatalog(readFileSync(new URL("../README.md", import.meta.url), "utf8"), {
+      isDefaultListed: true,
+    });
+
+    expect(common).toMatchObject({ isParsed: true });
+    expect(readme).toMatchObject({ isParsed: true });
+    if (!common.isParsed || !readme.isParsed) {
+      return;
+    }
+    expect(readme.settings.map(({ key, defaultValue }) => ({ key, defaultValue }))).toEqual(
+      common.settings.map(({ key, defaultValue }) => ({ key, defaultValue })),
+    );
+    readme.settings.forEach((setting, i) => {
+      const expected = common.settings[i]!;
+      expect(new Set(setting.values), setting.key).toEqual(
+        new Set([...expected.values, expected.defaultValue]),
+      );
     });
   });
 });

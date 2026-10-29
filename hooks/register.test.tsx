@@ -184,7 +184,7 @@ test("a missing settings file shows every setting as ask, on every surface", asy
   for (const surface of EDITABLE) {
     const ui = await mountOn($, surface);
     const select = await ui.find({ type: "Select", key: "orchestrate.deletePlan" });
-    expect(select?.props.value).toBe(":ask");
+    expect(select?.props.value).toBe(":default");
     expect(await ui.findAll({ type: "Select" })).toHaveLength(2);
     expect(
       await ui.find({ type: "Text", text: /Deletes the plan\. Default: ask\./ }),
@@ -206,7 +206,7 @@ test("a partial file shows set keys and leaves the rest at ask", async ($, on) =
   for (const surface of EDITABLE) {
     const ui = await mountOn($, surface);
     expect((await ui.find({ key: "plan.outsideRepoPlans" }))?.props.value).toBe("always");
-    expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.value).toBe(":ask");
+    expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.value).toBe(":default");
     await ui.unmount();
   }
 });
@@ -296,7 +296,7 @@ test("setting then clearing a key keeps the other keys and drops an emptied skil
     plan: { outsideRepoPlans: "always" },
     orchestrate: { deletePlan: "always" },
   });
-  await ui.select({ key: "orchestrate.deletePlan", value: ":ask" });
+  await ui.select({ key: "orchestrate.deletePlan", value: ":default" });
   expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual({ plan: { outsideRepoPlans: "always" } });
   expect(gitRuns(w, "commit").map((argv) => argv[6])).toEqual([
     "Set orchestrate.deletePlan to always",
@@ -359,7 +359,7 @@ for (const [name, sub, answer, toast] of REFUSALS) {
     expect(w.toasts[0]).toMatch(toast);
     expect(w.files.get(SETTINGS)).toBe('{"plan":{"outsideRepoPlans":"always"}}');
     expect(gitRuns(w, "commit")).toHaveLength(0);
-    expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.value).toBe(":ask");
+    expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.value).toBe(":default");
     await ui.unmount();
   });
 }
@@ -652,6 +652,85 @@ test("the command replies with the text list where nothing draws", async ($, on)
       "  Deletes the plan.",
       "Not in the catalog:",
       "extra.key: true",
+    ].join("\n"),
+  );
+});
+
+const ASK_AND_NUMBERS = `# Shared rules
+
+## Settings
+
+| Key                      | Values            | Default | What it does    |
+| ------------------------ | ----------------- | ------- | --------------- |
+| \`orchestrate.deletePlan\` | \`always\`, \`ask\`   | never   | Deletes it.     |
+| \`plan.questionsPerRound\` | \`1\`, \`2\`, \`4\`     | 3       | Asks in rounds. |
+`;
+
+test("a row that lists ask stores ask, and its default clears the key", async ($, on) => {
+  const w = world(on, undefined, ASK_AND_NUMBERS);
+  const ui = await mountOn($, "terminal");
+  const select = await ui.find({ key: "orchestrate.deletePlan" });
+  expect(select?.props.options).toEqual([
+    { value: "always" },
+    { value: "ask" },
+    { value: ":default", label: "never" },
+  ]);
+  expect(select?.props.value).toBe(":default");
+
+  await ui.select({ key: "orchestrate.deletePlan", value: "ask" });
+  expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual({ orchestrate: { deletePlan: "ask" } });
+  expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.value).toBe("ask");
+
+  await ui.select({ key: "orchestrate.deletePlan", value: ":default" });
+  expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual({});
+  expect(gitRuns(w, "commit").map((argv) => argv[6])).toEqual([
+    "Set orchestrate.deletePlan to ask",
+    "Clear orchestrate.deletePlan",
+  ]);
+  await ui.unmount();
+});
+
+test("a stored value equal to the default selects the default option", async ($, on) => {
+  const w = world(on, '{"orchestrate":{"deletePlan":"never"}}', ASK_AND_NUMBERS);
+  const ui = await mountOn($, "terminal");
+  const select = await ui.find({ key: "orchestrate.deletePlan" });
+  expect(select?.props.value).toBe(":default");
+  expect(select?.props.options).toHaveLength(3);
+  expect(await ui.find({ type: "Text", text: /not allowed/ })).toBeUndefined();
+
+  await ui.select({ key: "orchestrate.deletePlan", value: ":default" });
+  expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual({});
+  await ui.unmount();
+});
+
+test("numeric values are offered in numeric order, with a not-allowed value last", async ($, on) => {
+  world(on, '{"plan":{"questionsPerRound":"5"}}', ASK_AND_NUMBERS);
+  const ui = await mountOn($, "terminal");
+  const select = await ui.find({ key: "plan.questionsPerRound" });
+  expect(select?.props.options).toEqual([
+    { value: "1" },
+    { value: "2" },
+    { value: ":default", label: "3" },
+    { value: "4" },
+    { value: ":unlisted", label: "5 (not allowed)" },
+  ]);
+  expect(select?.props.value).toBe(":unlisted");
+  await ui.unmount();
+});
+
+test("the text list gives numeric values in numeric order", async ($, on) => {
+  const w = world(on, '{"plan":{"questionsPerRound":"2"}}', ASK_AND_NUMBERS);
+  w.placed = { isPlaced: false, reason: "no-surface: a -p run" };
+  await $.session.start({ cwd: "/", surface: null, isInteractive: false });
+
+  const ran = await $.command.run(RUN);
+  expect(ran.text).toBe(
+    [
+      "Graft settings in ~/.my-graft/graft-settings.json",
+      "orchestrate.deletePlan: never (always, ask, never)",
+      "  Deletes it.",
+      "plan.questionsPerRound: 2 (1, 2, 3, 4)",
+      "  Asks in rounds.",
     ].join("\n"),
   );
 });

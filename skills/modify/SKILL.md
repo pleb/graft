@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 You change the user's Graft clone at `~/.my-graft`, one mod at a time.
 
-Read `~/.my-graft/skills/common.md` and follow its sections `## Ask the user` and `## Command failures`.
+Read `~/.my-graft/skills/common.md` and follow its sections `## Ask the user`, `## Command failures` and `## Settings`.
 
 The mod registry is `~/.my-graft/MODS.md`.
 
@@ -36,7 +36,7 @@ Read `~/.my-graft/skills/orchestrate/SKILL.md` and follow its sections `## Execu
 
 - Work in the clone on `main`, with no feature branch.
 - One commit for the whole mod, not one per milestone, made in Commit and push.
-- Review the whole mod once before Record: `graft:reviewer` and `graft:adversarial-reviewer` in parallel, both on Opus. This single review replaces Execute's review cadence. The target is the clone's uncommitted changes, by absolute path; the approved plan is the intent. Act on findings as Execute says.
+- Review the whole mod once before Record: `graft:reviewer` and `graft:adversarial-reviewer` in parallel, both on `common.reviewerModel`, else Opus. This single review replaces Execute's review cadence. The target is the clone's uncommitted changes, by absolute path; the approved plan is the intent. Act on findings as Execute says.
 - Put review fixes in the uncommitted mod, not a separate fix commit.
 
 ## Record
