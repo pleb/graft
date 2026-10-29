@@ -1,5 +1,5 @@
-// Parses the table under `## Settings` in common.md, or in README.md with
-// `isDefaultListed`, whose Values also list the Default. Keep it free of JSX and
+// Parses the `## Settings` table in common.md, or in README.md with
+// `isDefaultListed`, where Values include the Default. Keep it free of JSX and
 // Node or claude-code imports: hooks/register.tsx and vitest both load it.
 
 export type CatalogSetting = {

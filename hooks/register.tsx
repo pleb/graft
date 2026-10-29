@@ -104,7 +104,6 @@ function currentOf(settings: Json, setting: CatalogSetting): unknown {
 
 const isNumeric = (value: string) => value.trim() !== "" && Number.isFinite(Number(value));
 
-// The values and the default, in numeric order when every one is a number.
 function choicesOf(setting: CatalogSetting): string[] {
   const choices = [...setting.values, setting.defaultValue];
 
