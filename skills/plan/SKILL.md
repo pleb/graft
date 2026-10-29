@@ -19,7 +19,7 @@ Find the root with `git rev-parse --show-toplevel`. Outside a repo (non-zero exi
 
 ## Outside a repo
 
-- Unless the arguments are a file path or `plan.outsideRepoPlans` is `always`, ask whether to save plans in `~/.my-graft/.claude/plans/`: **Yes**, **Yes, don't ask again** (sets `plan.outsideRepoPlans` to `always`), or **No** (stop).
+- When the arguments are not a file path, follow `plan.outsideRepoPlans`: with `always`, go on; with `never`, stop and say plan needs a repo or a plan file path; otherwise ask whether to save plans in `~/.my-graft/.claude/plans/`: **Yes** or **No** (stop).
 - The root is `~/.my-graft`.
 - Agent briefs name the cwd as the code to read. The plan records the cwd under `## Goal`.
 
@@ -40,7 +40,7 @@ Read the code the request touches. Send `graft:researcher` agents for facts that
 
 ## Settle the solution
 
-Work in rounds. Each round is one `AskUserQuestion` call with up to 3 questions, most consequential first.
+Work in rounds. Each round is one `AskUserQuestion` call with up to `plan.questionsPerRound` questions, most consequential first.
 
 - Ask only what is askable now. A question that depends on an answer still open waits for a later round.
 - Facts come from the code or a researcher, never from the user. Decisions are the user's.
