@@ -72,6 +72,9 @@ export function parseCatalog(markdown: string): Catalog {
     if (new Set(parsedValues).size !== parsedValues.length) {
       return { isParsed: false, error: `a value is listed twice: ${row.trim()}` };
     }
+    if (parsedValues.includes(defaultValue)) {
+      return { isParsed: false, error: `the default is also listed as a value: ${row.trim()}` };
+    }
     if (settings.some((setting) => setting.key === `${keyMatch[1]}.${keyMatch[2]}`)) {
       return { isParsed: false, error: `the key is listed twice: ${key}` };
     }

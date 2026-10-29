@@ -17,4 +17,4 @@ The tester also runs in auto mode. It blocks actions it judges destructive, such
 5. Start the tester: `npm run start-graft-tester -- <dir> <your session name> "<slash command>"`, where `<dir>` is the scratch directory.
 6. Answer its questions with `SendMessage` until the test is done.
 7. Stop the tester: `npm run stop-graft-tester`.
-8. Restore the settings file to what you noted in step 3, or delete it if it did not exist. Then commit and push the change to `~/.my-graft`.
+8. Restore the settings file to what you noted in step 3, or delete it if it did not exist.

@@ -116,4 +116,11 @@ describe("parseCatalog", () => {
       error: expect.stringContaining("listed twice"),
     });
   });
+
+  it("refuses a row that lists its default as a value", () => {
+    expect(parseCatalog(TABLE.replace("`never`", "`ask`"))).toMatchObject({
+      isParsed: false,
+      error: expect.stringContaining("the default is also listed"),
+    });
+  });
 });
