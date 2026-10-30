@@ -34,12 +34,20 @@ claude --version
 
 If it is below 2.1.273, stop and tell the user to update Claude Code first.
 
-## Sync the clone
+## Target clone
 
-Check that the clone is on `main` with no changed or untracked files.
+The target is the current directory's git top level when it is a Graft repo other than `~/.my-graft` (it has `skills/modify/SKILL.md` and `.claude-plugin/marketplace.json`); otherwise it is `~/.my-graft`. Tell the user the target before Sync.
 
 ```bash
-git -C ~/.my-graft status --short --branch
+git rev-parse --show-toplevel
+```
+
+## Sync the clone
+
+The clone is `<target>`, or `~/.my-graft` for a caller that does not follow `## Target clone`. Check that the clone is on `main` with no changed or untracked files.
+
+```bash
+git -C <target> status --short --branch
 ```
 
 It prints only the `## main...origin/main` line. If it prints more, work with the user until it prints that line alone, then carry on.
@@ -47,7 +55,7 @@ It prints only the `## main...origin/main` line. If it prints more, work with th
 Bring in mods pushed to `origin` from the user's other machines.
 
 ```bash
-git -C ~/.my-graft pull --ff-only origin main
+git -C <target> pull --ff-only origin main
 ```
 
 If the pull cannot fast-forward, help the user merge `origin/main`; never rebase. For any conflicts, read the registry to understand what each mod changes, and get a decision from the user on how to resolve them.

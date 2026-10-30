@@ -80,6 +80,16 @@ Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps 
 | `pr.state`               | `draft`, `ready`          | draft   | The state `/graft:pr` opens a new PR in when the command names none.                                                                        |
 | `update.mode`            | `ask`, `auto`             | ask     | Whether `/graft:update` asks before merging (`ask`) or merges straight away (`auto`) when the command names no mode.                        |
 
+## Interstocks
+
+An interstock (in horticulture, the middle piece of a double graft) is an organisation's shared copy of Graft that sits between `pleb/graft` and its users, replacing `pleb/graft` with its own repo. To create one:
+
+```text
+Claude, install Graft https://raw.githubusercontent.com/pleb/graft/main/interstock.md
+```
+
+Colleagues install with the install command in the interstock repo's README. Running `/graft:update` and `/graft:modify` in a clone of the interstock repo is how its caretaker updates or modifies it.
+
 ## Acknowledgements
 
 Inspired by:

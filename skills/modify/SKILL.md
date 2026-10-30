@@ -5,11 +5,11 @@ argument-hint: "[when... do...]"
 disable-model-invocation: true
 ---
 
-You change the user's Graft clone at `~/.my-graft`, one mod at a time.
+You change the user's Graft clone at `<target>`, one mod at a time.
 
-Read `~/.my-graft/skills/common.md` and follow its sections `## Ask the user`, `## Command failures` and `## Settings`.
+Read `~/.my-graft/skills/common.md` and follow its sections `## Ask the user`, `## Command failures`, `## Settings` and `## Target clone`.
 
-The mod registry is `~/.my-graft/MODS.md`.
+The mod registry is `<target>/MODS.md`.
 
 **Arguments:** $ARGUMENTS
 
@@ -23,16 +23,16 @@ Read the registry if it exists. A change to an existing mod revises its row and 
 
 ## Settle
 
-Read `~/.my-graft/skills/plan/SKILL.md` and follow its sections `## Understand` and `## Settle the solution`. Differences:
+Read `<target>/skills/plan/SKILL.md` and follow its sections `## Understand` and `## Settle the solution`. Differences:
 
 - No plans folder and no plan file. The plan stays in the conversation.
 - The user approves the plan before any edit. Continue to implementation once the plan is approved.
-- Every agent brief (researchers here, workers and reviewers in Implement) names the clone by absolute path as the repo to work in, so expand `~/.my-graft` in the brief.
-- Follow `~/.my-graft/AGENTS.md` (paths relative to the clone) if it exists, and include its rules in every agent brief.
+- Every agent brief (researchers here, workers and reviewers in Implement) names the clone by absolute path as the repo to work in, so expand `<target>` in the brief.
+- Follow `<target>/AGENTS.md` (paths relative to the clone) if it exists, and include its rules in every agent brief.
 
 ## Implement
 
-Read `~/.my-graft/skills/orchestrate/SKILL.md` and follow its sections `## Execute` and `## Ask, do not guess`. Differences:
+Read `<target>/skills/orchestrate/SKILL.md` and follow its sections `## Execute` and `## Ask, do not guess`. Differences:
 
 - Work in the clone on `main`, with no feature branch.
 - One commit for the whole mod, not one per milestone, made in Commit and push.
@@ -41,7 +41,7 @@ Read `~/.my-graft/skills/orchestrate/SKILL.md` and follow its sections `## Execu
 
 ## Record
 
-Add or revise the mod's row in `~/.my-graft/MODS.md`. If the file is missing, create it with an intro line and the table header:
+Add or revise the mod's row in `<target>/MODS.md`. If the file is missing, create it with an intro line and the table header:
 
 ```markdown
 Changes this copy makes to Graft. `/graft:update` keeps each one when it merges upstream.
@@ -57,7 +57,7 @@ Change is a short imperative name, and also the commit subject. Intent is one to
 Check the marketplace, the plugin manifest, and every agent and skill.
 
 ```bash
-claude plugin validate --strict ~/.my-graft
+claude plugin validate --strict <target>
 ```
 
 Send any finding to a worker before committing.
@@ -67,9 +67,9 @@ Send any finding to a worker before committing.
 Make one commit whose subject is the Change name, with the registry row included, and push it.
 
 ```bash
-git -C ~/.my-graft add -A
-git -C ~/.my-graft commit -m "<Change>"
-git -C ~/.my-graft push origin main
+git -C <target> add -A
+git -C <target> commit -m "<Change>"
+git -C <target> push origin main
 ```
 
 A mod is done once `origin` has it.
@@ -79,4 +79,4 @@ A mod is done once `origin` has it.
 - The registry row.
 - The commit.
 - Anything left undone.
-- Ask the user to run `/reload-plugins`.
+- When the target is `~/.my-graft`, ask the user to run `/reload-plugins`.
