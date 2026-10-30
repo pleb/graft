@@ -73,7 +73,7 @@ With no findings, say so, show the counts from Extract, and stop.
 
 ## Modify
 
-For each pick in turn, read `~/.my-graft/skills/modify/SKILL.md` and follow it, with the finding's rule as its arguments and the evidence as context.
+For each pick in turn, read `~/.my-graft/skills/modify/SKILL.md` and follow it, targeting `~/.my-graft`, with the finding's rule as its arguments and the evidence as context.
 
 - The mod's text, its `MODS.md` row and its commit state the rule in general terms and name no repo, path or quote from the evidence. Every brief modify sends says so.
 - Leave the `/reload-plugins` request out of modify's `## Report`.

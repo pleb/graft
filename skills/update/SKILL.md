@@ -5,11 +5,11 @@ argument-hint: "[mode: ask (default) | auto]"
 disable-model-invocation: true
 ---
 
-You bring `~/.my-graft` up to date with Graft and keep the user's mods.
+You bring `<target>` up to date with Graft and keep the user's mods.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Command failures` and `## Settings`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Command failures`, `## Settings` and `## Target clone`.
 
-The mod registry is `~/.my-graft/MODS.md`.
+The mod registry is `<target>/MODS.md`.
 
 **Arguments:** $ARGUMENTS
 
@@ -19,19 +19,25 @@ Follow common.md's `## Claude Code version`, then its `## Sync the clone`.
 
 ## Check upstream
 
+`upstream` is where the target gets Graft from: `pleb/graft`, or an interstock (an organisation's copy of Graft). Use it as it is. When the target has no `upstream` remote, add the URL in `<target>/agent-install.md`'s `remote add upstream` command, or `https://github.com/pleb/graft.git` when that URL is the target's `origin`.
+
+```bash
+git -C <target> remote add upstream <url>
+```
+
 Fetch Graft and list what is new.
 
 ```bash
-git -C ~/.my-graft fetch upstream
-git -C ~/.my-graft log --oneline HEAD..upstream/main
+git -C <target> fetch upstream
+git -C <target> log --oneline HEAD..upstream/main
 ```
 
-With nothing new, say Graft is up to date and stop. If Sync pulled any commits, first ask the user to run `/reload-plugins`.
+With nothing new, say Graft is up to date and stop. If Sync pulled any commits and the target is `~/.my-graft`, first ask the user to run `/reload-plugins`.
 
 Otherwise, summarise the incoming changes in a few lines from the commit subjects and the files they change.
 
 ```bash
-git -C ~/.my-graft diff --stat HEAD...upstream/main
+git -C <target> diff --stat HEAD...upstream/main
 ```
 
 The mode is `ask` or `auto` from the arguments, else `update.mode`. With `ask`, ask before merging.
@@ -41,17 +47,17 @@ The mode is `ask` or `auto` from the arguments, else `update.mode`. With `ask`, 
 Merge Graft into the clone without committing.
 
 ```bash
-git -C ~/.my-graft merge --no-ff --no-commit upstream/main
+git -C <target> merge --no-ff --no-commit upstream/main
 ```
 
 Merge, never rebase.
 
-For the rest of the update, follow `~/.my-graft/AGENTS.md` (paths relative to the clone) if it exists, resolving it first if it is conflicted.
+For the rest of the update, follow `<target>/AGENTS.md` (paths relative to the clone) if it exists, resolving it first if it is conflicted.
 
 For each conflicted file, list the mods that changed it.
 
 ```bash
-git -C ~/.my-graft log --no-merges --format=%s upstream/main..HEAD -- <file>
+git -C <target> log --no-merges --format=%s upstream/main..HEAD -- <file>
 ```
 
 This prints their Change names, and the registry gives their intent. Resolve the file so upstream's change lands and each mod's intent still holds. Ask when both cannot hold, when no mod explains the clone's side, or when upstream now does what a mod did (offer to drop the mod and its row). `auto` never skips these questions.
@@ -59,8 +65,8 @@ This prints their Change names, and the registry gives their intent. Resolve the
 To stop at any point before the commit, clear the merge and any fixes, including new files.
 
 ```bash
-git -C ~/.my-graft reset --hard
-git -C ~/.my-graft clean -fd
+git -C <target> reset --hard
+git -C <target> clean -fd
 ```
 
 This is safe because Sync required a clean tree. (`merge --abort` can refuse once a fix is on disk.)
@@ -70,7 +76,7 @@ This is safe because Sync required a clean tree. (`merge --abort` can refuse onc
 Check the marketplace, the plugin manifest, and every agent and skill.
 
 ```bash
-claude plugin validate --strict ~/.my-graft
+claude plugin validate --strict <target>
 ```
 
 If it fails, fix what the merge broke, or ask the user. If the user chooses to stop, clear the clone as Merge says.
@@ -80,9 +86,9 @@ If it fails, fix what the merge broke, or ask the user. If the user chooses to s
 Commit the merge and push it to the user's Graft repo.
 
 ```bash
-git -C ~/.my-graft add -A
-git -C ~/.my-graft commit --no-edit
-git -C ~/.my-graft push origin main
+git -C <target> add -A
+git -C <target> commit --no-edit
+git -C <target> push origin main
 ```
 
 Staging everything is safe because Sync required a clean tree.
@@ -92,4 +98,4 @@ Staging everything is safe because Sync required a clean tree.
 - What came in from upstream.
 - Each conflict and how it was resolved.
 - Mods revised or dropped, with their registry rows.
-- Ask the user to run `/reload-plugins`.
+- When the target is `~/.my-graft`, ask the user to run `/reload-plugins`.

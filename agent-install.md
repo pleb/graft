@@ -14,7 +14,13 @@ This prints `<login>`. `<repo>` is `<login>/my-graft`.
 
 ## 2. Set up the clone
 
-Check whether the user already has a `my-graft` repo.
+When `~/.my-graft` already exists, point its `upstream` at Graft (with `remote add` when it has no `upstream`), skip to 4, and ask the user to run `/graft:update` to merge it.
+
+```bash
+git -C ~/.my-graft remote set-url upstream https://github.com/pleb/graft.git
+```
+
+Otherwise, check whether the user already has a `my-graft` repo.
 
 ```bash
 gh repo view <repo>
