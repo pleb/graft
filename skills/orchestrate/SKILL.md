@@ -7,13 +7,13 @@ disable-model-invocation: true
 
 You are the coordinator. Agents do the work. You order it, write the briefs, judge the results, and commit.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work` and `## Settings`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## GitHub issue reference handling` and `## Settings`.
 
 **Arguments:** $ARGUMENTS
 
 ## Start
 
-The arguments may also ask for a PR, such as `open a pr` or `raise a ready pr that resolves #42`. Take out the whole request, including any guidance for the PR, the same way as common.md's `## Reviewer model`, and keep it for `## Raise a PR`.
+The arguments may also ask for a PR, such as `open a pr` or `raise a ready pr that resolves #42`. The whole request, including any guidance for the PR and any issue it names, is for `## Raise a PR`, not the work.
 
 Find the root with `git rev-parse --show-toplevel`.
 
@@ -28,12 +28,7 @@ When the work is a plan file (including a plan in this conversation written to o
 
 Say which holds, list any open questions, and ask whether to continue or stop. On stop, name `/graft:plan <name>` as the next step (`/graft:plan <path>` for a plan outside `.claude/plans/`). Never edit the plan.
 
-When common.md's `## Find the work` found issues:
-
-- With no plan, first confirm the task you derive from the issues. When the user rejects it, ask for the task.
-- Then ask **Resolves** or **Related** for each issue the plan's `## References` does not list (every issue, with no plan), one question per issue, over more than one call when they do not fit in one.
-
-Start Execute only after the user answers.
+When issues were supplied, confirm the task you derive from them if there is no plan, and settle Resolves or Related with the user for each issue the plan's `## References` does not list, before Execute.
 
 ## Branch
 
@@ -41,14 +36,7 @@ Find the default branch with `gh repo view --json defaultBranchRef --jq .default
 
 On the default branch, create a feature branch. On any other branch, stay on it.
 
-When there are issue references, write one `Resolves owner/repo#N` or `Related owner/repo#N` line per issue to the branch description: the issue lines of the plan's `## References`, plus the answers from `## Find the work`. Read the existing description with `git config branch.<branch>.description`; exit 1 with no output means none. Keep every existing line, replacing only the line of a reference this run decides, then write all the lines unchanged, passing them through a quoted heredoc so `"`, `$` and backticks reach git as is:
-
-```bash
-git config branch.<branch>.description "$(cat <<'EOF'
-<lines>
-EOF
-)"
-```
+When there are issues (the plan's `## References` issue lines and those settled in `## Find the work`), save them on the branch.
 
 Check the commit style once: read the last 10 commit subjects on the default branch (`git log -10 --format=%s <default branch>`). If most start with a conventional-commit prefix (`fix(scope): …`, `feat(scope): …`, `chore: …`), every commit uses one, with a type and scope the repo already uses. Otherwise write a plain imperative subject with no prefix.
 

@@ -39,8 +39,6 @@ And when you're ready to ship the changes:
 /graft:pr
 ```
 
-Plan and orchestrate also take GitHub issues (`#42`, `owner/repo#42` or an issue URL) and read each one, comments included. A plan lists them under `## References`. Orchestrate asks which issues the work resolves, and `/graft:pr` links those.
-
 ## Flow commands
 
 ```text
