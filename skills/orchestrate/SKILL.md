@@ -74,11 +74,11 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 
 - Run the repo's checks (tests, typecheck, lint, build, whichever exist) on the whole branch. When the repo has none, note it in Report.
 - Report or ask about a check the environment cannot run (no database, credentials or network). Never send it to a worker to fix.
-- Fix every other failure. Treat its cause as the branch's until shown otherwise by rerunning the failing check at the commit Execute started from, in a temporary `git worktree` you remove afterwards.
-- When the cause predates the branch, look for an open PR or a newer default-branch commit that fixes it. When there is one, ask the user whether to rely on it or fix it here. To rely on it, record the failure and the PR or commit in Report and go on.
+- Fix every other failure. Treat its cause as the branch's unless the failing check, rerun at the commit Execute started from, fails the same way (same test, same error). Rerun it in a temporary `git worktree` set up the way the main tree is (dependencies installed, same setup), and remove the worktree afterwards. A different failure, or a worktree that cannot run the check, leaves the cause as the branch's.
+- When the cause predates this run, look for an open PR or a newer default-branch commit that fixes it. When there is one, ask the user whether to rely on it or fix it here. To rely on it, record the failure and the PR or commit in Report and go on.
 - Otherwise, a worker fixes it and you commit the fix in the repo's commit style.
-- When the fix is risky by `### Commit and review`'s test, run a pass as `### Each pass` describes, from the Clean up commit to HEAD, with the failing check as its intent. That pass's fixes get no further pass. Otherwise check the fix yourself.
-- Then run the checks again. When they still fail after that fix, ask the user.
+- When the fix is risky by `### Commit and review`'s test, run a pass as `### Each pass` describes, from the commit before this fix to HEAD, with the failing check as its intent; otherwise check the fix yourself. That pass's fixes get no further pass.
+- Then run the checks again. When a failure you did not rely on an upstream PR or commit for still fails after that fix, ask the user.
 - After the checks, `git status --porcelain` is empty. Report or ask about anything it lists.
 
 ## Raise a PR
