@@ -18,7 +18,11 @@ git -C ~/.my-graft status --short --branch
 
 Always ask whether to delete `~/.my-graft`, and show that output. It does not list stashes, other branches or ignored files.
 
-When `~/.my-graft/.claude/plans/` holds files, list them with that output and say they are archived plans that deleting the clone removes.
+When `~/.my-graft/.claude/plans/` holds files, list them with that output and say they are plans and archived plans that deleting the clone removes.
+
+```bash
+find ~/.my-graft/.claude/plans -type f
+```
 
 On no, stop before removing anything.
 
