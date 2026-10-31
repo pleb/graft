@@ -46,7 +46,7 @@ Check the commit style once: read the last 10 commit subjects on the default bra
 ## Execute
 
 - Use `graft:worker` agents on Opus for all implementation. Each brief is self-contained: the goal, the files, the decisions already made, and how to verify.
-- Run workers in parallel only when their work is independent and touches different files.
+- Run workers in parallel only when their work is independent and touches different files. Each parallel brief limits its checks to the worker's own files (narrow tests, lint on those files) and leaves whole-project checks (typecheck, build) to Final checks.
 
 ### Commit and review
 
@@ -70,9 +70,20 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 - Run them in parallel when both are ready.
 - Check their reports, restore anything they removed that you know is needed, then commit.
 
+## Final checks
+
+- Run the repo's checks (tests, typecheck, lint, build, whichever exist) on the whole branch. When the repo has none, note it in Report.
+- Report or ask about a check the environment cannot run (no database, credentials or network). Never send it to a worker to fix.
+- For every other failure, rerun the failing check at the commit Execute started from, in a temporary `git worktree` set up like the main tree (dependencies installed, same setup), then remove the worktree. The cause predates this run only when that rerun fails the same way (same test, same error). Otherwise, including when the worktree cannot run the check, the cause is the branch's.
+- When the cause predates this run, look for an open PR or a newer default-branch commit that fixes it. When there is one, ask the user whether to rely on it or fix it here. To rely on it, record the failure and the PR or commit in Report and go on.
+- Send every failure you do not rely on an upstream fix for to a worker, and commit the fix in the repo's commit style.
+- When the fix is risky by `### Commit and review`'s test, run a pass as `### Each pass` describes, from the commit before this fix to HEAD, with the failing check as its intent; otherwise check the fix yourself. That pass's fixes get no further pass.
+- Then run the checks again. Ask the user about any fixed failure that still fails.
+- After the checks, `git status --porcelain` is empty. Report or ask about anything it lists.
+
 ## Raise a PR
 
-When the plan or the user asks for a PR, raise it after Clean up, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with its common.md at `${CLAUDE_SKILL_DIR}/../common.md`.
+When the plan or the user asks for a PR, raise it after Final checks, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with its common.md at `${CLAUDE_SKILL_DIR}/../common.md`.
 
 - **Arguments**: the plan's PR request and the user's. The user's wins where they differ.
 - **Context**: the plan file or the work you were given, the motivation from this conversation, and each issue from this run with its Resolves or Related split. The brief marks these as context, not arguments.
@@ -88,6 +99,7 @@ Ask the user when something is ambiguous, needs more than a straightforward deci
 
 - The branch, its commits, and the PR URL when one was raised.
 - The commit ranges reviewed, and which reviewers ran on each.
+- Each final check command and its result, quoting the output of any failure.
 - Review findings acted on, and those dismissed with the reason.
 - Items the cleanup agents flagged for a decision.
 - Existing branch description lines this run kept but did not decide.
