@@ -1,7 +1,7 @@
 ---
 name: plan
 description: Settles a solution with the user and writes it as a plan under .claude/plans as the conversation goes. Finds gaps the user may not have seen, reviews when it is worth it, and asks before finalising.
-argument-hint: "[plan path | plan name | topic] [reviewer model: sonnet | opus (default) | fable]"
+argument-hint: "[plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
 ---
 
@@ -68,6 +68,8 @@ status: draft
 
 ## Goal
 
+## References
+
 ## Approach
 
 ## Milestones
@@ -84,6 +86,8 @@ Plan by Graft.
 ```
 
 Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work and commit. Open questions are numbered, each with a recommendation, and are removed once answered.
+
+`## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, and `- Related <URL>` for any other link. An issue or PR the conversation brings in, in any form, is fetched and recorded as `owner/repo#N` the same way as the issues in Find the work. Issues from Find the work, including those that are context for a plan being revised, are added as Resolves; others are added as Related. The user can move any line between the two.
 
 Plan a PR only when the user asks for one, as a milestone of its own. It names a state only when the user does.
 
