@@ -19,7 +19,7 @@ Find the root with `git rev-parse --show-toplevel`. Outside a repo (non-zero exi
 
 ## Outside a repo
 
-- When the arguments are not a file path, follow `plan.outsideRepoPlans`: with `always`, go on; with `never`, stop and say plan needs a repo or a plan file path; otherwise ask whether to save plans in `~/.my-graft/.claude/plans/`: **Yes** or **No** (stop).
+- When the arguments, without the reviewer model words and issue references, are not a file path, follow `plan.outsideRepoPlans`: with `always`, go on; with `never`, stop and say plan needs a repo or a plan file path; otherwise ask whether to save plans in `~/.my-graft/.claude/plans/`: **Yes** or **No** (stop).
 - The root is `~/.my-graft`.
 - Agent briefs name the cwd as the code to read. The plan records the cwd under `## Goal`.
 
@@ -87,7 +87,7 @@ Plan by Graft.
 
 Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work and commit. Open questions are numbered, each with a recommendation, and are removed once answered.
 
-`## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, and `- Related <URL>` for any other link. An issue or PR the conversation brings in, in any form, is fetched and recorded as `owner/repo#N` the same way as the issues in Find the work. Issues from Find the work, including those that are context for a plan being revised, are added as Resolves; others are added as Related. The user can move any line between the two.
+`## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, and `- Related <URL>` for any other link. An issue or PR the conversation brings in, in any form, is fetched with Find the work's command and recorded as `owner/repo#N`; when that fetch fails, report gh's error and go on planning. An issue References already lists keeps its line. Other issues from Find the work, including those that are context for a plan being revised, are added as Resolves; other references are added as Related. The user can move any line between the two.
 
 Plan a PR only when the user asks for one, as a milestone of its own. It names a state only when the user does.
 

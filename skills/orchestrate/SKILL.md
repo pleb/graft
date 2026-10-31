@@ -41,7 +41,14 @@ Find the default branch with `gh repo view --json defaultBranchRef --jq .default
 
 On the default branch, create a feature branch. On any other branch, stay on it.
 
-When there are issue references, write one `Resolves owner/repo#N` or `Related owner/repo#N` line per issue to the branch description: the issue lines of the plan's `## References`, plus the answers from `## Find the work`. Read the existing description with `git config branch.<branch>.description`; exit 1 with no output means none. Keep every existing line, replacing only the line of a reference this run decides, then write all the lines with `git config branch.<branch>.description "<lines>"`.
+When there are issue references, write one `Resolves owner/repo#N` or `Related owner/repo#N` line per issue to the branch description: the issue lines of the plan's `## References`, plus the answers from `## Find the work`. Read the existing description with `git config branch.<branch>.description`; exit 1 with no output means none. Keep every existing line, replacing only the line of a reference this run decides, then write all the lines unchanged, passing them through a quoted heredoc so `"`, `$` and backticks reach git as is:
+
+```bash
+git config branch.<branch>.description "$(cat <<'EOF'
+<lines>
+EOF
+)"
+```
 
 Check the commit style once: read the last 10 commit subjects on the default branch (`git log -10 --format=%s <default branch>`). If most start with a conventional-commit prefix (`fix(scope): …`, `feat(scope): …`, `chore: …`), every commit uses one, with a type and scope the repo already uses. Otherwise write a plain imperative subject with no prefix.
 
@@ -74,7 +81,7 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 
 ## Raise a PR
 
-When the plan or the user asks for a PR, raise it after Clean up, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with the common.md it names at `${CLAUDE_SKILL_DIR}/../common.md`. Its arguments are the plan's PR request and the user's, the user's winning where they differ. Its brief also carries the plan file or the work you were given, and any issue numbers and motivation from this conversation. Where pr or common.md says to ask, the worker stops and reports the question; ask the user and send it again. If no PR is raised, say why in Report.
+When the plan or the user asks for a PR, raise it after Clean up, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with the common.md it names at `${CLAUDE_SKILL_DIR}/../common.md`. Its arguments are the plan's PR request and the user's, the user's winning where they differ. Its brief also carries the plan file or the work you were given, the motivation from this conversation, and each issue from this run with its Resolves or Related split, marked as context, not arguments. Where pr or common.md says to ask, the worker stops and reports the question; ask the user and send it again. If no PR is raised, say why in Report.
 
 ## Ask, do not guess
 
@@ -86,6 +93,7 @@ Ask the user when something is ambiguous, needs more than a straightforward deci
 - The commit ranges reviewed, and which reviewers ran on each.
 - Review findings acted on, and those dismissed with the reason.
 - Items the cleanup agents flagged for a decision.
+- Existing branch description lines this run kept but did not decide.
 - Anything left undone.
 
 ## Delete the plan
