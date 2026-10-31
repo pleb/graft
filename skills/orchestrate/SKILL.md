@@ -99,13 +99,13 @@ Ask the user when something is ambiguous, needs more than a straightforward deci
 
 Run this step only when the work is a plan file with the Graft footer and every milestone is done, including the PR when one was asked for.
 
-Run `git -C <plan's directory> ls-files --error-unmatch <plan's absolute path>`. Go on only when it fails with `did not match any file(s) known to git`; otherwise leave the plan in place. When the plan is in a subfolder of `~/.my-graft/.claude/plans/`, leave it in place.
+Run `git -C <plan's directory> ls-files --error-unmatch <plan's absolute path>`. Go on only when it fails with `did not match any file(s) known to git` and the plan is not in a subfolder of `~/.my-graft/.claude/plans/`; otherwise leave the plan in place.
 
 Follow `orchestrate.finishedPlan`:
 
 - `archive`: move the plan to `~/.my-graft/.claude/plans/<repo>/<plan>.md`, creating the folder. The root is the directory `## Start` found. When `git -C <root> rev-parse --absolute-git-dir` differs from `git -C <root> rev-parse --path-format=absolute --git-common-dir`, `<repo>` is the basename of the path on the first `worktree` line of `git -C <root> worktree list --porcelain`; otherwise it is the basename of the root. `<plan>` is the plan's file name without `.md`. When the target exists, use `<plan>-2.md`, `<plan>-3.md` and so on; never overwrite.
 - `delete`: delete the plan file.
-- Otherwise, leave the plan in place without asking.
+- Otherwise, leave the plan in place.
 
 ## Report
 
