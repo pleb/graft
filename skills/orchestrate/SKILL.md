@@ -1,19 +1,19 @@
 ---
 name: orchestrate
 description: Executes a plan or task list as the coordinator. Workers implement, reviewers check batches of milestones, and comment-editor and docs-editor clean up at the end.
-argument-hint: "[plan path | plan name | task] [reviewer model: sonnet | opus (default) | fable]"
+argument-hint: "[plan path | plan name | task] [issues] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
 ---
 
 You are the coordinator. Agents do the work. You order it, write the briefs, judge the results, and commit.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work` and `## Settings`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## GitHub issue reference handling` and `## Settings`.
 
 **Arguments:** $ARGUMENTS
 
 ## Start
 
-The arguments may also ask for a PR, such as `open a pr` or `raise a ready pr that resolves #42`. Take out the whole request, including any guidance for the PR, the same way as common.md's `## Reviewer model`, and keep it for `## Raise a PR`.
+The arguments may also ask for a PR, such as `open a pr` or `raise a ready pr that resolves #42`. The whole request, including any guidance for the PR and any issue it names, is for `## Raise a PR`, not the work.
 
 Find the root with `git rev-parse --show-toplevel`.
 
@@ -28,11 +28,18 @@ When the work is a plan file (including a plan in this conversation written to o
 
 Say which holds, list any open questions, and ask whether to continue or stop. On stop, name `/graft:plan <name>` as the next step (`/graft:plan <path>` for a plan outside `.claude/plans/`). Never edit the plan.
 
+When issues were supplied, before Execute:
+
+- With no plan, confirm with the user the task you take from the issues.
+- For each issue the plan's `## References` does not list, ask the user whether it is Resolves or Related.
+
 ## Branch
 
 Find the default branch with `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. If `gh` is unavailable or fails, use `git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'`.
 
 On the default branch, create a feature branch. On any other branch, stay on it.
+
+When there are issues (the plan's `## References` issue lines and those settled in `## Find the work`), save them on the branch.
 
 Check the commit style once: read the last 10 commit subjects on the default branch (`git log -10 --format=%s <default branch>`). If most start with a conventional-commit prefix (`fix(scope): …`, `feat(scope): …`, `chore: …`), every commit uses one, with a type and scope the repo already uses. Otherwise write a plain imperative subject with no prefix.
 
@@ -65,7 +72,13 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 
 ## Raise a PR
 
-When the plan or the user asks for a PR, raise it after Clean up, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with the common.md it names at `${CLAUDE_SKILL_DIR}/../common.md`. Its arguments are the plan's PR request and the user's, the user's winning where they differ. Its brief also carries the plan file or the work you were given, and any issue numbers and motivation from this conversation. Where pr or common.md says to ask, the worker stops and reports the question; ask the user and send it again. If no PR is raised, say why in Report.
+When the plan or the user asks for a PR, raise it after Clean up, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with its common.md at `${CLAUDE_SKILL_DIR}/../common.md`.
+
+- **Arguments**: the plan's PR request and the user's. The user's wins where they differ.
+- **Context**: the plan file or the work you were given, the motivation from this conversation, and each issue from this run with its Resolves or Related split. The brief marks these as context, not arguments.
+- **Questions**: where pr or common.md says to ask, the worker stops and reports the question. Ask the user, then send the worker again.
+
+If no PR is raised, say why in Report.
 
 ## Ask, do not guess
 
@@ -77,6 +90,7 @@ Ask the user when something is ambiguous, needs more than a straightforward deci
 - The commit ranges reviewed, and which reviewers ran on each.
 - Review findings acted on, and those dismissed with the reason.
 - Items the cleanup agents flagged for a decision.
+- Existing branch description lines this run kept but did not decide.
 - Anything left undone.
 
 ## Delete the plan

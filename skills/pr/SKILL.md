@@ -15,12 +15,12 @@ Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user
 
 ## Start
 
-The arguments may set the state anywhere, such as `ready-state`, `draft` or `mark it ready`. Take out the words that set it (all of `mark it ready`, not just `ready`) before reading the rest as guidance. A word that belongs to the guidance stays in it (for example, `note the docs are still a draft`); ask when it is unclear.
+The arguments are guidance and may set the state anywhere, such as `ready-state`, `draft` or `mark it ready`. A word that belongs to the guidance stays in it (for example, `note the docs are still a draft`); ask when it is unclear.
 
 ## Preconditions
 
 - Working tree clean, every change committed. If not, stop and say what is uncommitted.
-- Branch is not the default branch (`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`). Base is the existing PR's base (`gh pr view --json baseRefName --jq .baseRefName`) if the branch has one, otherwise the default branch.
+- Branch is not the default branch (`defaultBranchRef.name` from `gh repo view --json defaultBranchRef,nameWithOwner`, whose `nameWithOwner` is the base repo). Base is the existing PR's base (`gh pr view --json baseRefName --jq .baseRefName`) if the branch has one, otherwise the default branch.
 - `gh pr view` reports no PR for the branch. If one exists, do not create another: rewrite its title and body and apply them with `gh pr edit`.
 
 ## Body
@@ -51,7 +51,13 @@ _Graft: AI has reviewed and adversarially reviewed these changes._
 
 `## Notes` goes between How and the Resolves line, only if earned. No other headings: no summary, testing, dependencies or security section.
 
-**Resolves line.** Candidate issues come from the arguments, the session, the branch's commit trailers (`Fixes #N`, `Closes #N`, `Resolves #N`) and the branch name. Link a candidate only once `gh issue view` (with `-R owner/repo` for a cross-repo issue) shows it is open; drop the rest. With none confirmed, leave the line out rather than asking or guessing. Write one line per confirmed issue, before the Graft line: `Resolves #123` for a same-repo issue or `Resolves owner/repo#123` for a cross-repo one.
+**Resolves line.** One line per issue the PR resolves, before the Graft line: `Resolves #123` for a base-repo issue, `Resolves owner/repo#123` for one in another repo. Compare issues as `owner/repo#N`, reading `#N` as the base repo.
+
+1. Gather candidates from the arguments, the session, the branch's commit trailers (`Fixes #N`, `Closes #N`, `Resolves #N`), the branch name, and the Resolves issues saved on the branch (common.md's `## GitHub issue reference handling`).
+2. Drop a candidate the branch saves as Related, unless the arguments name it.
+3. Keep a candidate only once `gh issue view` (with `-R owner/repo` for another repo) shows it is open.
+
+With none left, leave the line out rather than asking or guessing.
 
 **Graft line.** Every body, with a template or without, ends with `_Graft: AI has reviewed and adversarially reviewed these changes._` verbatim, as its own paragraph, without the backticks. The brevity budget and the ban on mentioning Claude, AI or attribution do not apply to it.
 

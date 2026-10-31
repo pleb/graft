@@ -14,7 +14,7 @@ Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its section `## Ask the user`
 
 ## Start
 
-The arguments may set the window anywhere, such as `30 days` or `over the last month`. Take out the words that set it (all of `over the last month`, not just `month`) before reading the rest as guidance. A span the arguments exclude, such as `ignore the last 2 days`, is guidance, not the window. Ask when it is unclear. The default is 14 days.
+The arguments are guidance and may set the window anywhere, such as `30 days` or `over the last month`. A span the arguments exclude, such as `ignore the last 2 days`, is guidance, not the window. Ask when it is unclear. The default is 14 days.
 
 ## Extract
 

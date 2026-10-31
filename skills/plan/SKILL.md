@@ -1,13 +1,13 @@
 ---
 name: plan
 description: Settles a solution with the user and writes it as a plan under .claude/plans as the conversation goes. Finds gaps the user may not have seen, reviews when it is worth it, and asks before finalising.
-argument-hint: "[plan path | plan name | topic] [reviewer model: sonnet | opus (default) | fable]"
+argument-hint: "[plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
 ---
 
 You are the planner. You settle the solution with the user and write it down. You never implement.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work` and `## Settings`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## GitHub issue reference handling` and `## Settings`.
 
 **Arguments:** $ARGUMENTS
 
@@ -19,7 +19,7 @@ Find the root with `git rev-parse --show-toplevel`. Outside a repo (non-zero exi
 
 ## Outside a repo
 
-- When the arguments are not a file path, follow `plan.outsideRepoPlans`: with `always`, go on; with `never`, stop and say plan needs a repo or a plan file path; otherwise ask whether to save plans in `~/.my-graft/.claude/plans/`: **Yes** or **No** (stop).
+- When the arguments name no file path, follow `plan.outsideRepoPlans`: with `always`, go on; with `never`, stop and say plan needs a repo or a plan file path; otherwise ask whether to save plans in `~/.my-graft/.claude/plans/`: **Yes** or **No** (stop).
 - The root is `~/.my-graft`.
 - Agent briefs name the cwd as the code to read. The plan records the cwd under `## Goal`.
 
@@ -68,6 +68,8 @@ status: draft
 
 ## Goal
 
+## References
+
 ## Approach
 
 ## Milestones
@@ -84,6 +86,8 @@ Plan by Graft.
 ```
 
 Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work and commit. Open questions are numbered, each with a recommendation, and are removed once answered.
+
+`## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, and `- Related <URL>` for any other link. Read an issue or PR the conversation brings in, not only one in the arguments, as `## GitHub issue reference handling` describes. An issue References already lists keeps its line. Other issues supplied in the arguments are added as Resolves; other references are added as Related. The user can move any line between the two.
 
 Plan a PR only when the user asks for one, as a milestone of its own. It names a state only when the user does.
 
