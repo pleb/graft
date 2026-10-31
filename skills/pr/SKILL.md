@@ -20,7 +20,7 @@ The arguments may set the state anywhere, such as `ready-state`, `draft` or `mar
 ## Preconditions
 
 - Working tree clean, every change committed. If not, stop and say what is uncommitted.
-- Branch is not the default branch (`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`). Base is the existing PR's base (`gh pr view --json baseRefName --jq .baseRefName`) if the branch has one, otherwise the default branch.
+- Branch is not the default branch (`defaultBranchRef.name` from `gh repo view --json defaultBranchRef,nameWithOwner`, whose `nameWithOwner` is the base repo). Base is the existing PR's base (`gh pr view --json baseRefName --jq .baseRefName`) if the branch has one, otherwise the default branch.
 - `gh pr view` reports no PR for the branch. If one exists, do not create another: rewrite its title and body and apply them with `gh pr edit`.
 
 ## Body
@@ -51,7 +51,7 @@ _Graft: AI has reviewed and adversarially reviewed these changes._
 
 `## Notes` goes between How and the Resolves line, only if earned. No other headings: no summary, testing, dependencies or security section.
 
-**Resolves line.** Candidate issues come from the arguments, the session, the branch's commit trailers (`Fixes #N`, `Closes #N`, `Resolves #N`) and the branch name. Link a candidate only once `gh issue view` (with `-R owner/repo` for a cross-repo issue) shows it is open; drop the rest. With none confirmed, leave the line out rather than asking or guessing. Write one line per confirmed issue, before the Graft line: `Resolves #123` for a same-repo issue or `Resolves owner/repo#123` for a cross-repo one.
+**Resolves line.** Candidate issues come from the arguments, the session, the branch's commit trailers (`Fixes #N`, `Closes #N`, `Resolves #N`), the branch name and the branch description (`git config branch.<branch>.description`; exit 1 with no output means no lines). Compare candidates as `owner/repo#N`, reading `#N` as the base repo. The description's `Resolves owner/repo#N` lines are candidates. Its `Related owner/repo#N` lines remove the matching candidates from the session, commit trailers and branch name, never an issue the arguments name. Link a candidate only once `gh issue view` (with `-R owner/repo` for a cross-repo issue) shows it is open; drop the rest. With none confirmed, leave the line out rather than asking or guessing. Write one line per confirmed issue, before the Graft line: `Resolves #123` for a base-repo issue or `Resolves owner/repo#123` for one in another repo.
 
 **Graft line.** Every body, with a template or without, ends with `_Graft: AI has reviewed and adversarially reviewed these changes._` verbatim, as its own paragraph, without the backticks. The brevity budget and the ban on mentioning Claude, AI or attribution do not apply to it.
 
