@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 You are the planner. You settle the solution with the user and write it down. You never implement.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work` and `## Settings`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## GitHub issue reference handling` and `## Settings`.
 
 **Arguments:** $ARGUMENTS
 
@@ -87,7 +87,7 @@ Plan by Graft.
 
 Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work and commit. Open questions are numbered, each with a recommendation, and are removed once answered.
 
-`## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, and `- Related <URL>` for any other link. An issue or PR the conversation brings in, in any form, is read as common.md's `## GitHub issue reference handling` describes. An issue References already lists keeps its line. Other issues supplied in the arguments, including those that are context for a plan being revised, are added as Resolves; other references are added as Related. The user can move any line between the two.
+`## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, and `- Related <URL>` for any other link. Read an issue or PR the conversation brings in, not only one in the arguments, as `## GitHub issue reference handling` describes. An issue References already lists keeps its line. Other issues supplied in the arguments are added as Resolves; other references are added as Related. The user can move any line between the two.
 
 Plan a PR only when the user asks for one, as a milestone of its own. It names a state only when the user does.
 

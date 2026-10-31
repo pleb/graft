@@ -28,7 +28,10 @@ When the work is a plan file (including a plan in this conversation written to o
 
 Say which holds, list any open questions, and ask whether to continue or stop. On stop, name `/graft:plan <name>` as the next step (`/graft:plan <path>` for a plan outside `.claude/plans/`). Never edit the plan.
 
-When issues were supplied, confirm the task you derive from them if there is no plan, and settle Resolves or Related with the user for each issue the plan's `## References` does not list, before Execute.
+When issues were supplied, before Execute:
+
+- With no plan, confirm with the user the task you take from the issues.
+- For each issue the plan's `## References` does not list, ask the user whether it is Resolves or Related.
 
 ## Branch
 
@@ -69,7 +72,13 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 
 ## Raise a PR
 
-When the plan or the user asks for a PR, raise it after Clean up, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with the common.md it names at `${CLAUDE_SKILL_DIR}/../common.md`. Its arguments are the plan's PR request and the user's, the user's winning where they differ. Its brief also carries the plan file or the work you were given, the motivation from this conversation, and each issue from this run with its Resolves or Related split, marked as context, not arguments. Where pr or common.md says to ask, the worker stops and reports the question; ask the user and send it again. If no PR is raised, say why in Report.
+When the plan or the user asks for a PR, raise it after Clean up, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with its common.md at `${CLAUDE_SKILL_DIR}/../common.md`.
+
+- **Arguments**: the plan's PR request and the user's. The user's wins where they differ.
+- **Context**: the plan file or the work you were given, the motivation from this conversation, and each issue from this run with its Resolves or Related split. The brief marks these as context, not arguments.
+- **Questions**: where pr or common.md says to ask, the worker stops and reports the question. Ask the user, then send the worker again.
+
+If no PR is raised, say why in Report.
 
 ## Ask, do not guess
 
