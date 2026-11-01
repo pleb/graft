@@ -3,6 +3,7 @@ name: orchestrate
 description: Executes a plan or task list as the coordinator. Workers implement, reviewers check batches of milestones, and comment-editor and docs-editor clean up at the end.
 argument-hint: "[plan path | plan name | task] [issues] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
+allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 ---
 
 You are the coordinator. Agents do the work. You order it, write the briefs, judge the results, and commit.
@@ -15,7 +16,11 @@ Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user
 
 The arguments may also ask for a PR, such as `open a pr` or `raise a ready pr that resolves #42`. The whole request, including any guidance for the PR and any issue it names, is for `## Raise a PR`, not the work.
 
-Find the root with `git rev-parse --show-toplevel`.
+Find the root with `git rev-parse --show-toplevel`, then get settings.
+
+```bash
+node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
+```
 
 ## Find the work
 
@@ -89,7 +94,7 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 When the plan or the user asks for a PR, raise it after Final checks, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with its common.md at `${CLAUDE_SKILL_DIR}/../common.md`.
 
 - **Arguments**: the plan's PR request and the user's. The user's wins where they differ.
-- **Context**: the plan file or the work you were given, the motivation from this conversation, and each issue from this run with its Resolves or Related split. The brief marks these as context, not arguments.
+- **Context**: the plan file or the work you were given, the motivation from this conversation, each issue from this run with its Resolves or Related split, and the effective `pr.state` as the state to use when no argument names one. The brief marks these as context, not arguments.
 - **Questions**: where pr or common.md says to ask, the worker stops and reports the question. Ask the user, then send the worker again.
 
 In pause mode, a PR milestone's Manual checks pause as `### Commit and review` describes once the PR is raised, before `## Finish the plan`. Fix commits are pushed to the PR's branch.

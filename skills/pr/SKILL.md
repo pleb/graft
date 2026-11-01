@@ -3,6 +3,7 @@ name: pr
 description: Raises a PR for the current branch, using the repo's PR template if it has one. Opens in the state pr.state sets, draft by default; ready-state in the arguments matches pr.state at ready. Rewrites the title and body if the branch already has a PR.
 argument-hint: "[guidance] [state: draft (default) | ready-state (pr.state: ready)]"
 disable-model-invocation: true
+allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 ---
 
 # Raise a PR
@@ -16,6 +17,12 @@ Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user
 ## Start
 
 The arguments are guidance and may set the state anywhere, such as `ready-state`, `draft` or `mark it ready`. A word that belongs to the guidance stays in it (for example, `note the docs are still a draft`); ask when it is unclear.
+
+Get settings, with the cwd as `<root>`.
+
+```bash
+node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
+```
 
 ## Preconditions
 

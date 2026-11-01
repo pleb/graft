@@ -3,6 +3,7 @@ name: plan
 description: Settles a solution with the user and writes it as a plan under .claude/plans as the conversation goes. Finds gaps the user may not have seen, reviews when it is worth it, and asks before finalising.
 argument-hint: "[plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
+allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 ---
 
 You are the planner. You settle the solution with the user and write it down. You never implement.
@@ -16,6 +17,12 @@ Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user
 If plan mode is active, ask the user to leave it before starting: plan mode blocks edits.
 
 Find the root with `git rev-parse --show-toplevel`. Outside a repo (non-zero exit), skip the ignore check, and follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
+
+Get settings once, passing the cwd as `<root>` outside a repo.
+
+```bash
+node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
+```
 
 ## Outside a repo
 

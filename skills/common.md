@@ -91,7 +91,7 @@ If the pull cannot fast-forward, help the user merge `origin/main`; never rebase
 
 ## Settings
 
-Settings live in `~/.my-graft/graft-settings.json`, a JSON object keyed by skill (`common` for settings this file's shared sections read), then by setting, with string values (for example, `{"plan": {"questionsPerRound": "2"}}`). A missing file means no settings. A missing key, or a value not in the row's Values, means the Default.
+Get settings by running `settings.ts`, which is beside this file, with the root. It prints every setting's effective value as JSON keyed by skill (`common` for settings this file's shared sections read), then by setting. On a non-zero exit, follow `## Command failures`. A setting value given in a brief replaces running it for that setting.
 
 | Key                         | Values              | Default     | What it does                                                                                                                                 |
 | --------------------------- | ------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
