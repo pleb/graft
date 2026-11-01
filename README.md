@@ -82,9 +82,9 @@ Settings live in `~/.my-graft/graft-settings.json`. Top-level skill keys hold th
 }
 ```
 
-A repo's settings start from the defaults, then apply the matching `/*` scopes from shallowest to deepest, then the scope for its own path. An override replaces only the settings it names. Skills resolve settings for the repo's top level, or its main worktree from a linked worktree, after expanding `~` and symlinks.
+A repo's settings start from the defaults, then apply the matching `/*` scopes from shallowest to deepest, then the scope for its own path. An override replaces only the settings it names. A linked worktree uses its main worktree's settings. Scope paths match after `~` and symlinks are expanded.
 
-`/graft-settings` opens a pane with a scope picker: Defaults, "Effective for this repo", each scope, and "Add override…". A scope's settings start at Inherit, which shows the inherited value and where it comes from. The effective view shows each value for the session's repo and the scope it came from, and hides a setting whose Shown when condition is false. A change is saved to the file, then committed and pushed.
+`/graft-settings` opens a pane with a scope picker: Defaults, "Effective for this repo", each scope, and "Add override…". A scope's settings start at Inherit, which shows the inherited value and where it comes from. The effective view shows each value for the session's repo and the scope it comes from, and hides settings whose Shown when condition is false. A change is saved to the file, then committed and pushed.
 
 | Key                         | Values                       | Default     | Shown when                       | What it does                                                                                                                                                                                                                                 |
 | --------------------------- | ---------------------------- | ----------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -63,7 +63,7 @@ type World = {
 
 // A fake engine: HOME set, an in-memory file system, and git answering as a
 // clean, up-to-date clone on main. Other directories are repos only when
-// `tops` maps them to a top level; `worktrees` gives a top level's worktree list.
+// `tops` maps them to a top level.
 function world(
   on: On,
   settings?: string,

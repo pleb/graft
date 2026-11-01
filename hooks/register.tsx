@@ -84,8 +84,6 @@ async function readText($: EngineInterface, path: string): Promise<string | unde
   return String(await $.fs.read(path));
 }
 
-// The top level, and the main worktree unless the first worktree is bare;
-// neither outside git.
 async function gitRoot($: EngineInterface, path: string): Promise<{ top?: string; main?: string }> {
   const top = await run($, ["git", "-C", path, "rev-parse", "--show-toplevel"]);
   if (!top.isOk || top.stdout.trim() === "") {
@@ -166,8 +164,7 @@ const conditionNote = (setting: CatalogSetting) =>
 const sourceLabel = ({ value, source }: ExplainedSetting) =>
   source === DEFAULT_SOURCE ? `${value} (Default)` : `${value} (from ${source})`;
 
-// Text form of the settings, for surfaces that draw no pane and for mobile:
-// the defaults, then each scope's overrides.
+// Text form of the settings, for surfaces that draw no pane and for mobile.
 function describe({ catalog, file }: Loaded): string[] {
   const lines = [`Graft settings in ${SHOWN_FILE}`];
   if (!file.isParsed) {
@@ -296,8 +293,8 @@ async function refusal(
   return undefined;
 }
 
-// Saves `target` in the defaults (`scope` undefined) or in a scope's
-// overrides; undefined clears it. Returns a toast, or undefined when saved or unchanged.
+// `scope` undefined edits the defaults; `target` undefined clears the key.
+// Returns a toast, or undefined when saved or unchanged.
 async function saveSetting(
   $: EngineInterface,
   setting: CatalogSetting,

@@ -24,8 +24,6 @@ async function git(cwd: string, ...args: string[]): Promise<string | undefined> 
   }
 }
 
-// The git top level, or the main worktree for a linked worktree, unless the
-// first worktree is bare. Outside git, the path as given.
 async function normaliseRoot(path: string): Promise<string> {
   const top = (await git(path, "rev-parse", "--show-toplevel"))?.trim();
   if (!top) {

@@ -127,7 +127,6 @@ function lexical(path: string): string {
   return `/${parts.join("/")}`;
 }
 
-// Expands `~` and resolves symlinks. A path that does not exist is only normalised lexically.
 export async function normalisePath(
   path: string,
   env: Pick<Environment, "home" | "resolve">,
@@ -158,9 +157,8 @@ const depth = (path: string) => path.split("/").filter((part) => part !== "").le
 const isUnder = (path: string, dir: string) =>
   dir === "/" ? path !== "/" : path.startsWith(`${dir}/`);
 
-// The layers that apply to a normalised path, least specific first: the
-// defaults, then matching `/*` scopes by depth, then exact scopes. With
-// `isSubtree`, the layers that apply to every path beneath `path`.
+// Least specific first, so later layers win: defaults, `/*` scopes by depth,
+// then exact scopes. `isSubtree` gives the layers for every path beneath `path`.
 export async function layersFor(
   file: SettingsFile,
   path: string,
@@ -189,7 +187,6 @@ export async function layersFor(
   ];
 }
 
-// The layers that apply where the scope `key` applies, without `key` itself.
 export async function inheritedLayers(
   file: SettingsFile,
   key: string,
@@ -249,8 +246,7 @@ export async function resolveSettings(
   return { isResolved: true, root: path, settings: explainLayers(layers, catalog.settings) };
 }
 
-// The main worktree from `git worktree list --porcelain`: its first entry,
-// unless that entry is bare.
+// Git lists the main worktree first in `git worktree list --porcelain`.
 export function mainWorktree(porcelain: string): string | undefined {
   const first = porcelain.split("\n\n")[0]?.split("\n") ?? [];
   const main = first.find((line) => line.startsWith("worktree "))?.slice("worktree ".length);
@@ -277,9 +273,8 @@ function withEntry(
   return next;
 }
 
-// Sets a setting in the defaults (`scope` undefined) or in a scope's
-// overrides, and removes it when `value` is undefined. A skill entry,
-// `overrides` or scope left empty is dropped; every other key is kept.
+// `scope` undefined edits the defaults; `value` undefined removes the setting.
+// Empty skill entries, `overrides` and scopes are dropped; other keys are kept.
 export function withSetting(
   json: Record<string, unknown>,
   scope: string | undefined,
@@ -321,7 +316,6 @@ export function withSetting(
 
 export type NewScope = { isValid: true; key: string } | { isValid: false; error: string };
 
-// Checks a scope path typed into the pane against the scope keys it already has.
 export async function newScopeKey(
   input: string,
   existing: readonly string[],
