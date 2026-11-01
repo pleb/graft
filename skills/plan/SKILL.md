@@ -44,7 +44,10 @@ Work in rounds. Each round is one `AskUserQuestion` call with up to `plan.questi
 
 - Ask only what is askable now. A question that depends on an answer still open waits for a later round.
 - Facts come from the code or a researcher, never from the user. Decisions are the user's.
-- Every question carries a recommendation. Each option states its trade-off, and the recommended option comes first.
+- Each question names its subject and says in a clause which decision it unlocks.
+- Every question carries a recommendation, except the clarify step's first ask and the revised-plan question asking what to revise. Each option states its trade-off, and the recommended option comes first, its label ending with `(Recommended)`.
+- A single-select question whose options compare concrete shapes (signatures, schemas, layouts, config) gives them a `preview`.
+- A question whose choices are not exclusive uses `multiSelect`. Previews are single-select only, so split a question that needs both.
 - State conventional defaults; do not ask them.
 - Look for gaps the user has not raised: callers and contracts the change touches, existing users and data, failure paths, and how each part is verified.
 - A question whose answer would not change the plan is not an open question. Record it as a default or a risk.
