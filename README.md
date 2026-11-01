@@ -17,7 +17,7 @@ To install Graft on another machine, or again after `/graft:uninstall`, run the 
 
 ## How it works
 
-![Graft's flow: /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:diff publishes a Claude Code artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
+![Graft's flow: /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:execute runs plan and then orchestrate in one session. /graft:diff publishes a Claude Code artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
 
 Start by creating a plan. Plans are automatically saved to `.claude/plans` in the repo. The first time, Graft asks whether to ignore them.
 
@@ -33,6 +33,8 @@ Once the plan is ready to execute, use the orchestrator to implement the plan.
 /graft:orchestrate deploy-static-site-to-azure
 ```
 
+Or use `/graft:execute` to plan and then orchestrate in one session, with no `/clear` in between.
+
 And when you're ready to ship the changes:
 
 ```text
@@ -44,6 +46,7 @@ And when you're ready to ship the changes:
 ```text
 /graft:plan [plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]
 /graft:orchestrate [plan path | plan name | task] [issues] [reviewer model: sonnet | opus (default) | fable]
+/graft:execute [plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr request]
 /graft:diff
 /graft:pr [guidance] [state: draft (default) | ready-state]
 ```
@@ -59,7 +62,7 @@ And when you're ready to ship the changes:
 
 Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps your mods when it brings in upstream changes.
 
-`/graft:tune` finds corrections you keep making to plan and orchestrate runs and turns the ones you pick into mods.
+`/graft:tune` finds corrections you keep making to plan, orchestrate and execute runs and turns the ones you pick into mods.
 
 ![How your copy of Graft stays current: /graft:update merges the latest Graft from pleb/graft into your clone at ~/.my-graft, keeping your mods. /graft:modify commits a mod to the clone, recorded in MODS.md. /graft:tune finds corrections you keep making and hands the ones you pick to /graft:modify. The clone pushes to your private \<login\>/my-graft repo, and your other machines pull from it. Claude Code loads Graft from the clone, and /reload-plugins picks up changes.](./docs/update.svg)
 
