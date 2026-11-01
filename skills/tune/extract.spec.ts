@@ -350,6 +350,13 @@ function orchestrateLines(cwd: string): Line[] {
   return [command("/graft:orchestrate", "ship-it", 1, "orch-cmd", { cwd })];
 }
 
+function executeLines(cwd: string): Line[] {
+  return [
+    command("/graft:execute", "ship-it", 3, "exec-cmd", { cwd }),
+    typed("Use the cache", 2, "exec-msg"),
+  ];
+}
+
 function warningLines(): Line[] {
   return [
     command("/graft:plan", "warn", 1, "warn-cmd"),
@@ -904,6 +911,20 @@ describe("buildReport", () => {
         args: "ship-it",
         planFiles: [{ path: join(root, ".claude", "plans", "ship-it.md"), actions: ["argument"] }],
       },
+    ]);
+  });
+
+  it("records an execute run as a plan run", async () => {
+    const root = tempDir("tune-execute-");
+    mkdirSync(join(root, ".git"));
+    mkdirSync(join(root, ".claude", "plans"), { recursive: true });
+    writeFileSync(join(root, ".claude", "plans", "ship-it.md"), "");
+    const { runs, candidates } = await report([transcript("execute", executeLines(root))]);
+    expect(runs).toMatchObject([
+      { id: "execute#1", skill: "/graft:execute", args: "ship-it", planFiles: [] },
+    ]);
+    expect(candidates.map(({ uuid, run }) => ({ uuid, run }))).toEqual([
+      { uuid: "exec-msg", run: "execute#1" },
     ]);
   });
 });
