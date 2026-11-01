@@ -42,6 +42,16 @@ Read the code the request touches. Send `graft:researcher` agents for facts that
 
 Work in rounds. Each round is one `AskUserQuestion` call with up to `plan.questionsPerRound` questions, most consequential first.
 
+- **Clarify step**: before round 1, check with the code read so far that the request is clear at a high level and that the goal has only one sensible path, with no alternate paths whose trade-offs need human judgement. When both hold, ask no clarify question. Otherwise ask in one call:
+  - When the request is unclear, a question restating your reading of it.
+  - When alternate paths exist, a question listing at most three, each with its trade-off, plus **Research more and recommend**.
+  - When the user picks Research more and recommend, send researchers, then ask the same question again with one path first, its label ending with `(Recommended)`. The question says in a clause why that path was picked, and each option's description is rewritten to compare it with the others.
+  - Round 1 waits until the clarify step is settled. The clarify step is not a round.
+  - For a revised plan with no revision named, ask what to revise, offering up to three categories the plan has: open questions, `(default)` decisions, a milestone.
+- **Light path**: once the request is clear, take it when the work is small, familiar, reversible and covered by tests.
+  - The first question asked after that (round 1's first, or Finish when there is no round) states your one-line reading of the request, says the plan is on the light path, and says that answering "plan fully" in any answer ends it.
+  - Ask at most one round.
+  - It ends, restoring the normal flow in full, when a consequential question remains after that round or the user asks for more.
 - Ask only what is askable now. A question that depends on an answer still open waits for a later round.
 - Facts come from the code or a researcher, never from the user. Decisions are the user's.
 - Each question names its subject and says in a clause which decision it unlocks.
@@ -123,7 +133,7 @@ Once no open question remains and no review pass is running, ask:
 - **Finalise**.
 - **Continue planning**: ask the user what to change next.
 
-Recommend Review and finalise when no full pass has run in this session, or when the plan has changed since the last pass started beyond small detail (the approach, the milestones, or a risky part). Recommend Finalise otherwise. For this recommendation, factual fixes applied from findings do not count as change; answers to open questions do. Text from an earlier session counts as unreviewed.
+On the light path, recommend Finalise. Otherwise, recommend Review and finalise when no full pass has run in this session, or when the plan has changed since the last pass started beyond small detail (the approach, the milestones, or a risky part). Recommend Finalise otherwise. For this recommendation, factual fixes applied from findings do not count as change; answers to open questions do. Text from an earlier session counts as unreviewed.
 
 Review and finalise runs a full pass when none has run in this session. Otherwise it runs a delta pass over everything changed since the last pass started, fixes included, with reviewers picked as in Review. A decision the pass raises becomes an open question. Once it is answered, ask this question again, and the test above sets the recommendation.
 
