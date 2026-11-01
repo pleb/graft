@@ -95,6 +95,18 @@ If no PR is raised, say why in Report.
 
 Ask the user when something is ambiguous, needs more than a straightforward decision, or could materially change functionality or the intended outcome.
 
+## Finish the plan
+
+Run this step only when the work is a plan file with the Graft footer and every milestone is done, including the PR when one was asked for.
+
+Run `git -C <plan's directory> ls-files --error-unmatch <plan's absolute path>`. Go on only when it fails with `did not match any file(s) known to git` and the plan is not in a subfolder of `~/.my-graft/.claude/plans/`; otherwise leave the plan in place.
+
+Follow `orchestrate.finishedPlan`:
+
+- `archive`: move the plan to `~/.my-graft/.claude/plans/<repo>/<plan>.md`, creating the folder. The root is the directory `## Start` found. When `git -C <root> rev-parse --absolute-git-dir` differs from `git -C <root> rev-parse --path-format=absolute --git-common-dir`, `<repo>` is the basename of the path on the first `worktree` line of `git -C <root> worktree list --porcelain`; otherwise it is the basename of the root. `<plan>` is the plan's file name without `.md`. When the target exists, use `<plan>-2.md`, `<plan>-3.md` and so on; never overwrite.
+- `delete`: delete the plan file.
+- Otherwise, leave the plan in place.
+
 ## Report
 
 - The branch, its commits, and the PR URL when one was raised.
@@ -103,12 +115,5 @@ Ask the user when something is ambiguous, needs more than a straightforward deci
 - Review findings acted on, and those dismissed with the reason.
 - Items the cleanup agents flagged for a decision.
 - Existing branch description lines this run kept but did not decide.
+- When `## Finish the plan` ran, where the plan went: left in place, archived to `<path>`, deleted, or not moved or deleted and why.
 - Anything left undone.
-
-## Delete the plan
-
-Run this step only when the work is a plan file with the Graft footer and every milestone is done, including the PR when one was asked for.
-
-Run `git -C <plan's directory> ls-files --error-unmatch <plan's absolute path>`. Go on only when it fails with `did not match any file(s) known to git`; otherwise keep the plan.
-
-Follow `orchestrate.deletePlan`: with `always`, delete the plan; with `ask`, ask whether to delete it: **Yes** or **No**; otherwise keep it without asking.

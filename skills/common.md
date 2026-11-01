@@ -22,7 +22,7 @@ Take the first that applies:
 
 1. A file path: that plan file is the work.
 2. A plan name: the arguments match `<root>/.claude/plans/<name>.md` (`.md` optional). That plan is the work.
-3. A single kebab-case word with no matching plan: list the plans and ask whether it names one of them or is the work.
+3. A single kebab-case word with no matching plan: list the top-level plans in `<root>/.claude/plans/` and ask whether it names one of them or is the work.
 4. Other text: that text is the work.
 5. Nothing: the work in this conversation.
 
@@ -93,11 +93,11 @@ If the pull cannot fast-forward, help the user merge `origin/main`; never rebase
 
 Settings live in `~/.my-graft/graft-settings.json`, a JSON object keyed by skill (`common` for settings this file's shared sections read), then by setting, with string values (for example, `{"plan": {"questionsPerRound": "2"}}`). A missing file means no settings. A missing key, or a value not in the row's Values, means the Default.
 
-| Key                      | Values            | Default | What it does                                                                                        |
-| ------------------------ | ----------------- | ------- | --------------------------------------------------------------------------------------------------- |
-| `common.reviewerModel`   | `fable`, `sonnet` | opus    | The reviewer model when the arguments name none.                                                    |
-| `plan.outsideRepoPlans`  | `always`, `never` | ask     | Outside a repo, `always` saves plans in `~/.my-graft/.claude/plans/` without asking; `never` stops. |
-| `plan.questionsPerRound` | `1`, `2`, `4`     | 3       | The most questions plan asks in one round.                                                          |
-| `orchestrate.deletePlan` | `always`, `ask`   | never   | After every milestone is done, `always` deletes an untracked Graft plan; `ask` asks first.          |
-| `pr.state`               | `ready`           | draft   | The state a new PR opens in when the arguments name none.                                           |
-| `update.mode`            | `auto`            | ask     | `auto` merges without asking first when the arguments name no mode.                                 |
+| Key                        | Values              | Default | What it does                                                                                                                                 |
+| -------------------------- | ------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common.reviewerModel`     | `fable`, `sonnet`   | opus    | The reviewer model when the arguments name none.                                                                                             |
+| `plan.outsideRepoPlans`    | `always`, `never`   | ask     | Outside a repo, `always` saves plans in `~/.my-graft/.claude/plans/` without asking; `never` stops.                                          |
+| `plan.questionsPerRound`   | `1`, `2`, `4`       | 3       | The most questions plan asks in one round.                                                                                                   |
+| `orchestrate.finishedPlan` | `archive`, `delete` | leave   | After every milestone is done, `archive` moves an untracked Graft plan to `~/.my-graft/.claude/plans/<repo>/<plan>.md`; `delete` deletes it. |
+| `pr.state`                 | `ready`             | draft   | The state a new PR opens in when the arguments name none.                                                                                    |
+| `update.mode`              | `auto`              | ask     | `auto` merges without asking first when the arguments name no mode.                                                                          |
