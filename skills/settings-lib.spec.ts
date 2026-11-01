@@ -15,7 +15,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Catalog } from "./settings-catalog.ts";
 import {
   effectiveValues,
-  layersFor,
+  explainLayers,
+  inheritedLayers,
   mainWorktree,
   newScopeKey,
   parseSettingsFile,
@@ -333,16 +334,58 @@ describe("resolveSettings", () => {
     });
   });
 
-  it("gives the layers a scope inherits without exact scopes", async () => {
-    const parsed = parseSettingsFile(
-      JSON.stringify({
-        "/w/*": { overrides: {} },
-        "/w/repo": { overrides: {} },
-      }),
-    );
-    const file = (parsed as { file: SettingsFile }).file;
-    const layers = await layersFor(file, "/w/repo", env(), { isExactIncluded: false });
-    expect(layers.map(({ source }) => source)).toEqual(["Defaults", "/w/*"]);
+  describe("inheritedLayers", () => {
+    const file = (
+      parseSettingsFile(
+        JSON.stringify({
+          "/*": { overrides: {} },
+          [`${HOME}/w/*`]: { overrides: {} },
+          "~/w/*": { overrides: {} },
+          "~/w/./*": { overrides: {} },
+          "~/w/repo/*": { overrides: {} },
+          "~/w/repo": { overrides: {} },
+          [`${HOME}/w/repo/`]: { overrides: {} },
+          "/other": { overrides: {} },
+        }),
+      ) as { file: SettingsFile }
+    ).file;
+    const inherited = async (key: string) =>
+      (await inheritedLayers(file, key, env())).map(({ source }) => source);
+
+    it("gives a /* scope the /* scopes at or above its path, in file order, without itself", async () => {
+      expect(await inherited("~/w/*")).toEqual(["Defaults", "/*", `${HOME}/w/*`, "~/w/./*"]);
+      expect(await inherited("~/w/repo/*")).toEqual([
+        "Defaults",
+        "/*",
+        `${HOME}/w/*`,
+        "~/w/*",
+        "~/w/./*",
+      ]);
+    });
+
+    it("gives an exact scope the /* scopes above it and the other exact keys for its path", async () => {
+      expect(await inherited("~/w/repo")).toEqual([
+        "Defaults",
+        "/*",
+        `${HOME}/w/*`,
+        "~/w/*",
+        "~/w/./*",
+        `${HOME}/w/repo/`,
+      ]);
+    });
+
+    it("resolves a scope's setting as if the scope did not set it", async () => {
+      const values = parseSettingsFile(
+        JSON.stringify({
+          [`${HOME}/w/*`]: { overrides: { pr: { state: "ready" } } },
+          "~/w/*": { overrides: {} },
+        }),
+      ) as { file: SettingsFile };
+      const settings = CATALOG.isParsed ? CATALOG.settings : [];
+      expect(
+        explainLayers(await inheritedLayers(values.file, "~/w/*", env()), settings)[1],
+      ).toMatchObject({ value: "ready", source: `${HOME}/w/*` });
+    });
   });
 
   it("refuses a catalog that does not parse", async () => {

@@ -48,7 +48,7 @@ Send one `graft:researcher` the candidates file and the clone, with every path a
   - A run with none of those belongs to the task of the plan it reads, when it reads one. When it reads several or none, it is a task of its own.
   - A run with `copyOf` counts as the run it copies.
 - **Recurrence**: keep a correction only when the same correction appears in at least 2 different tasks from at least 2 sessions. Each kept correction is a finding.
-- **Target file**: pick it from each run's agent launches, the correction's time and its `skill` (the skill typed most recently, when not the run's own). The target is `skills/common.md` (rules plan, orchestrate and pr share), `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/execute/SKILL.md`, `skills/pr/SKILL.md` (the worker that raises a PR follows it) or an `agents/*.md` file. In an execute run, the first `graft:worker` launch marks the end of its plan phase.
+- **Target file**: pick it from each run's agent launches, the correction's time and its `skill` (the skill typed most recently, when not the run's own). The target is `skills/common.md` (rules plan, orchestrate and pr share), `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/execute/SKILL.md`, `skills/pr/SKILL.md` (the worker that raises a PR follows it) or an `agents/*.md` file. In an execute run, the plan phase ends at the first question `skills/orchestrate/SKILL.md` asks or the first `graft:worker` launch, whichever comes first. An execute run whose `planFiles` has no `write`, `edit` or `multiedit` has no plan phase.
 - **Coverage**: read the history of the target file and of `skills/common.md`.
 
   ```bash

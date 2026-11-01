@@ -159,23 +159,26 @@ const isUnder = (path: string, dir: string) =>
   dir === "/" ? path !== "/" : path.startsWith(`${dir}/`);
 
 // The layers that apply to a normalised path, least specific first: the
-// defaults, then matching `/*` scopes by depth, then exact scopes. Without
-// exact scopes, these are the layers a scope at `path` inherits from.
+// defaults, then matching `/*` scopes by depth, then exact scopes. With
+// `isSubtree`, the layers that apply to every path beneath `path`.
 export async function layersFor(
   file: SettingsFile,
   path: string,
   env: Pick<Environment, "home" | "resolve">,
-  { isExactIncluded = true } = {},
+  { isSubtree = false } = {},
 ): Promise<Layer[]> {
   const normalised = await Promise.all(
     file.scopes.map(async (scope) => ({ scope, ...(await normaliseScopeKey(scope.key, env)) })),
   );
   const subtrees = normalised
-    .filter((scope) => scope.isSubtree && isUnder(path, scope.path))
+    .filter(
+      (scope) =>
+        scope.isSubtree && ((isSubtree && scope.path === path) || isUnder(path, scope.path)),
+    )
     .sort((a, b) => depth(a.path) - depth(b.path));
-  const exact = isExactIncluded
-    ? normalised.filter((scope) => !scope.isSubtree && scope.path === path)
-    : [];
+  const exact = isSubtree
+    ? []
+    : normalised.filter((scope) => !scope.isSubtree && scope.path === path);
 
   return [
     { source: DEFAULTS_SOURCE, values: file.defaults },
@@ -184,6 +187,17 @@ export async function layersFor(
       values: scope.overrides,
     })),
   ];
+}
+
+// The layers that apply where the scope `key` applies, without `key` itself.
+export async function inheritedLayers(
+  file: SettingsFile,
+  key: string,
+  env: Pick<Environment, "home" | "resolve">,
+): Promise<Layer[]> {
+  const { path, isSubtree } = await normaliseScopeKey(key, env);
+
+  return (await layersFor(file, path, env, { isSubtree })).filter(({ source }) => source !== key);
 }
 
 export const isValid = (setting: CatalogSetting, value: unknown): value is string =>

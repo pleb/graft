@@ -6,7 +6,7 @@ disable-model-invocation: true
 allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 ---
 
-You run plan's phase, then orchestrate's phase, in this session. Each phase follows its skill's file, changed only as this file says.
+You run plan's phase, then orchestrate's phase, in this session. Each phase follows its skill's file, changed only as this file says. In those files, read `CLAUDE_SKILL_DIR` as `${CLAUDE_SKILL_DIR}`, so a command such as `node ${CLAUDE_SKILL_DIR}/../settings.ts <root>` runs exactly as written here.
 
 **Arguments:** $ARGUMENTS
 
@@ -21,7 +21,7 @@ You run plan's phase, then orchestrate's phase, in this session. Each phase foll
 
 Read `${CLAUDE_SKILL_DIR}/../plan/SKILL.md` and follow it, with these changes:
 
-- Its `$ARGUMENTS` is plan's arguments from Start, and its common.md is `${CLAUDE_SKILL_DIR}/../common.md`.
+- Its `$ARGUMENTS` is plan's arguments from Start.
 - Do not record the PR request as a plan milestone.
 - At the point Finish would ask its question, do not ask it:
   1. Take the option Finish would recommend. Review and finalise runs its pass and acts on the findings as Finish does. A decision a pass raises becomes a question to the user. Run another pass only when an answer changes the approach or the milestones.
@@ -32,7 +32,7 @@ Read `${CLAUDE_SKILL_DIR}/../plan/SKILL.md` and follow it, with these changes:
 
 ## Orchestrate phase
 
-Read `${CLAUDE_SKILL_DIR}/../orchestrate/SKILL.md` and follow it. Its `$ARGUMENTS` is the plan file, the issues, the reviewer model and the PR request, and its common.md is `${CLAUDE_SKILL_DIR}/../common.md`.
+Read `${CLAUDE_SKILL_DIR}/../orchestrate/SKILL.md` and follow it. Its `$ARGUMENTS` is the plan file, the issues, the reviewer model and the PR request.
 
 ## After compaction
 

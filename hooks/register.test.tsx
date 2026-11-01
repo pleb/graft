@@ -828,6 +828,35 @@ test("a scope view starts at Inherit with the inherited value and source", async
   await ui.unmount();
 });
 
+test("a scope inherits from other keys for the same scope, as if it did not set the value", async ($, on) => {
+  world(
+    on,
+    JSON.stringify({
+      [`${HOME}/w/*`]: { overrides: { orchestrate: { deletePlan: "never" } } },
+      "~/w/*": { overrides: { orchestrate: { deletePlan: "always" } } },
+      [`${REPO}/`]: { overrides: { plan: { outsideRepoPlans: "always" } } },
+      [REPO]: { overrides: {} },
+    }),
+  );
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: "~/w/*" });
+  expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.options).toContainEqual({
+    value: ":inherit",
+    label: `Inherit: never (from ${HOME}/w/*)`,
+  });
+
+  await ui.select({ key: "scope", value: REPO });
+  expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.options).toContainEqual({
+    value: ":inherit",
+    label: "Inherit: always (from ~/w/*)",
+  });
+  expect((await ui.find({ key: "plan.outsideRepoPlans" }))?.props.options).toContainEqual({
+    value: ":inherit",
+    label: `Inherit: always (from ${REPO}/)`,
+  });
+  await ui.unmount();
+});
+
 test("a scoped write keeps other keys and scopes, and Inherit removes an emptied scope", async ($, on) => {
   const w = world(on, SCOPED);
   const ui = await mountOn($, "terminal");

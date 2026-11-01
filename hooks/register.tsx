@@ -6,13 +6,13 @@ import type { Catalog, CatalogSetting } from "../skills/settings-catalog.ts";
 import {
   DEFAULT_SOURCE,
   explainLayers,
+  inheritedLayers,
   isValid,
   layersFor,
   mainWorktree,
   newScopeKey,
   normalisePath,
   normaliseRootPath,
-  normaliseScopeKey,
   parseSettingsFile,
   withSetting,
 } from "../skills/settings-lib.ts";
@@ -568,11 +568,7 @@ async function scopeView(
   const { Box, Text } = ui;
   const scope = file.scopes.find((candidate) => candidate.key === key);
   const overrides = scope?.overrides ?? {};
-  const { path } = await normaliseScopeKey(key, env);
-  const inherited = explainLayers(
-    await layersFor(file, path, env, { isExactIncluded: false }),
-    settings,
-  );
+  const inherited = explainLayers(await inheritedLayers(file, key, env), settings);
   const unknown = unknownKeys(overrides, settings);
 
   return (
