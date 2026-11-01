@@ -125,6 +125,8 @@ You decide when to run a pass mid-planning, knowing that Finish will likely run 
 
 Run one whenever the user asks.
 
+Before each review pass and before the Finish question, check the plan for lines that decide nothing (for example "handle edge cases" or "TBD"), names that differ between sections, and parts of the goal no milestone covers. Fix what you find.
+
 Pick the reviewers for each pass: `graft:adversarial-reviewer` when the question is whether the approach or a risky part holds, `graft:reviewer` when it is whether the detail is right against the code, and both when both. Reviewers run on the reviewer model. Give them the plan file and the repo. Say in the brief whether the pass is a whole-plan review or a delta review.
 
 - **First pass**: the whole plan so far.
