@@ -82,7 +82,7 @@ export function parseSettingsFile(text: string | undefined): ParsedFile {
     if (!isObject(entry)) {
       return { isParsed: false, error: `the scope ${JSON.stringify(key)} is not an object` };
     }
-    const overrides = entry.overrides ?? {};
+    const overrides = "overrides" in entry ? entry.overrides : {};
     if (!isObject(overrides)) {
       return {
         isParsed: false,
@@ -127,14 +127,14 @@ function lexical(path: string): string {
   return `/${parts.join("/")}`;
 }
 
-// Expands `~` and resolves symlinks. A path that does not exist stays unresolved.
+// Expands `~` and resolves symlinks. A path that does not exist is only normalised lexically.
 export async function normalisePath(
   path: string,
   env: Pick<Environment, "home" | "resolve">,
 ): Promise<string> {
-  const expanded = lexical(expandHome(path, env.home));
+  const expanded = expandHome(path, env.home);
 
-  return (await env.resolve(expanded)) ?? expanded;
+  return (await env.resolve(expanded)) ?? lexical(expanded);
 }
 
 export async function normaliseScopeKey(

@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { readFile, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
 import { parseCatalog } from "./settings-catalog.ts";
@@ -72,7 +72,8 @@ async function main(): Promise<void> {
   const result = await resolveSettings(
     await readText(join(home, ".my-graft", "graft-settings.json")),
     catalog,
-    resolve(root),
+    // A relative root is joined without collapsing `..`, which git and realpath resolve after symlinks.
+    isAbsolute(root) || root === "~" || root.startsWith("~/") ? root : `${process.cwd()}/${root}`,
     {
       home,
       resolve: (path) => realpath(path).catch(() => undefined),

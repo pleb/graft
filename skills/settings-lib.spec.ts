@@ -1,5 +1,13 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,12 +52,20 @@ function env({
 } = {}): Environment {
   return {
     home: HOME,
+    // Like realpath: each component is followed through links before `..` applies.
     resolve: async (path) => {
-      if (missing.includes(path)) {
-        return undefined;
+      let real = "";
+      for (const part of path.split("/")) {
+        if (part === "..") {
+          real = real.slice(0, real.lastIndexOf("/"));
+        } else if (part !== "" && part !== ".") {
+          real = links[`${real}/${part}`] ?? `${real}/${part}`;
+        }
       }
-      const link = Object.keys(links).find((from) => path === from || path.startsWith(`${from}/`));
-      return link === undefined ? path : `${links[link]}${path.slice(link.length)}`;
+      real ||= "/";
+      return missing.some((gone) => real === gone || real.startsWith(`${gone}/`))
+        ? undefined
+        : real;
     },
     normaliseRoot: async (path) => roots[path] ?? path,
   };
@@ -123,6 +139,7 @@ describe("parseSettingsFile", () => {
     ["a non-object skill entry", '{"plan": "2"}'],
     ["a non-object scope", '{"/a": []}'],
     ["non-object overrides", '{"/a": {"overrides": "x"}}'],
+    ["null overrides", '{"/a": {"overrides": null}}'],
     ["a non-object skill entry in overrides", '{"/a": {"overrides": {"plan": 2}}}'],
   ])("refuses %s", (_, text) => {
     expect(parseSettingsFile(text)).toMatchObject({ isParsed: false });
@@ -206,6 +223,31 @@ describe("resolveSettings", () => {
       "pr.state": "ready from ~/link/*",
     });
     expect(await values(file, "~/link/repo", environment)).toMatchObject({
+      pr: { state: "ready" },
+    });
+  });
+
+  it("follows a symlink before applying ..", async () => {
+    const file = {
+      "/real/repo": { overrides: { pr: { state: "ready" } } },
+      "/work/link/../other": { overrides: { plan: { questionsPerRound: "1" } } },
+    };
+    const environment = env({ links: { "/work/link": "/real/team" } });
+    expect(await resolved(file, "/work/link/../repo", environment)).toMatchObject({
+      root: "/real/repo",
+    });
+    expect(await values(file, "/work/link/../repo", environment)).toMatchObject({
+      pr: { state: "ready" },
+    });
+    expect(await values(file, "/real/other", environment)).toMatchObject({
+      plan: { questionsPerRound: "1" },
+    });
+  });
+
+  it("normalises a path that does not exist lexically", async () => {
+    const file = { "/gone/x/../repo/": { overrides: { pr: { state: "ready" } } } };
+    const environment = env({ missing: ["/gone"] });
+    expect(await values(file, "/gone/./repo", environment)).toMatchObject({
       pr: { state: "ready" },
     });
   });
@@ -315,13 +357,21 @@ describe("settings.ts", () => {
     for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
   });
 
-  function run(args: string[], settings?: string, script = SCRIPT) {
-    const home = tempDir();
+  function run(
+    args: string[],
+    settings?: string,
+    {
+      script = SCRIPT,
+      home = tempDir(),
+      cwd,
+    }: { script?: string; home?: string; cwd?: string } = {},
+  ) {
     if (settings !== undefined) {
-      mkdirSync(join(home, ".my-graft"));
+      mkdirSync(join(home, ".my-graft"), { recursive: true });
       writeFileSync(join(home, ".my-graft", "graft-settings.json"), settings);
     }
     return spawnSync(process.execPath, [script, ...args], {
+      cwd,
       encoding: "utf8",
       env: { ...process.env, HOME: home },
     });
@@ -332,6 +382,8 @@ describe("settings.ts", () => {
       stdio: "ignore",
       env: {
         ...process.env,
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_CONFIG_NOSYSTEM: "1",
         GIT_AUTHOR_NAME: "t",
         GIT_AUTHOR_EMAIL: "t@t",
         GIT_COMMITTER_NAME: "t",
@@ -406,6 +458,42 @@ describe("settings.ts", () => {
     });
   });
 
+  it("expands a ~ root", () => {
+    const home = tempDir();
+    mkdirSync(join(home, "work", "repo"), { recursive: true });
+    const settings = JSON.stringify({
+      "~": { overrides: { plan: { questionsPerRound: "1" } } },
+      "~/work/repo": { overrides: { pr: { state: "ready" } } },
+    });
+    expect(JSON.parse(run(["~/work/repo"], settings, { home }).stdout)).toMatchObject({
+      plan: { questionsPerRound: "3" },
+      pr: { state: "ready" },
+    });
+    expect(JSON.parse(run(["~"], settings, { home }).stdout)).toMatchObject({
+      plan: { questionsPerRound: "1" },
+      pr: { state: "draft" },
+    });
+  });
+
+  it("follows a symlink in the root before applying ..", () => {
+    const base = tempDir();
+    mkdirSync(join(base, "real", "team"), { recursive: true });
+    mkdirSync(join(base, "real", "repo"));
+    mkdirSync(join(base, "work"));
+    symlinkSync(join(base, "real", "team"), join(base, "work", "link"));
+    const settings = JSON.stringify({
+      [join(base, "real", "repo")]: { overrides: { pr: { state: "ready" } } },
+    });
+    for (const [root, cwd] of [
+      [`${base}/work/link/../repo`, undefined],
+      ["link/../repo", join(base, "work")],
+    ]) {
+      const result = run([root as string], settings, { cwd });
+      expect(result.status, root).toBe(0);
+      expect(JSON.parse(result.stdout), root).toMatchObject({ pr: { state: "ready" } });
+    }
+  });
+
   it.each([
     ["malformed JSON", "{", "graft-settings.json does not parse"],
     ["a non-object scope", '{"/a": 1}', 'the scope "/a" is not an object'],
@@ -425,7 +513,7 @@ describe("settings.ts", () => {
     }
     writeFileSync(join(dir, "package.json"), '{"type": "module"}');
     writeFileSync(join(dir, "common.md"), "# Rules\n");
-    const result = run([dir], undefined, join(dir, "settings.ts"));
+    const result = run([dir], undefined, { script: join(dir, "settings.ts") });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("the settings catalog does not parse");
   });

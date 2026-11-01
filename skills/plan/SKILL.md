@@ -45,7 +45,7 @@ Work in rounds. Each round is one `AskUserQuestion` call with up to `plan.questi
 - **Clarify step**: before round 1, check with the code read so far that the request is clear at a high level and that the goal has only one sensible path, with no alternate paths whose trade-offs need human judgement. When both hold, ask no clarify question. Otherwise ask in one call:
   - When the request is unclear, a question restating your reading of it.
   - When alternate paths exist, a question listing at most three, each with its trade-off, plus **Research more and recommend**.
-  - When the user picks Research more and recommend, send researchers, then ask the same question again with one path first, its label ending with `(Recommended)`. The question says in a clause why that path was picked, and each option's description is rewritten to compare it with the others.
+  - When the user picks Research more and recommend, send researchers, then ask the same question again, recommending one path. The question says in a clause why that path was picked, and each option's description is rewritten to compare it with the others.
   - Round 1 waits until the clarify step is settled. The clarify step is not a round.
   - For a revised plan with no revision named, ask what to revise, offering up to three categories the plan has: open questions, `(default)` decisions, a milestone.
 - **Light path**: once the request is clear, take it when the work is small, familiar, reversible and covered by tests.
@@ -145,7 +145,7 @@ Once no open question remains and no review pass is running, ask:
 
 The question lists the `(default)` entries in `## Decisions`, and an answer can overturn any of them.
 
-When `plan.manualChecksQuestion` is `finish`, the plan has Manual checks and `orchestrate.manualChecks` is `ask`, ask in the same call how orchestrate handles them: **Pause** after each milestone with Manual checks until the user reports the result, or **Defer** them to orchestrate's Report. Record the answer in `## Decisions` only when the user picks Review and finalise or Finalise. It does not count as change for the recommendation.
+When `plan.manualChecksQuestion` is `finish`, the plan has Manual checks, `## Decisions` has no entry for the mode and `orchestrate.manualChecks` is `ask`, ask in the same call how orchestrate handles them: **Pause** after each milestone with Manual checks until the user reports the result, or **Defer** them to orchestrate's Report. Record the answer in `## Decisions` only when the user picks Review and finalise or Finalise. It does not count as change for the recommendation.
 
 On the light path, recommend Finalise. Otherwise, recommend Review and finalise when no full pass has run in this session, or when the plan has changed since the last pass started beyond small detail (the approach, the milestones, or a risky part). Recommend Finalise otherwise. For this recommendation, factual fixes applied from findings do not count as change; answers to open questions do. Text from an earlier session counts as unreviewed.
 
