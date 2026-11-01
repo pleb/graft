@@ -1,8 +1,27 @@
 import { atom, read, update } from "claude-code";
-import type { EngineInterface, Register } from "claude-code";
+import type { Elements, EngineInterface, Register } from "claude-code";
 
 import { parseCatalog } from "../skills/settings-catalog.ts";
 import type { Catalog, CatalogSetting } from "../skills/settings-catalog.ts";
+import {
+  DEFAULT_SOURCE,
+  explainLayers,
+  isValid,
+  layersFor,
+  mainWorktree,
+  newScopeKey,
+  normalisePath,
+  normaliseRootPath,
+  normaliseScopeKey,
+  parseSettingsFile,
+  withSetting,
+} from "../skills/settings-lib.ts";
+import type {
+  Environment,
+  ExplainedSetting,
+  SettingsFile,
+  SkillValues,
+} from "../skills/settings-lib.ts";
 import type { GraftSettingsPane } from "../types";
 
 const PANE = "graft-settings";
@@ -11,49 +30,50 @@ const FILE = "graft-settings.json";
 const SHOWN_FILE = `~/.my-graft/${FILE}`;
 const DEFAULT = ":default";
 const UNLISTED = ":unlisted";
+const INHERIT = ":inherit";
+const DEFAULTS_VIEW = ":defaults";
+const EFFECTIVE_VIEW = ":effective";
+const ADD_VIEW = ":add";
 const LOCAL_MS = 30_000;
 const NETWORK_MS = 60_000;
 
 const isSaving = atom({ plugin: "graft", key: "isSaving" } as const, false);
 const revision = atom({ plugin: "graft", key: "revision" } as const, 0);
+const view = atom({ plugin: "graft", key: "view" } as const, DEFAULTS_VIEW);
+const newScopes = atom({ plugin: "graft", key: "newScopes" } as const, [] as string[]);
+const notice = atom({ plugin: "graft", key: "notice" } as const, "");
+const effectivePath = atom({ plugin: "graft", key: "effectivePath" } as const, "");
 
 type Json = Record<string, unknown>;
 
-type SettingsFile =
-  | { isParsed: true; isMissing: boolean; settings: Json }
+type ParsedJson =
+  | { isParsed: true; json: Json; file: SettingsFile }
   | { isParsed: false; error: string };
 
-type Loaded = { catalog: Catalog; file: SettingsFile };
+type LoadedFile =
+  | { isParsed: true; json: Json; file: SettingsFile; env: Environment }
+  | { isParsed: false; error: string };
+
+type Loaded = { catalog: Catalog; file: LoadedFile };
+
+type Ui = Elements["terminal" | "desktop" | "vscode"];
 
 type Ran = { isOk: boolean; stdout: string; stderr: string };
-
-const isObject = (value: unknown): value is Json =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 const shown = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value));
 
-async function clonePath($: EngineInterface): Promise<string | undefined> {
+async function homeOf($: EngineInterface): Promise<string | undefined> {
   const home = await $.env.get("HOME");
 
-  return home === undefined || home === "" ? undefined : `${home}/.my-graft`;
+  return home === undefined || home === "" ? undefined : home;
 }
 
-function parseSettings(text: string | undefined): SettingsFile {
-  if (text === undefined) {
-    return { isParsed: true, isMissing: true, settings: {} };
-  }
-  try {
-    const settings: unknown = JSON.parse(text);
-    if (!isObject(settings)) {
-      return { isParsed: false, error: "it is not a JSON object" };
-    }
+async function clonePath($: EngineInterface): Promise<string | undefined> {
+  const home = await homeOf($);
 
-    return { isParsed: true, isMissing: false, settings };
-  } catch (error) {
-    return { isParsed: false, error: errorText(error) };
-  }
+  return home === undefined ? undefined : `${home}/.my-graft`;
 }
 
 async function readText($: EngineInterface, path: string): Promise<string | undefined> {
@@ -64,42 +84,70 @@ async function readText($: EngineInterface, path: string): Promise<string | unde
   return String(await $.fs.read(path));
 }
 
+// The top level, and the main worktree unless the first worktree is bare;
+// neither outside git.
+async function gitRoot($: EngineInterface, path: string): Promise<{ top?: string; main?: string }> {
+  const top = await run($, ["git", "-C", path, "rev-parse", "--show-toplevel"]);
+  if (!top.isOk || top.stdout.trim() === "") {
+    return {};
+  }
+  const list = await run($, ["git", "-C", top.stdout.trim(), "worktree", "list", "--porcelain"]);
+
+  return { top: top.stdout.trim(), main: list.isOk ? mainWorktree(list.stdout) : undefined };
+}
+
+function environment($: EngineInterface, home: string): Environment {
+  return {
+    home,
+    resolve: (path) =>
+      $.fs
+        .stat(path, { resolve: true })
+        .then((stat) => stat.realPath)
+        .catch(() => undefined),
+    normaliseRoot: async (path) => {
+      const { top, main } = await gitRoot($, path);
+
+      return main ?? top ?? path;
+    },
+  };
+}
+
+function parseFile(text: string | undefined): ParsedJson {
+  const parsed = parseSettingsFile(text);
+  if (!parsed.isParsed) {
+    return parsed;
+  }
+
+  return {
+    isParsed: true,
+    json: text === undefined ? {} : (JSON.parse(text) as Json),
+    file: parsed.file,
+  };
+}
+
 async function load($: EngineInterface): Promise<Loaded> {
   const common = await readText($, `${$.plugin.root}/skills/common.md`).catch(() => undefined);
   const catalog: Catalog =
     common === undefined
       ? { isParsed: false, error: "skills/common.md cannot be read" }
       : parseCatalog(common);
-  const clone = await clonePath($);
-  if (clone === undefined) {
+  const home = await homeOf($);
+  if (home === undefined) {
     return { catalog, file: { isParsed: false, error: "HOME is not set" } };
   }
   try {
-    return { catalog, file: parseSettings(await readText($, `${clone}/${FILE}`)) };
+    const parsed = parseFile(await readText($, `${home}/.my-graft/${FILE}`));
+
+    return { catalog, file: parsed.isParsed ? { ...parsed, env: environment($, home) } : parsed };
   } catch (error) {
     return { catalog, file: { isParsed: false, error: errorText(error) } };
   }
 }
 
-function flatten(settings: Json): Map<string, unknown> {
-  const keys = new Map<string, unknown>();
-  for (const [skill, entry] of Object.entries(settings)) {
-    if (isObject(entry)) {
-      for (const [name, value] of Object.entries(entry)) {
-        keys.set(`${skill}.${name}`, value);
-      }
-    } else {
-      keys.set(skill, entry);
-    }
-  }
-
-  return keys;
-}
-
-function currentOf(settings: Json, setting: CatalogSetting): unknown {
-  const entry = settings[setting.skill];
-
-  return isObject(entry) ? entry[setting.name] : undefined;
+function flatten(values: SkillValues): [string, unknown][] {
+  return Object.entries(values).flatMap(([skill, entry]) =>
+    Object.entries(entry).map(([name, value]): [string, unknown] => [`${skill}.${name}`, value]),
+  );
 }
 
 const isNumeric = (value: string) => value.trim() !== "" && Number.isFinite(Number(value));
@@ -110,36 +158,59 @@ function choicesOf(setting: CatalogSetting): string[] {
   return choices.every(isNumeric) ? choices.sort((a, b) => Number(a) - Number(b)) : choices;
 }
 
-// Text form of the settings, for surfaces that draw no pane and for mobile.
+const conditionNote = (setting: CatalogSetting) =>
+  setting.shownWhen === undefined
+    ? undefined
+    : `Applies when ${setting.shownWhen.key} is ${setting.shownWhen.value}.`;
+
+const sourceLabel = ({ value, source }: ExplainedSetting) =>
+  source === DEFAULT_SOURCE ? `${value} (Default)` : `${value} (from ${source})`;
+
+// Text form of the settings, for surfaces that draw no pane and for mobile:
+// the defaults, then each scope's overrides.
 function describe({ catalog, file }: Loaded): string[] {
   const lines = [`Graft settings in ${SHOWN_FILE}`];
   if (!file.isParsed) {
     return [...lines, `${FILE} does not parse: ${file.error}`];
   }
-  const keys = flatten(file.settings);
+  const { defaults, scopes } = file.file;
+  const settings = catalog.isParsed ? catalog.settings : [];
   if (!catalog.isParsed) {
     lines.push(`The settings catalog in common.md does not parse: ${catalog.error}`);
-    if (keys.size === 0) {
+    if (flatten(defaults).length === 0 && scopes.length === 0) {
       lines.push("No settings are set.");
     }
-    for (const [key, value] of keys) {
-      lines.push(`${key}: ${shown(value)}`);
-    }
-
-    return lines;
   }
-  for (const setting of catalog.settings) {
-    const value = currentOf(file.settings, setting);
+  for (const setting of settings) {
+    const value = defaults[setting.skill]?.[setting.name];
+    const note = conditionNote(setting);
     lines.push(
       `${setting.key}: ${value === undefined ? setting.defaultValue : shown(value)} (${choicesOf(setting).join(", ")})`,
       `  ${setting.description}`,
+      ...(note === undefined ? [] : [`  ${note}`]),
     );
-    keys.delete(setting.key);
   }
-  if (keys.size > 0) {
+  const unknown = flatten(defaults).filter(([key]) => !settings.some((s) => s.key === key));
+  if (catalog.isParsed && unknown.length > 0) {
     lines.push("Not in the catalog:");
-    for (const [key, value] of keys) {
-      lines.push(`${key}: ${shown(value)}`);
+  }
+  lines.push(...unknown.map(([key, value]) => `${key}: ${shown(value)}`));
+  for (const scope of scopes) {
+    lines.push(`Overrides for ${scope.key}:`);
+    const overrides = flatten(scope.overrides);
+    if (overrides.length === 0) {
+      lines.push("  No overrides.");
+    }
+    for (const [key, value] of overrides) {
+      const setting = settings.find((s) => s.key === key);
+      const mark = !catalog.isParsed
+        ? ""
+        : setting === undefined
+          ? " (not in the catalog)"
+          : isValid(setting, value)
+            ? ""
+            : " (not allowed)";
+      lines.push(`  ${key}: ${shown(value)}${mark}`);
     }
   }
 
@@ -225,10 +296,12 @@ async function refusal(
   return undefined;
 }
 
-// A `target` of undefined clears the key. Returns a toast, or undefined when saved or unchanged.
+// Saves `target` in the defaults (`scope` undefined) or in a scope's
+// overrides; undefined clears it. Returns a toast, or undefined when saved or unchanged.
 async function saveSetting(
   $: EngineInterface,
   setting: CatalogSetting,
+  scope: string | undefined,
   target: string | undefined,
 ): Promise<string | undefined> {
   const notSaved = `Graft settings: ${setting.key} was not saved:`;
@@ -243,30 +316,19 @@ async function saveSetting(
   }
   const path = `${clone}/${FILE}`;
   const before = await readText($, path);
-  const file = parseSettings(before);
+  const file = parseFile(before);
   if (!file.isParsed) {
     return `${notSaved} ${FILE} does not parse (${file.error}). Fix it by hand.`;
   }
-  const entry = file.settings[setting.skill] ?? {};
-  if (!isObject(entry)) {
-    return `${notSaved} "${setting.skill}" in ${FILE} is not an object. Fix it by hand.`;
+  const edited = withSetting(file.json, scope, setting.skill, setting.name, target);
+  if (!edited.isEdited) {
+    return `${notSaved} in ${FILE}, ${edited.error}. Fix it by hand.`;
   }
-  if (entry[setting.name] === target) {
+  const next = edited.json;
+  if (JSON.stringify(next) === JSON.stringify(file.json)) {
     return undefined;
   }
-  const nextEntry = { ...entry };
-  if (target === undefined) {
-    delete nextEntry[setting.name];
-  } else {
-    nextEntry[setting.name] = target;
-  }
-  const next = { ...file.settings };
-  if (Object.keys(nextEntry).length === 0) {
-    delete next[setting.skill];
-  } else {
-    next[setting.skill] = nextEntry;
-  }
-  const message = target === undefined ? `Clear ${setting.key}` : `Set ${setting.key} to ${target}`;
+  const message = `${target === undefined ? `Clear ${setting.key}` : `Set ${setting.key} to ${target}`}${scope === undefined ? "" : ` for ${scope}`}`;
 
   await $.fs.write(path, `${JSON.stringify(next, null, 2)}\n`);
   const git = (...args: string[]) => run($, ["git", "-C", clone, ...args]);
@@ -318,7 +380,12 @@ async function saveSetting(
   return undefined;
 }
 
-async function save($: EngineInterface, setting: CatalogSetting, target: string | undefined) {
+async function save(
+  $: EngineInterface,
+  setting: CatalogSetting,
+  scope: string | undefined,
+  target: string | undefined,
+) {
   const held = await $.state.get({ plugin: "graft", key: "isSaving" } as const);
   const claimed =
     held.value === true
@@ -332,7 +399,11 @@ async function save($: EngineInterface, setting: CatalogSetting, target: string 
     return;
   }
   try {
-    const toast = await saveSetting($, setting, target).catch(
+    if (scope !== undefined) {
+      // Keeps the scope in the picker after its last override is cleared.
+      await update($, newScopes, (keys) => (keys.includes(scope) ? keys : [...keys, scope]));
+    }
+    const toast = await saveSetting($, setting, scope, target).catch(
       (error) => `Graft settings: ${setting.key} was not saved: ${errorText(error)}`,
     );
     if (toast !== undefined) {
@@ -344,6 +415,247 @@ async function save($: EngineInterface, setting: CatalogSetting, target: string 
   }
 }
 
+async function addScope($: EngineInterface, input: string) {
+  const { file } = await load($);
+  if (!file.isParsed) {
+    return;
+  }
+  const added = await newScopeKey(
+    input,
+    [...file.file.scopes.map((scope) => scope.key), ...(await read($, newScopes))],
+    file.env,
+  );
+  if (!added.isValid) {
+    await update($, notice, () => added.error);
+
+    return;
+  }
+  const warning = await scopeWarning($, added.key, file.env);
+  await update($, newScopes, (keys) => [...keys, added.key]);
+  await update($, view, () => added.key);
+  await update($, notice, () => warning ?? "");
+}
+
+async function scopeWarning(
+  $: EngineInterface,
+  key: string,
+  env: Environment,
+): Promise<string | undefined> {
+  if (key.endsWith("/*")) {
+    return undefined;
+  }
+  const path = await normalisePath(key, env);
+  const { top, main } = await gitRoot($, path);
+  if (top === undefined) {
+    return `${key} is not a repo's top level on this machine.`;
+  }
+  const realTop = await normalisePath(top, env);
+  const root = main === undefined ? realTop : await normalisePath(main, env);
+  if (realTop !== path) {
+    return `${key} is not a repo's top level. Skills there use the settings for ${root}.`;
+  }
+
+  return root === realTop
+    ? undefined
+    : `${key} is a linked worktree. Skills there use the settings for ${root}.`;
+}
+
+async function pickView($: EngineInterface, picked: string) {
+  await update($, view, () => picked);
+  await update($, notice, () => "");
+}
+
+type Control = {
+  title: string;
+  options: { value: string; label?: string }[];
+  selected: string;
+  savingText: string;
+  onPick: (picked: string) => void;
+};
+
+function control(ui: Ui, pane: GraftSettingsPane, setting: CatalogSetting, c: Control) {
+  const { Box, Select, Text } = ui;
+  const note = conditionNote(setting);
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      <Text bold>{c.title}</Text>
+      <Text dimColor>
+        {setting.description} Default: {setting.defaultValue}.{note === undefined ? "" : ` ${note}`}
+      </Text>
+      {pane.isSaving ? (
+        <Text>{c.savingText} (saving)</Text>
+      ) : (
+        <Select
+          key={setting.key}
+          options={c.options}
+          value={c.selected}
+          onSelect={(picked) => {
+            if (picked !== UNLISTED) {
+              c.onPick(picked);
+            }
+          }}
+        />
+      )}
+    </Box>
+  );
+}
+
+function notInCatalog(ui: Ui, keys: [string, unknown][]) {
+  const { Box, Text } = ui;
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      <Text bold>Not in the catalog</Text>
+      {keys.map(([key, value]) => (
+        <Text>
+          {key}: {shown(value)}
+        </Text>
+      ))}
+    </Box>
+  );
+}
+
+const unknownKeys = (values: SkillValues, settings: CatalogSetting[]) =>
+  flatten(values).filter(([key]) => !settings.some((setting) => setting.key === key));
+
+function defaultsView(
+  $: EngineInterface,
+  ui: Ui,
+  pane: GraftSettingsPane,
+  settings: CatalogSetting[],
+  defaults: SkillValues,
+) {
+  const { Box } = ui;
+  const unknown = unknownKeys(defaults, settings);
+
+  return (
+    <Box flexDirection="column">
+      {settings.map((setting) => {
+        const value = defaults[setting.skill]?.[setting.name];
+        const isDefault = value === undefined || value === setting.defaultValue;
+        const isListed = isDefault || isValid(setting, value);
+        const options = [
+          ...choicesOf(setting).map((choice) =>
+            choice === setting.defaultValue ? { value: DEFAULT, label: choice } : { value: choice },
+          ),
+          ...(isListed ? [] : [{ value: UNLISTED, label: `${shown(value)} (not allowed)` }]),
+        ];
+
+        return control(ui, pane, setting, {
+          title: setting.key,
+          options,
+          selected: isDefault ? DEFAULT : isListed ? String(value) : UNLISTED,
+          savingText: value === undefined ? setting.defaultValue : shown(value),
+          onPick: (picked) =>
+            void save($, setting, undefined, picked === DEFAULT ? undefined : picked),
+        });
+      })}
+      {unknown.length > 0 && notInCatalog(ui, unknown)}
+    </Box>
+  );
+}
+
+async function scopeView(
+  $: EngineInterface,
+  ui: Ui,
+  pane: GraftSettingsPane,
+  settings: CatalogSetting[],
+  file: SettingsFile,
+  env: Environment,
+  key: string,
+) {
+  const { Box, Text } = ui;
+  const scope = file.scopes.find((candidate) => candidate.key === key);
+  const overrides = scope?.overrides ?? {};
+  const { path } = await normaliseScopeKey(key, env);
+  const inherited = explainLayers(
+    await layersFor(file, path, env, { isExactIncluded: false }),
+    settings,
+  );
+  const unknown = unknownKeys(overrides, settings);
+
+  return (
+    <Box flexDirection="column">
+      <Text bold>Overrides for {key}</Text>
+      {scope === undefined && <Text dimColor>A new scope is saved with its first override.</Text>}
+      {settings.map((setting, i) => {
+        const stored = overrides[setting.skill]?.[setting.name];
+        const isListed = stored === undefined || isValid(setting, stored);
+        const options = [
+          { value: INHERIT, label: `Inherit: ${sourceLabel(inherited[i]!)}` },
+          ...choicesOf(setting).map((choice) => ({ value: choice })),
+          ...(isListed ? [] : [{ value: UNLISTED, label: `${shown(stored)} (not allowed)` }]),
+        ];
+
+        return control(ui, pane, setting, {
+          title: stored === undefined ? setting.key : `${setting.key} (overridden)`,
+          options,
+          selected: stored === undefined ? INHERIT : isListed ? String(stored) : UNLISTED,
+          savingText: stored === undefined ? sourceLabel(inherited[i]!) : shown(stored),
+          onPick: (picked) => void save($, setting, key, picked === INHERIT ? undefined : picked),
+        });
+      })}
+      {unknown.length > 0 && notInCatalog(ui, unknown)}
+    </Box>
+  );
+}
+
+async function effectiveView(
+  $: EngineInterface,
+  ui: Ui,
+  pane: GraftSettingsPane,
+  settings: CatalogSetting[],
+  file: SettingsFile,
+  env: Environment,
+) {
+  const { Box, Input, Text } = ui;
+  const cwd = await $.session.cwd();
+  const root = await normaliseRootPath(pane.effectivePath === "" ? cwd : pane.effectivePath, env);
+  const explained = explainLayers(await layersFor(file, root, env), settings);
+  const isShown = (setting: CatalogSetting) =>
+    setting.shownWhen === undefined ||
+    explained.find(({ key }) => key === setting.shownWhen?.key)?.value === setting.shownWhen.value;
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      <Input
+        key="effectivePath"
+        label="Path: "
+        placeholder={cwd}
+        value={pane.effectivePath}
+        onSubmit={(value) => void update($, effectivePath, () => value.trim())}
+      />
+      <Text dimColor>Effective for {root}</Text>
+      {settings.map((setting, i) =>
+        isShown(setting) ? (
+          <Text>
+            {setting.key}: {sourceLabel(explained[i]!)}
+          </Text>
+        ) : undefined,
+      )}
+    </Box>
+  );
+}
+
+function addView($: EngineInterface, ui: Ui) {
+  const { Box, Input, Text } = ui;
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      <Text dimColor>
+        A repo's path, or a directory ending in /* for every repo under it. It starts with / or ~/.
+      </Text>
+      <Input
+        key="scopePath"
+        label="Path: "
+        placeholder="~/work/*"
+        onSubmit={(value) => void addScope($, value)}
+      />
+    </Box>
+  );
+}
+
 export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
     await $.command.register({
@@ -352,6 +664,8 @@ export const register: Register = (on) => {
     });
     // $.state outlives a reload, which drops any save in flight, so release its lock.
     await $.state.set({ plugin: "graft", key: "isSaving" } as const, false);
+    await update($, newScopes, () => []);
+    await update($, notice, () => "");
 
     return next(e);
   });
@@ -370,12 +684,15 @@ export const register: Register = (on) => {
     const pane: GraftSettingsPane = {
       isSaving: await read($, isSaving),
       revision: await read($, revision),
+      view: await read($, view),
+      newScopes: await read($, newScopes),
+      notice: await read($, notice),
+      effectivePath: await read($, effectivePath),
     };
     const loaded = await load($);
     const { catalog, file } = loaded;
-    const isEditable = catalog.isParsed && file.isParsed;
 
-    if (e.surface === "mobile" || !isEditable) {
+    if (e.surface === "mobile" || !catalog.isParsed || !file.isParsed) {
       const { Box, Text } = $.ui.resolve(e);
 
       return (
@@ -387,61 +704,42 @@ export const register: Register = (on) => {
       );
     }
 
-    const { Box, Select, Text } = $.ui.resolve(e);
-    const keys = flatten(file.settings);
+    const ui = $.ui.resolve(e);
+    const { Box, Select, Text } = ui;
+    const { settings } = catalog;
+    const keys = file.file.scopes.map((scope) => scope.key);
+    const added = pane.newScopes.filter((key) => !keys.includes(key));
+    const current = [EFFECTIVE_VIEW, ADD_VIEW, ...keys, ...added].includes(pane.view)
+      ? pane.view
+      : DEFAULTS_VIEW;
+    const options = [
+      { value: DEFAULTS_VIEW, label: "Defaults" },
+      { value: EFFECTIVE_VIEW, label: "Effective for this repo" },
+      ...keys.map((key) => ({ value: key })),
+      ...added.map((key) => ({ value: key, label: `${key} (new)` })),
+      { value: ADD_VIEW, label: "Add override…" },
+    ];
+    const body =
+      current === DEFAULTS_VIEW
+        ? defaultsView($, ui, pane, settings, file.file.defaults)
+        : current === EFFECTIVE_VIEW
+          ? await effectiveView($, ui, pane, settings, file.file, file.env)
+          : current === ADD_VIEW
+            ? addView($, ui)
+            : await scopeView($, ui, pane, settings, file.file, file.env, current);
 
     return (
       <Box flexDirection="column">
         <Text dimColor>{SHOWN_FILE}</Text>
-        {catalog.settings.map((setting) => {
-          keys.delete(setting.key);
-          const value = currentOf(file.settings, setting);
-          const isDefault = value === undefined || value === setting.defaultValue;
-          const isListed =
-            isDefault || (typeof value === "string" && setting.values.includes(value));
-          const options = [
-            ...choicesOf(setting).map((choice) =>
-              choice === setting.defaultValue
-                ? { value: DEFAULT, label: choice }
-                : { value: choice },
-            ),
-            ...(isListed ? [] : [{ value: UNLISTED, label: `${shown(value)} (not allowed)` }]),
-          ];
-          const selected = isDefault ? DEFAULT : isListed ? String(value) : UNLISTED;
-
-          return (
-            <Box flexDirection="column" marginTop={1}>
-              <Text bold>{setting.key}</Text>
-              <Text dimColor>
-                {setting.description} Default: {setting.defaultValue}.
-              </Text>
-              {pane.isSaving ? (
-                <Text>{value === undefined ? setting.defaultValue : shown(value)} (saving)</Text>
-              ) : (
-                <Select
-                  key={setting.key}
-                  options={options}
-                  value={selected}
-                  onSelect={(picked) => {
-                    if (picked !== UNLISTED) {
-                      void save($, setting, picked === DEFAULT ? undefined : picked);
-                    }
-                  }}
-                />
-              )}
-            </Box>
-          );
-        })}
-        {keys.size > 0 && (
-          <Box flexDirection="column" marginTop={1}>
-            <Text bold>Not in the catalog</Text>
-            {[...keys].map(([key, value]) => (
-              <Text>
-                {key}: {shown(value)}
-              </Text>
-            ))}
-          </Box>
-        )}
+        <Select
+          key="scope"
+          label="Scope: "
+          options={options}
+          value={current}
+          onSelect={(picked) => void pickView($, picked)}
+        />
+        {pane.notice !== "" && <Text>{pane.notice}</Text>}
+        {body}
       </Box>
     );
   });

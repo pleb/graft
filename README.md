@@ -69,18 +69,30 @@ Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps 
 /graft-settings
 ```
 
-`/graft-settings` opens a pane listing each Graft setting with its allowed values, default and current value. A change is saved to `~/.my-graft/graft-settings.json`, then committed and pushed.
+Settings live in `~/.my-graft/graft-settings.json`. Top-level skill keys hold the defaults, and a key starting with `/` or `~` is a scope holding overrides: a repo's path, or a directory ending in `/*` for every repo under it.
 
-| Key                         | Values                       | Default     | What it does                                                                                                                                                                                                                                 |
-| --------------------------- | ---------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `common.reviewerModel`      | `fable`, `opus`, `sonnet`    | opus        | The reviewer model when the command names none.                                                                                                                                                                                              |
-| `plan.outsideRepoPlans`     | `always`, `ask`, `never`     | ask         | What `/graft:plan` does outside a repo: save plans in `~/.my-graft/.claude/plans/` (`always`), ask first (`ask`) or stop (`never`).                                                                                                          |
-| `plan.questionsPerRound`    | `1`, `2`, `3`, `4`           | 3           | The most questions `/graft:plan` asks at once.                                                                                                                                                                                               |
-| `plan.manualChecksQuestion` | `finish`, `orchestrate`      | orchestrate | When `orchestrate.manualChecks` is `ask`, whether `/graft:plan` asks how a plan's Manual checks are handled in its Finish question (`finish`) or leaves it to `/graft:orchestrate` (`orchestrate`).                                          |
-| `orchestrate.finishedPlan`  | `archive`, `delete`, `leave` | leave       | What `/graft:orchestrate` does with an untracked plan once every milestone is done: move it to `~/.my-graft/.claude/plans/<repo>/<plan>.md` (`archive`), delete it (`delete`) or leave it in place (`leave`). Archives stay on this machine. |
-| `orchestrate.manualChecks`  | `ask`, `defer`, `pause`      | ask         | How `/graft:orchestrate` handles a plan's Manual checks: stop after each milestone that has them until you report the result (`pause`), list them in its report (`defer`) or ask at the start of the run (`ask`).                            |
-| `pr.state`                  | `draft`, `ready`             | draft       | The state `/graft:pr` opens a new PR in when the command names none.                                                                                                                                                                         |
-| `update.mode`               | `ask`, `auto`                | ask         | Whether `/graft:update` asks before merging (`ask`) or merges straight away (`auto`) when the command names no mode.                                                                                                                         |
+```json
+{
+  "pr": { "state": "draft" },
+  "~/work/*": { "overrides": { "pr": { "state": "ready" } } },
+  "/Users/me/oss/graft": { "overrides": { "plan": { "questionsPerRound": "4" } } }
+}
+```
+
+A repo's settings start from the defaults, then apply the matching `/*` scopes from shallowest to deepest, then the scope for its own path. An override replaces only the settings it names. Skills resolve settings for the repo's top level, or its main worktree from a linked worktree, after expanding `~` and symlinks.
+
+`/graft-settings` opens a pane with a scope picker: Defaults, "Effective for this repo", each scope, and "Add override…". A scope's settings start at Inherit, which shows the inherited value and where it comes from. The effective view shows each value for the session's repo and the scope it came from, and hides a setting whose Shown when condition is false. A change is saved to the file, then committed and pushed.
+
+| Key                         | Values                       | Default     | Shown when                       | What it does                                                                                                                                                                                                                                 |
+| --------------------------- | ---------------------------- | ----------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common.reviewerModel`      | `fable`, `opus`, `sonnet`    | opus        |                                  | The reviewer model when the command names none.                                                                                                                                                                                              |
+| `plan.outsideRepoPlans`     | `always`, `ask`, `never`     | ask         |                                  | What `/graft:plan` does outside a repo: save plans in `~/.my-graft/.claude/plans/` (`always`), ask first (`ask`) or stop (`never`).                                                                                                          |
+| `plan.questionsPerRound`    | `1`, `2`, `3`, `4`           | 3           |                                  | The most questions `/graft:plan` asks at once.                                                                                                                                                                                               |
+| `plan.manualChecksQuestion` | `finish`, `orchestrate`      | orchestrate | `orchestrate.manualChecks = ask` | When `orchestrate.manualChecks` is `ask`, whether `/graft:plan` asks how a plan's Manual checks are handled in its Finish question (`finish`) or leaves it to `/graft:orchestrate` (`orchestrate`).                                          |
+| `orchestrate.finishedPlan`  | `archive`, `delete`, `leave` | leave       |                                  | What `/graft:orchestrate` does with an untracked plan once every milestone is done: move it to `~/.my-graft/.claude/plans/<repo>/<plan>.md` (`archive`), delete it (`delete`) or leave it in place (`leave`). Archives stay on this machine. |
+| `orchestrate.manualChecks`  | `ask`, `defer`, `pause`      | ask         |                                  | How `/graft:orchestrate` handles a plan's Manual checks: stop after each milestone that has them until you report the result (`pause`), list them in its report (`defer`) or ask at the start of the run (`ask`).                            |
+| `pr.state`                  | `draft`, `ready`             | draft       |                                  | The state `/graft:pr` opens a new PR in when the command names none.                                                                                                                                                                         |
+| `update.mode`               | `ask`, `auto`                | ask         |                                  | Whether `/graft:update` asks before merging (`ask`) or merges straight away (`auto`) when the command names no mode.                                                                                                                         |
 
 ## Interstocks
 

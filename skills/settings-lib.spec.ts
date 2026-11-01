@@ -13,7 +13,15 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Catalog } from "./settings-catalog.ts";
-import { effectiveValues, layersFor, parseSettingsFile, resolveSettings } from "./settings-lib.ts";
+import {
+  effectiveValues,
+  layersFor,
+  mainWorktree,
+  newScopeKey,
+  parseSettingsFile,
+  resolveSettings,
+  withSetting,
+} from "./settings-lib.ts";
 import type { Environment, ExplainedSetting, SettingsFile } from "./settings-lib.ts";
 
 const SCRIPT = fileURLToPath(new URL("./settings.ts", import.meta.url));
@@ -341,6 +349,134 @@ describe("resolveSettings", () => {
     expect(
       await resolveSettings(undefined, { isParsed: false, error: "bad" }, "/r", env()),
     ).toEqual({ isResolved: false, error: "the settings catalog does not parse: bad" });
+  });
+});
+
+describe("mainWorktree", () => {
+  it("gives the first worktree, or none when it is bare", () => {
+    const linked =
+      "worktree /r/main\nHEAD abc\nbranch refs/heads/main\n\nworktree /r/wt\nHEAD def\n";
+    expect(mainWorktree(linked)).toBe("/r/main");
+    expect(mainWorktree("worktree /r/bare.git\nbare\n\nworktree /r/wt\nHEAD def\n")).toBe(
+      undefined,
+    );
+    expect(mainWorktree("")).toBe(undefined);
+  });
+});
+
+describe("withSetting", () => {
+  const file = {
+    plan: { questionsPerRound: "2", other: 1 },
+    extra: { kept: true },
+    "~/w/*": { overrides: { pr: { state: "ready" } }, note: "kept" },
+    "/w/repo": { overrides: { plan: { questionsPerRound: "4" } } },
+  };
+
+  it("sets and clears a default, dropping an emptied skill", () => {
+    const set = withSetting(file, undefined, "pr", "state", "ready");
+    expect(set).toEqual({ isEdited: true, json: { ...file, pr: { state: "ready" } } });
+    const cleared = withSetting(file, undefined, "plan", "questionsPerRound", undefined);
+    expect(cleared).toEqual({ isEdited: true, json: { ...file, plan: { other: 1 } } });
+    expect(withSetting({ pr: { state: "ready" } }, undefined, "pr", "state", undefined)).toEqual({
+      isEdited: true,
+      json: {},
+    });
+  });
+
+  it("sets an override at a scope, keeping the scope's other keys", () => {
+    expect(withSetting(file, "~/w/*", "plan", "questionsPerRound", "1")).toEqual({
+      isEdited: true,
+      json: {
+        ...file,
+        "~/w/*": {
+          overrides: { pr: { state: "ready" }, plan: { questionsPerRound: "1" } },
+          note: "kept",
+        },
+      },
+    });
+  });
+
+  it("stores a Default as an override", () => {
+    expect(withSetting(file, "/w/repo", "pr", "state", "draft")).toMatchObject({
+      json: {
+        "/w/repo": { overrides: { plan: { questionsPerRound: "4" }, pr: { state: "draft" } } },
+      },
+    });
+  });
+
+  it("adds a scope with its first override, after the other keys", () => {
+    const edited = withSetting(file, "/new", "pr", "state", "ready");
+    expect(edited).toEqual({
+      isEdited: true,
+      json: { ...file, "/new": { overrides: { pr: { state: "ready" } } } },
+    });
+    expect(Object.keys((edited as { json: object }).json).at(-1)).toBe("/new");
+  });
+
+  it("removes an override on Inherit, and a scope left with no overrides", () => {
+    const { "/w/repo": _, ...rest } = file;
+    expect(withSetting(file, "/w/repo", "plan", "questionsPerRound", undefined)).toEqual({
+      isEdited: true,
+      json: rest,
+    });
+    expect(withSetting(file, "~/w/*", "pr", "state", undefined)).toEqual({
+      isEdited: true,
+      json: { ...file, "~/w/*": { note: "kept" } },
+    });
+  });
+
+  it("leaves a file alone when Inherit names nothing stored", () => {
+    expect(withSetting(file, "/none", "pr", "state", undefined)).toEqual({
+      isEdited: true,
+      json: file,
+    });
+  });
+
+  it.each([
+    ["a non-object skill", { plan: 2 }, undefined],
+    ["a non-object scope", { "/a": [] }, "/a"],
+    ["non-object overrides", { "/a": { overrides: "x" } }, "/a"],
+    ["a non-object skill in overrides", { "/a": { overrides: { plan: 2 } } }, "/a"],
+  ])("refuses %s", (_, json, scope) => {
+    expect(withSetting(json, scope, "plan", "questionsPerRound", "1")).toMatchObject({
+      isEdited: false,
+    });
+  });
+});
+
+describe("newScopeKey", () => {
+  it.each(["work/*", "~", "~work", "", " "])(
+    "refuses %j, which does not start with / or ~/",
+    async (input) => {
+      expect(await newScopeKey(input, [], env())).toEqual({
+        isValid: false,
+        error: "A scope path starts with / or ~/.",
+      });
+    },
+  );
+
+  it.each([
+    ["/w/repo/", "/w/repo"],
+    ["~/w/*/", "~/w/*"],
+    [" ~/w/repo ", "~/w/repo"],
+    ["/", "/"],
+  ])("takes %j as %j", async (input, key) => {
+    expect(await newScopeKey(input, [], env())).toEqual({ isValid: true, key });
+  });
+
+  it("refuses a path that normalises to a scope it has", async () => {
+    const environment = env({ links: { "/l": `${HOME}/w` } });
+    expect(await newScopeKey("/l/repo/", ["~/w/repo"], environment)).toEqual({
+      isValid: false,
+      error: "/l/repo is the same scope as ~/w/repo.",
+    });
+    expect(await newScopeKey(`${HOME}/w/*`, ["~/w/*"], environment)).toMatchObject({
+      isValid: false,
+    });
+    expect(await newScopeKey("~/w/*", ["~/w"], environment)).toEqual({
+      isValid: true,
+      key: "~/w/*",
+    });
   });
 });
 

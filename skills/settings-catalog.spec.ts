@@ -67,6 +67,12 @@ describe("parseCatalog", () => {
     for (const setting of catalog.settings) {
       expect(setting.description).not.toBe("");
     }
+    expect(catalog.settings.filter((setting) => setting.shownWhen !== undefined)).toMatchObject([
+      {
+        key: "plan.manualChecksQuestion",
+        shownWhen: { key: "orchestrate.manualChecks", value: "ask" },
+      },
+    ]);
   });
 
   it("trims padded cells and stops at the table's end", () => {
@@ -160,6 +166,63 @@ describe("parseCatalog", () => {
     });
   });
 
+  describe("Shown when", () => {
+    const SHOWN = `## Settings
+
+| Key       | Values            | Default | Shown when | What it does |
+| --------- | ----------------- | ------- | ---------- | ------------ |
+| \`a.one\` | \`always\`, \`never\` | ask     |            | Does one.    |
+| \`b.two\` | \`on\`              | off     | CONDITION  | Does two.    |
+`;
+    const shown = (condition: string) => parseCatalog(SHOWN.replace("CONDITION", condition));
+
+    it("reads a condition on a listed value or the Default, and none from an empty cell", () => {
+      expect(shown("`a.one = never`")).toMatchObject({
+        isParsed: true,
+        settings: [{ key: "a.one" }, { key: "b.two", shownWhen: { key: "a.one", value: "never" } }],
+      });
+      expect(shown("`a.one = ask`")).toMatchObject({
+        settings: [{}, { shownWhen: { key: "a.one", value: "ask" } }],
+      });
+      const catalog = shown("");
+      expect(catalog.isParsed && catalog.settings.map((setting) => setting.shownWhen)).toEqual([
+        undefined,
+        undefined,
+      ]);
+    });
+
+    it("reads a condition on a later row", () => {
+      const later = SHOWN.replace("|            | Does one.", "| `b.two = on` | Does one.").replace(
+        "CONDITION",
+        "",
+      );
+      expect(parseCatalog(later)).toMatchObject({
+        settings: [{ shownWhen: { key: "b.two", value: "on" } }, {}],
+      });
+    });
+
+    it("refuses a condition naming an unknown key", () => {
+      expect(shown("`c.three = on`")).toMatchObject({
+        isParsed: false,
+        error: expect.stringContaining("unknown key"),
+      });
+    });
+
+    it("refuses a condition on a value the key cannot take", () => {
+      expect(shown("`a.one = sometimes`")).toMatchObject({
+        isParsed: false,
+        error: expect.stringContaining("which it cannot be"),
+      });
+    });
+
+    it.each(["a.one = never", "`a.one=never`", "`a.one`", "`a.one = never` x"])(
+      "refuses the unreadable condition %j",
+      (condition) => {
+        expect(shown(condition)).toMatchObject({ isParsed: false });
+      },
+    );
+  });
+
   it("matches the README's settings table to common.md", () => {
     const common = parseCatalog(readFileSync(new URL("./common.md", import.meta.url), "utf8"));
     const readme = parseCatalog(readFileSync(new URL("../README.md", import.meta.url), "utf8"), {
@@ -173,6 +236,9 @@ describe("parseCatalog", () => {
     }
     expect(readme.settings.map(({ key, defaultValue }) => ({ key, defaultValue }))).toEqual(
       common.settings.map(({ key, defaultValue }) => ({ key, defaultValue })),
+    );
+    expect(readme.settings.map(({ shownWhen }) => shownWhen)).toEqual(
+      common.settings.map(({ shownWhen }) => shownWhen),
     );
     readme.settings.forEach((setting, i) => {
       const expected = common.settings[i]!;

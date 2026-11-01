@@ -234,3 +234,97 @@ export async function resolveSettings(
 
   return { isResolved: true, root: path, settings: explainLayers(layers, catalog.settings) };
 }
+
+// The main worktree from `git worktree list --porcelain`: its first entry,
+// unless that entry is bare.
+export function mainWorktree(porcelain: string): string | undefined {
+  const first = porcelain.split("\n\n")[0]?.split("\n") ?? [];
+  const main = first.find((line) => line.startsWith("worktree "))?.slice("worktree ".length);
+
+  return first.includes("bare") ? undefined : main;
+}
+
+export type Edited =
+  | { isEdited: true; json: Record<string, unknown> }
+  | { isEdited: false; error: string };
+
+function withEntry(
+  parent: Record<string, unknown>,
+  key: string,
+  entry: Record<string, unknown>,
+): Record<string, unknown> {
+  const next = { ...parent };
+  if (Object.keys(entry).length === 0) {
+    delete next[key];
+  } else {
+    next[key] = entry;
+  }
+
+  return next;
+}
+
+// Sets a setting in the defaults (`scope` undefined) or in a scope's
+// overrides, and removes it when `value` is undefined. A skill entry,
+// `overrides` or scope left empty is dropped; every other key is kept.
+export function withSetting(
+  json: Record<string, unknown>,
+  scope: string | undefined,
+  skill: string,
+  name: string,
+  value: string | undefined,
+): Edited {
+  const holder = scope === undefined ? json : (json[scope] ?? {});
+  if (!isObject(holder)) {
+    return { isEdited: false, error: `the scope ${JSON.stringify(scope)} is not an object` };
+  }
+  const values = scope === undefined ? holder : (holder.overrides ?? {});
+  if (!isObject(values)) {
+    return {
+      isEdited: false,
+      error: `the overrides of ${JSON.stringify(scope)} are not an object`,
+    };
+  }
+  const entry = values[skill] ?? {};
+  if (!isObject(entry)) {
+    return { isEdited: false, error: `the skill ${JSON.stringify(skill)} is not an object` };
+  }
+  const nextEntry = { ...entry };
+  if (value === undefined) {
+    delete nextEntry[name];
+  } else {
+    nextEntry[name] = value;
+  }
+  const nextValues = withEntry(values, skill, nextEntry);
+  if (scope === undefined) {
+    return { isEdited: true, json: nextValues };
+  }
+
+  return {
+    isEdited: true,
+    json: withEntry(json, scope, withEntry(holder, "overrides", nextValues)),
+  };
+}
+
+export type NewScope = { isValid: true; key: string } | { isValid: false; error: string };
+
+// Checks a scope path typed into the pane against the scope keys it already has.
+export async function newScopeKey(
+  input: string,
+  existing: readonly string[],
+  env: Pick<Environment, "home" | "resolve">,
+): Promise<NewScope> {
+  const path = input.trim();
+  if (!path.startsWith("/") && !path.startsWith("~/")) {
+    return { isValid: false, error: "A scope path starts with / or ~/." };
+  }
+  const key = path.replace(/\/+$/, "") || "/";
+  const scope = await normaliseScopeKey(key, env);
+  for (const other of existing) {
+    const otherScope = await normaliseScopeKey(other, env);
+    if (otherScope.path === scope.path && otherScope.isSubtree === scope.isSubtree) {
+      return { isValid: false, error: `${key} is the same scope as ${other}.` };
+    }
+  }
+
+  return { isValid: true, key };
+}
