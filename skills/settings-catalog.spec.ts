@@ -33,7 +33,9 @@ describe("parseCatalog", () => {
       "common.reviewerModel",
       "plan.outsideRepoPlans",
       "plan.questionsPerRound",
+      "plan.manualChecksQuestion",
       "orchestrate.finishedPlan",
+      "orchestrate.manualChecks",
       "pr.state",
       "update.mode",
     ]);
@@ -42,10 +44,22 @@ describe("parseCatalog", () => {
       { skill: "plan", name: "outsideRepoPlans", values: ["always", "never"], defaultValue: "ask" },
       { skill: "plan", name: "questionsPerRound", values: ["1", "2", "4"], defaultValue: "3" },
       {
+        skill: "plan",
+        name: "manualChecksQuestion",
+        values: ["finish"],
+        defaultValue: "orchestrate",
+      },
+      {
         skill: "orchestrate",
         name: "finishedPlan",
         values: ["archive", "delete"],
         defaultValue: "leave",
+      },
+      {
+        skill: "orchestrate",
+        name: "manualChecks",
+        values: ["pause", "defer"],
+        defaultValue: "ask",
       },
       { skill: "pr", name: "state", values: ["ready"], defaultValue: "draft" },
       { skill: "update", name: "mode", values: ["auto"], defaultValue: "ask" },

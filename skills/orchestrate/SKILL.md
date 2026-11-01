@@ -45,7 +45,9 @@ Check the commit style once: read the last 10 commit subjects on the default bra
 
 ## Execute
 
+- When the plan has Manual checks, settle the Manual check mode before the first worker starts, from the first source that gives one: `orchestrate.manualChecks` (`pause` or `defer`), a `## Decisions` entry for the mode, or a question to the user: **Pause** after each milestone with Manual checks, or **Defer** them to Report. A plan without Manual checks has no mode.
 - Use `graft:worker` agents on Opus for all implementation. Each brief is self-contained: the goal, the files, the decisions already made, and how to verify.
+- When a milestone's verification is split into **Automated** and **Manual**, its brief and its commit use only the Automated checks. Verification without the split is used as written.
 - Run workers in parallel only when their work is independent and touches different files. Each parallel brief limits its checks to the worker's own files (narrow tests, lint on those files) and leaves whole-project checks (typecheck, build) to Final checks.
 
 ### Commit and review
@@ -56,6 +58,7 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 - After each commit, decide whether to review now or go on. Go on while the unreviewed commits are small. Review when the unreviewed change is substantial, or before starting a milestone that builds on an unreviewed risky change.
 - After the last milestone, review the commits not yet reviewed in a final pass, before clean-up, so every milestone commit and every earlier pass's fixes are reviewed once. On completion, run a review and an adversarial review over the changes, unless every part has already had both.
 - A pass and its fixes finish before the next milestone starts, and no pass starts while any worker is running.
+- In pause mode, once a milestone with Manual checks is committed and any pass you run over it now has finished, ask with `AskUserQuestion`, listing its Manual checks: **Checks passed**, **A check failed**, or **Stop**. Send a failed check, with what the user said about it, to a worker, commit the fix separately in the repo's commit style, then ask again. Stop goes to Report, with the remaining milestones listed as undone. A milestone with Manual checks never runs in parallel with a later one, and no later milestone starts while its pause is pending.
 
 ### Each pass
 
@@ -89,6 +92,8 @@ When the plan or the user asks for a PR, raise it after Final checks, not during
 - **Context**: the plan file or the work you were given, the motivation from this conversation, and each issue from this run with its Resolves or Related split. The brief marks these as context, not arguments.
 - **Questions**: where pr or common.md says to ask, the worker stops and reports the question. Ask the user, then send the worker again.
 
+In pause mode, a PR milestone's Manual checks pause as `### Commit and review` describes once the PR is raised, before `## Finish the plan`. Fix commits are pushed to the PR's branch.
+
 If no PR is raised, say why in Report.
 
 ## Ask, do not guess
@@ -113,6 +118,7 @@ Follow `orchestrate.finishedPlan`:
 - The commit ranges reviewed, and which reviewers ran on each.
 - Each final check command and its result, quoting the output of any failure.
 - Review findings acted on, and those dismissed with the reason.
+- In defer mode, each milestone's Manual checks. In pause mode, each pause's result.
 - Items the cleanup agents flagged for a decision.
 - Existing branch description lines this run kept but did not decide.
 - When `## Finish the plan` ran, where the plan went: left in place, archived to `<path>`, deleted, or not moved or deleted and why.

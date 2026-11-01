@@ -58,10 +58,10 @@ Work in rounds. Each round is one `AskUserQuestion` call with up to `plan.questi
 - Every question carries a recommendation, except the clarify step's first ask and the revised-plan question asking what to revise. Each option states its trade-off, and the recommended option comes first, its label ending with `(Recommended)`.
 - A single-select question whose options compare concrete shapes (signatures, schemas, layouts, config) gives them a `preview`.
 - A question whose choices are not exclusive uses `multiSelect`. Previews are single-select only, so split a question that needs both.
-- State conventional defaults; do not ask them.
+- State conventional defaults; do not ask them. Record each in `## Decisions`, marked `(default)`.
 - Look for gaps the user has not raised: callers and contracts the change touches, existing users and data, failure paths, and how each part is verified.
 - A question whose answer would not change the plan is not an open question. Record it as a default or a risk.
-- When the user defers a question to implementation, record it where it applies, marked as decided during implementation. That closes it.
+- When the user defers a question to implementation, record it in `## Decisions`, marked `(decided during implementation, milestone N)`. That closes it.
 - Keep going until no open question remains.
 
 ## Write the plan
@@ -85,6 +85,10 @@ status: draft
 
 ## Approach
 
+## Decisions
+
+## Out of scope
+
 ## Milestones
 
 ### 1. <name>
@@ -98,7 +102,11 @@ status: draft
 Plan by Graft.
 ```
 
-Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work and commit. Open questions are numbered, each with a recommendation, and are removed once answered.
+Each milestone names the files and the change, and splits its verification into **Automated** (commands an agent runs) and **Manual** (needs a person). Milestones become orchestrate's units of work and commit. Open questions are numbered, each with a recommendation.
+
+Record every answer from a round, and every answer to a question a review raised, in `## Decisions` as one line, `- <question>: <answer> (you)`, with a short reason after the answer when it is not obvious, and remove the answered open question. Record the path the clarify step settles, not the clarify answer itself. `## Approach` does not restate a decision's rationale.
+
+Spend words on decisions, risks and contracts. Give routine changes a line.
 
 `## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, and `- Related <URL>` for any other link. Read an issue or PR the conversation brings in, not only one in the arguments, as `## GitHub issue reference handling` describes. An issue References already lists keeps its line. Other issues supplied in the arguments are added as Resolves; other references are added as Related. The user can move any line between the two.
 
@@ -132,6 +140,10 @@ Once no open question remains and no review pass is running, ask:
 - **Review and finalise**: a review pass, then finalise.
 - **Finalise**.
 - **Continue planning**: ask the user what to change next.
+
+The question lists the `(default)` entries in `## Decisions`, and an answer can overturn any of them.
+
+When `plan.manualChecksQuestion` is `finish`, the plan has Manual checks and `orchestrate.manualChecks` is `ask`, ask in the same call how orchestrate handles them: **Pause** after each milestone with Manual checks until the user reports the result, or **Defer** them to orchestrate's Report. Record the answer in `## Decisions` only when the user picks Review and finalise or Finalise. It does not count as change for the recommendation.
 
 On the light path, recommend Finalise. Otherwise, recommend Review and finalise when no full pass has run in this session, or when the plan has changed since the last pass started beyond small detail (the approach, the milestones, or a risky part). Recommend Finalise otherwise. For this recommendation, factual fixes applied from findings do not count as change; answers to open questions do. Text from an earlier session counts as unreviewed.
 

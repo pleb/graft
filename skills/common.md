@@ -93,11 +93,13 @@ If the pull cannot fast-forward, help the user merge `origin/main`; never rebase
 
 Settings live in `~/.my-graft/graft-settings.json`, a JSON object keyed by skill (`common` for settings this file's shared sections read), then by setting, with string values (for example, `{"plan": {"questionsPerRound": "2"}}`). A missing file means no settings. A missing key, or a value not in the row's Values, means the Default.
 
-| Key                        | Values              | Default | What it does                                                                                                                                 |
-| -------------------------- | ------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `common.reviewerModel`     | `fable`, `sonnet`   | opus    | The reviewer model when the arguments name none.                                                                                             |
-| `plan.outsideRepoPlans`    | `always`, `never`   | ask     | Outside a repo, `always` saves plans in `~/.my-graft/.claude/plans/` without asking; `never` stops.                                          |
-| `plan.questionsPerRound`   | `1`, `2`, `4`       | 3       | The most questions plan asks in one round.                                                                                                   |
-| `orchestrate.finishedPlan` | `archive`, `delete` | leave   | After every milestone is done, `archive` moves an untracked Graft plan to `~/.my-graft/.claude/plans/<repo>/<plan>.md`; `delete` deletes it. |
-| `pr.state`                 | `ready`             | draft   | The state a new PR opens in when the arguments name none.                                                                                    |
-| `update.mode`              | `auto`              | ask     | `auto` merges without asking first when the arguments name no mode.                                                                          |
+| Key                         | Values              | Default     | What it does                                                                                                                                 |
+| --------------------------- | ------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common.reviewerModel`      | `fable`, `sonnet`   | opus        | The reviewer model when the arguments name none.                                                                                             |
+| `plan.outsideRepoPlans`     | `always`, `never`   | ask         | Outside a repo, `always` saves plans in `~/.my-graft/.claude/plans/` without asking; `never` stops.                                          |
+| `plan.questionsPerRound`    | `1`, `2`, `4`       | 3           | The most questions plan asks in one round.                                                                                                   |
+| `plan.manualChecksQuestion` | `finish`            | orchestrate | With `finish`, plan asks the Manual check mode in its Finish question when `orchestrate.manualChecks` is `ask`.                              |
+| `orchestrate.finishedPlan`  | `archive`, `delete` | leave       | After every milestone is done, `archive` moves an untracked Graft plan to `~/.my-graft/.claude/plans/<repo>/<plan>.md`; `delete` deletes it. |
+| `orchestrate.manualChecks`  | `pause`, `defer`    | ask         | How orchestrate handles a plan's Manual checks: `pause` stops after each milestone that has them; `defer` lists them in Report.              |
+| `pr.state`                  | `ready`             | draft       | The state a new PR opens in when the arguments name none.                                                                                    |
+| `update.mode`               | `auto`              | ask         | `auto` merges without asking first when the arguments name no mode.                                                                          |
