@@ -55,10 +55,6 @@ Work in rounds. Each round is one `AskUserQuestion` call with up to `plan.questi
   - When the user picks Research more and recommend, send researchers, then ask the same question again, recommending one path. The question says in a clause why that path was picked, and each option's description is rewritten to compare it with the others.
   - Round 1 waits until the clarify step is settled. The clarify step is not a round.
   - For a revised plan with no revision named, ask what to revise, offering up to three categories the plan has: open questions, `(default)` decisions, a milestone.
-- **Light path**: once the request is clear, take it when the work is small, familiar, reversible and covered by tests.
-  - The first question asked after that (round 1's first, or Finish when there is no round) states your one-line reading of the request, says the plan is on the light path, and says that answering "plan fully" in any answer ends it.
-  - Ask at most one round.
-  - It ends, restoring the normal flow in full, when a consequential question remains after that round or the user asks for more.
 - Ask only what is askable now. A question that depends on an answer still open waits for a later round.
 - Facts come from the code or a researcher, never from the user. Decisions are the user's.
 - Each question names its subject and says in a clause which decision it unlocks.
@@ -154,7 +150,7 @@ The question lists the `(default)` entries in `## Decisions`, and an answer can 
 
 When `plan.manualChecksQuestion` is `finish`, the plan has Manual checks, `## Decisions` has no entry for the mode and `orchestrate.manualChecks` is `ask`, ask in the same call how orchestrate handles them: **Pause** after each milestone with Manual checks until the user reports the result, or **Defer** them to orchestrate's Report. Record the answer in `## Decisions` only when the user picks Review and finalise or Finalise. It does not count as change for the recommendation.
 
-On the light path, recommend Finalise. Otherwise, recommend Review and finalise when no full pass has run in this session, or when the plan has changed since the last pass started beyond small detail (the approach, the milestones, or a risky part). Recommend Finalise otherwise. For this recommendation, factual fixes applied from findings do not count as change; answers to open questions do. Text from an earlier session counts as unreviewed.
+Recommend Review and finalise when no full pass has run in this session, or when the plan has changed since the last pass started beyond small detail (the approach, the milestones, or a risky part). Recommend Finalise otherwise. For this recommendation, factual fixes applied from findings do not count as change; answers to open questions do. Text from an earlier session counts as unreviewed.
 
 Review and finalise runs a full pass when none has run in this session. Otherwise it runs a delta pass over everything changed since the last pass started, fixes included, with reviewers picked as in Review. A decision the pass raises becomes an open question. Once it is answered, ask this question again, and the test above sets the recommendation.
 
