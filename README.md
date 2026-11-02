@@ -72,19 +72,7 @@ Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps 
 /graft-settings
 ```
 
-Settings live in `~/.my-graft/graft-settings.json`. Top-level skill keys hold the defaults, and a key starting with `/` or `~` is a scope holding overrides: a repo's path, or a directory ending in `/*` for every repo under it.
-
-```json
-{
-  "pr": { "state": "draft" },
-  "~/work/*": { "overrides": { "pr": { "state": "ready" } } },
-  "/Users/me/oss/graft": { "overrides": { "plan": { "questionsPerRound": "4" } } }
-}
-```
-
-A repo's settings start from the defaults, then apply the matching `/*` scopes from shallowest to deepest, then the scope for its own path. An override replaces only the settings it names. A linked worktree uses its main worktree's settings. Scope paths match after `~` and symlinks are expanded.
-
-`/graft-settings` opens a pane with a scope picker: Defaults, "Effective for this repo", each scope, and "Add override…". A scope's settings start at Inherit, which shows the inherited value and where it comes from. The effective view shows each value for the session's repo and the scope it comes from, and hides settings whose Shown when condition is false. A change is saved to the file, then committed and pushed.
+`/graft-settings` opens a pane that edits the defaults and per-repo overrides. A change is saved, then committed and pushed.
 
 | Key                         | Values                       | Default     | Shown when                       | What it does                                                                                                                                                                                                                                 |
 | --------------------------- | ---------------------------- | ----------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -96,6 +84,19 @@ A repo's settings start from the defaults, then apply the matching `/*` scopes f
 | `orchestrate.manualChecks`  | `ask`, `defer`, `pause`      | ask         |                                  | How `/graft:orchestrate` handles a plan's Manual checks: stop after each milestone that has them until you report the result (`pause`), list them in its report (`defer`) or ask at the start of the run (`ask`).                            |
 | `pr.state`                  | `draft`, `ready`             | draft       |                                  | The state `/graft:pr` opens a new PR in when the command names none.                                                                                                                                                                         |
 | `update.mode`               | `ask`, `auto`                | ask         |                                  | Whether `/graft:update` asks before merging (`ask`) or merges straight away (`auto`) when the command names no mode.                                                                                                                         |
+
+Settings live in `~/.my-graft/graft-settings.json`:
+
+```json
+{
+  "pr": { "state": "draft" },
+  "~/work/*": { "overrides": { "pr": { "state": "ready" } } },
+  "/Users/me/oss/graft": { "overrides": { "plan": { "questionsPerRound": "4" } } },
+  "C:/work/*": { "overrides": { "pr": { "state": "ready" } } }
+}
+```
+
+Top-level skill keys are the defaults. A key that is a path is a scope holding overrides for that repo, or for every repo under a directory ending in `/*`; scopes apply from the broadest to the repo's own path. On Windows, forward slashes are preferred in scope paths.
 
 ## Interstocks
 
