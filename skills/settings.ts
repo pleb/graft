@@ -5,7 +5,7 @@ import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
 import { parseCatalog } from "./settings-catalog.ts";
-import { effectiveValues, resolveSettings } from "./settings-lib.ts";
+import { effectiveValues, isWindowsPath, resolveSettings } from "./settings-lib.ts";
 
 const USAGE = "Usage: node settings.ts <root> [--explain]";
 
@@ -71,7 +71,9 @@ async function main(): Promise<void> {
     await readText(join(home, ".my-graft", "graft-settings.json")),
     catalog,
     // A relative root is joined without collapsing `..`, which git and realpath resolve after symlinks.
-    isAbsolute(root) || root === "~" || root.startsWith("~/") ? root : `${process.cwd()}/${root}`,
+    isAbsolute(root) || isWindowsPath(root) || root === "~" || root.startsWith("~/")
+      ? root
+      : `${process.cwd()}/${root}`,
     {
       home,
       resolve: (path) => realpath(path).catch(() => undefined),

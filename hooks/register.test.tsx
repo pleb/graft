@@ -221,6 +221,13 @@ test("a missing settings file shows every setting as ask, on every surface", asy
   }
 });
 
+test("the settings file is found under USERPROFILE when HOME is unset", async ($, on) => {
+  world(on, '{"orchestrate":{"deletePlan":"never"}}', COMMON, { HOME: "", USERPROFILE: HOME });
+  const ui = await mountOn($, "terminal");
+  expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.value).toBe("never");
+  await ui.unmount();
+});
+
 test("mobile draws the settings as read-only text", async ($, on) => {
   world(on, '{"orchestrate":{"deletePlan":"never"}}');
   const ui = await mountOn($, "mobile");
@@ -899,13 +906,15 @@ test("a scope stores the Default as an override", async ($, on) => {
   await ui.unmount();
 });
 
-test("adding a scope refuses a path without / or ~/ and keeps a new one in the pane", async ($, on) => {
+test("adding a scope refuses a relative path and keeps a new one in the pane", async ($, on) => {
   const w = world(on);
   const ui = await mountOn($, "terminal");
   await ui.select({ key: "scope", value: ":add" });
   await ui.input({ key: "scopePath", text: "work/*" });
 
-  expect(await ui.find({ type: "Text", text: "A scope path starts with / or ~/." })).toBeDefined();
+  expect(
+    await ui.find({ type: "Text", text: /^A scope path starts with \/, ~\/, a drive/ }),
+  ).toBeDefined();
   expect((await ui.find({ key: "scope" }))?.props.value).toBe(":add");
 
   await ui.input({ key: "scopePath", text: "~/work/*/" });

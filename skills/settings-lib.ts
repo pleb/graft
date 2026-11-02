@@ -45,7 +45,18 @@ const SUBTREE = "/*";
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-export const isScopeKey = (key: string) => key.startsWith("/") || key.startsWith("~");
+const DRIVE = /^[A-Za-z]:[\\/]/;
+const UNC = /^[\\/]{2}[^\\/]+[\\/][^\\/]+/;
+
+// A drive-letter or UNC path, with either separator.
+export const isWindowsPath = (path: string) => DRIVE.test(path) || UNC.test(path);
+
+export const isScopeKey = (key: string) =>
+  key.startsWith("/") || key.startsWith("~") || isWindowsPath(key);
+
+const slashed = (path: string) => (isWindowsPath(path) ? path.replaceAll("\\", "/") : path);
+
+const comparable = (path: string) => (isWindowsPath(path) ? path.toLowerCase() : path);
 
 function skillValues(entry: Record<string, unknown>, where: string): SkillValues | string {
   const values: SkillValues = {};
@@ -104,28 +115,47 @@ export function parseSettingsFile(text: string | undefined): ParsedFile {
 }
 
 function expandHome(path: string, home: string): string {
+  const slashedHome = slashed(home);
   if (path === "~") {
-    return home;
+    return slashedHome;
+  }
+  const isHomeRelative =
+    path.startsWith("~/") || (isWindowsPath(slashedHome) && path.startsWith("~\\"));
+
+  return isHomeRelative ? slashed(`${slashedHome.replace(/\/$/, "")}/${path.slice(2)}`) : path;
+}
+
+// `/`, a lowercased drive such as `c:/`, or `//server/share`.
+function rootOf(path: string): string | undefined {
+  const drive = /^[A-Za-z]:\//.exec(path)?.[0];
+  if (drive !== undefined) {
+    return drive.toLowerCase();
   }
 
-  return path.startsWith("~/") ? `${home}${path.slice(1)}` : path;
+  return /^\/\/[^/]+\/[^/]+/.exec(path)?.[0] ?? (path.startsWith("/") ? "/" : undefined);
 }
 
 function lexical(path: string): string {
-  if (!path.startsWith("/")) {
-    return path.replace(/\/+$/, "");
+  const slashedPath = slashed(path);
+  const root = rootOf(slashedPath);
+  if (root === undefined) {
+    return slashedPath.replace(/\/+$/, "");
   }
   const parts: string[] = [];
-  for (const part of path.split("/")) {
+  for (const part of slashedPath.slice(root.length).split("/")) {
     if (part === "..") {
       parts.pop();
     } else if (part !== "" && part !== ".") {
       parts.push(part);
     }
   }
+  const below = parts.join("/");
 
-  return `/${parts.join("/")}`;
+  return root.endsWith("/") || below === "" ? `${root}${below}` : `${root}/${below}`;
 }
+
+export const isSamePath = (a: string, b: string) =>
+  comparable(lexical(a)) === comparable(lexical(b));
 
 export async function normalisePath(
   path: string,
@@ -133,19 +163,19 @@ export async function normalisePath(
 ): Promise<string> {
   const expanded = expandHome(path, env.home);
 
-  return (await env.resolve(expanded)) ?? lexical(expanded);
+  return lexical((await env.resolve(expanded)) ?? expanded);
 }
 
 export async function normaliseScopeKey(
   key: string,
   env: Pick<Environment, "home" | "resolve">,
 ): Promise<ScopePath> {
-  const isSubtree = key.endsWith(SUBTREE);
+  const path = slashed(expandHome(key, env.home));
+  const isSubtree = path.endsWith(SUBTREE);
+  const parent = path.slice(0, -SUBTREE.length);
+  const dir = parent === "" || /^[A-Za-z]:$/.test(parent) ? `${parent}/` : parent;
 
-  return {
-    path: await normalisePath(isSubtree ? key.slice(0, -SUBTREE.length) || "/" : key, env),
-    isSubtree,
-  };
+  return { path: await normalisePath(isSubtree ? dir : path, env), isSubtree };
 }
 
 export async function normaliseRootPath(root: string, env: Environment): Promise<string> {
@@ -154,8 +184,13 @@ export async function normaliseRootPath(root: string, env: Environment): Promise
 
 const depth = (path: string) => path.split("/").filter((part) => part !== "").length;
 
-const isUnder = (path: string, dir: string) =>
-  dir === "/" ? path !== "/" : path.startsWith(`${dir}/`);
+function isUnder(path: string, dir: string): boolean {
+  const [under, above] = [comparable(path), comparable(dir)];
+
+  return above.endsWith("/")
+    ? under !== above && under.startsWith(above)
+    : under.startsWith(`${above}/`);
+}
 
 // Least specific first, so later layers win: defaults, `/*` scopes by depth,
 // then exact scopes. `isSubtree` gives the layers for every path beneath `path`.
@@ -171,12 +206,13 @@ export async function layersFor(
   const subtrees = normalised
     .filter(
       (scope) =>
-        scope.isSubtree && ((isSubtree && scope.path === path) || isUnder(path, scope.path)),
+        scope.isSubtree &&
+        ((isSubtree && isSamePath(scope.path, path)) || isUnder(path, scope.path)),
     )
     .sort((a, b) => depth(a.path) - depth(b.path));
   const exact = isSubtree
     ? []
-    : normalised.filter((scope) => !scope.isSubtree && scope.path === path);
+    : normalised.filter((scope) => !scope.isSubtree && isSamePath(scope.path, path));
 
   return [
     { source: DEFAULTS_SOURCE, values: file.defaults },
@@ -314,6 +350,9 @@ export function withSetting(
   };
 }
 
+const SCOPE_FORMS =
+  "A scope path starts with /, ~/, a drive (C:/ or C:\\) or a share (//server/share or \\\\server\\share).";
+
 export type NewScope = { isValid: true; key: string } | { isValid: false; error: string };
 
 export async function newScopeKey(
@@ -322,14 +361,15 @@ export async function newScopeKey(
   env: Pick<Environment, "home" | "resolve">,
 ): Promise<NewScope> {
   const path = input.trim();
-  if (!path.startsWith("/") && !path.startsWith("~/")) {
-    return { isValid: false, error: "A scope path starts with / or ~/." };
+  if (!path.startsWith("/") && !path.startsWith("~/") && !isWindowsPath(path)) {
+    return { isValid: false, error: SCOPE_FORMS };
   }
-  const key = path.replace(/\/+$/, "") || "/";
+  const stripped = path.replace(/[\\/]+$/, "");
+  const key = stripped === "" ? "/" : /^[A-Za-z]:$/.test(stripped) ? path.slice(0, 3) : stripped;
   const scope = await normaliseScopeKey(key, env);
   for (const other of existing) {
     const otherScope = await normaliseScopeKey(other, env);
-    if (otherScope.path === scope.path && otherScope.isSubtree === scope.isSubtree) {
+    if (isSamePath(otherScope.path, scope.path) && otherScope.isSubtree === scope.isSubtree) {
       return { isValid: false, error: `${key} is the same scope as ${other}.` };
     }
   }

@@ -7,12 +7,14 @@ import {
   DEFAULT_SOURCE,
   explainLayers,
   inheritedLayers,
+  isSamePath,
   isValid,
   layersFor,
   mainWorktree,
   newScopeKey,
   normalisePath,
   normaliseRootPath,
+  normaliseScopeKey,
   parseSettingsFile,
   withSetting,
 } from "../skills/settings-lib.ts";
@@ -66,8 +68,12 @@ const shown = (value: unknown) => (typeof value === "string" ? value : JSON.stri
 
 async function homeOf($: EngineInterface): Promise<string | undefined> {
   const home = await $.env.get("HOME");
+  if (home !== undefined && home !== "") {
+    return home;
+  }
+  const profile = await $.env.get("USERPROFILE");
 
-  return home === undefined || home === "" ? undefined : home;
+  return profile === undefined || profile === "" ? undefined : profile;
 }
 
 async function clonePath($: EngineInterface): Promise<string | undefined> {
@@ -131,7 +137,7 @@ async function load($: EngineInterface): Promise<Loaded> {
       : parseCatalog(common);
   const home = await homeOf($);
   if (home === undefined) {
-    return { catalog, file: { isParsed: false, error: "HOME is not set" } };
+    return { catalog, file: { isParsed: false, error: "HOME and USERPROFILE are not set" } };
   }
   try {
     const parsed = parseFile(await readText($, `${home}/.my-graft/${FILE}`));
@@ -265,7 +271,9 @@ async function refusal(
     .stat(clone, { resolve: true })
     .then((stat) => stat.realPath)
     .catch(() => undefined);
-  const isClone = top.isOk && [clone, real].includes(top.stdout.trim());
+  const isClone =
+    top.isOk &&
+    [clone, real].some((path) => path !== undefined && isSamePath(path, top.stdout.trim()));
   if (!isClone) {
     return "~/.my-graft is not the Graft clone. Install Graft as its README says.";
   }
@@ -304,7 +312,7 @@ async function saveSetting(
   const notSaved = `Graft settings: ${setting.key} was not saved:`;
   const clone = await clonePath($);
   if (clone === undefined) {
-    return `${notSaved} HOME is not set.`;
+    return `${notSaved} HOME and USERPROFILE are not set.`;
   }
   const network = await networkEnv($, clone);
   const why = await refusal($, clone, network);
@@ -438,17 +446,17 @@ async function scopeWarning(
   key: string,
   env: Environment,
 ): Promise<string | undefined> {
-  if (key.endsWith("/*")) {
+  const { path, isSubtree } = await normaliseScopeKey(key, env);
+  if (isSubtree) {
     return undefined;
   }
-  const path = await normalisePath(key, env);
   const { top, main } = await gitRoot($, path);
   if (top === undefined) {
     return `${key} is not a repo's top level on this machine.`;
   }
   const realTop = await normalisePath(top, env);
   const root = main === undefined ? realTop : await normalisePath(main, env);
-  if (realTop !== path) {
+  if (!isSamePath(realTop, path)) {
     return `${key} is not a repo's top level. Skills there use the settings for ${root}.`;
   }
 

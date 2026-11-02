@@ -80,6 +80,15 @@ function env({
   };
 }
 
+// Windows paths that exist only through `reals`, as realpath gives them.
+function windowsEnv(reals: Record<string, string> = {}): Environment {
+  return {
+    home: "C:\\Users\\me",
+    resolve: async (path) => reals[path],
+    normaliseRoot: async (path) => path,
+  };
+}
+
 async function resolved(
   file: object | undefined,
   root: string,
@@ -133,6 +142,24 @@ describe("parseSettingsFile", () => {
         ],
       },
     });
+  });
+
+  it("reads drive-letter and UNC keys as scopes", () => {
+    const parsed = parseSettingsFile(
+      JSON.stringify({
+        "C:\\work": { overrides: {} },
+        "c:/work/*": { overrides: {} },
+        "\\\\server\\share": { overrides: {} },
+        "//server/share/*": { overrides: {} },
+      }),
+    );
+    expect(parsed).toMatchObject({ isParsed: true, file: { defaults: {} } });
+    expect(parsed.isParsed && parsed.file.scopes.map(({ key }) => key)).toEqual([
+      "C:\\work",
+      "c:/work/*",
+      "\\\\server\\share",
+      "//server/share/*",
+    ]);
   });
 
   it("reads a missing file as no settings", () => {
@@ -334,6 +361,105 @@ describe("resolveSettings", () => {
     });
   });
 
+  describe("on Windows", () => {
+    it("applies drive-letter exact and /* scopes", async () => {
+      const file = {
+        "C:/work/repo": { overrides: { pr: { state: "ready" } } },
+        "C:/work/*": { overrides: { plan: { questionsPerRound: "4" } } },
+      };
+      expect(await resolved(file, "C:/work/repo", windowsEnv())).toMatchObject({
+        root: "c:/work/repo",
+      });
+      expect(await sources(file, "C:/work/repo", windowsEnv())).toEqual({
+        "plan.questionsPerRound": "4 from C:/work/*",
+        "pr.state": "ready from C:/work/repo",
+      });
+      expect(await values(file, "C:/work", windowsEnv())).toMatchObject({
+        plan: { questionsPerRound: "3" },
+      });
+    });
+
+    it("matches backslash and mixed-slash keys to a forward-slash root", async () => {
+      const file = {
+        "C:\\work\\*": { overrides: { plan: { questionsPerRound: "4" } } },
+        "C:/work\\repo\\": { overrides: { pr: { state: "ready" } } },
+      };
+      expect(await sources(file, "C:/work/repo", windowsEnv())).toEqual({
+        "plan.questionsPerRound": "4 from C:\\work\\*",
+        "pr.state": "ready from C:/work\\repo\\",
+      });
+    });
+
+    it("compares Windows paths whatever their case", async () => {
+      const file = {
+        "c:\\Work\\REPO": { overrides: { pr: { state: "ready" } } },
+        "C:/WORK/*": { overrides: { plan: { questionsPerRound: "4" } } },
+      };
+      expect(await values(file, "C:\\work\\repo", windowsEnv())).toEqual({
+        plan: { questionsPerRound: "4" },
+        pr: { state: "ready" },
+      });
+    });
+
+    it("gives a git path and a realpath the same root", async () => {
+      const file = { "C:/Work/link": { overrides: { pr: { state: "ready" } } } };
+      const environment = windowsEnv({ "C:/Work/link": "C:\\Work\\repo" });
+      expect(await resolved(file, "C:\\Work\\repo", environment)).toMatchObject({
+        root: "c:/Work/repo",
+      });
+      expect(await resolved(file, "C:/Work/repo", environment)).toMatchObject({
+        root: "c:/Work/repo",
+      });
+      expect(await values(file, "C:/Work/repo", environment)).toMatchObject({
+        pr: { state: "ready" },
+      });
+    });
+
+    it("applies UNC exact and /* scopes", async () => {
+      const file = {
+        "//server/share/*": { overrides: { plan: { questionsPerRound: "4" } } },
+        "\\\\server\\share\\repo": { overrides: { pr: { state: "ready" } } },
+      };
+      expect(await sources(file, "//Server/Share/repo", windowsEnv())).toEqual({
+        "plan.questionsPerRound": "4 from //server/share/*",
+        "pr.state": "ready from \\\\server\\share\\repo",
+      });
+      expect(await values(file, "//server/share", windowsEnv())).toMatchObject({
+        plan: { questionsPerRound: "3" },
+      });
+    });
+
+    it("does not climb above a drive or share root with ..", async () => {
+      const file = {
+        "C:/../../work/repo": { overrides: { pr: { state: "ready" } } },
+        "//server/share/../../*": { overrides: { plan: { questionsPerRound: "4" } } },
+      };
+      expect(await resolved(file, "C:\\..\\work\\repo", windowsEnv())).toMatchObject({
+        root: "c:/work/repo",
+      });
+      expect(await values(file, "C:/work/repo", windowsEnv())).toMatchObject({
+        pr: { state: "ready" },
+      });
+      expect(await resolved(file, "//server/share/../repo", windowsEnv())).toMatchObject({
+        root: "//server/share/repo",
+      });
+      expect(await values(file, "//server/share/repo", windowsEnv())).toMatchObject({
+        plan: { questionsPerRound: "4" },
+      });
+    });
+
+    it("expands ~ with either separator to the Windows home", async () => {
+      const file = {
+        "~\\work\\*": { overrides: { plan: { questionsPerRound: "4" } } },
+        "~/work/repo": { overrides: { pr: { state: "ready" } } },
+      };
+      expect(await values(file, "C:/Users/me/work/repo", windowsEnv())).toEqual({
+        plan: { questionsPerRound: "4" },
+        pr: { state: "ready" },
+      });
+    });
+  });
+
   describe("inheritedLayers", () => {
     const file = (
       parseSettingsFile(
@@ -488,12 +614,13 @@ describe("withSetting", () => {
 });
 
 describe("newScopeKey", () => {
-  it.each(["work/*", "~", "~work", "", " "])(
-    "refuses %j, which does not start with / or ~/",
+  it.each(["work/*", "~", "~work", "", " ", "work\\repo", "C:work", "\\\\server"])(
+    "refuses %j, which is not an absolute or ~/ path",
     async (input) => {
       expect(await newScopeKey(input, [], env())).toEqual({
         isValid: false,
-        error: "A scope path starts with / or ~/.",
+        error:
+          "A scope path starts with /, ~/, a drive (C:/ or C:\\) or a share (//server/share or \\\\server\\share).",
       });
     },
   );
@@ -503,8 +630,21 @@ describe("newScopeKey", () => {
     ["~/w/*/", "~/w/*"],
     [" ~/w/repo ", "~/w/repo"],
     ["/", "/"],
+    ["C:\\work\\*", "C:\\work\\*"],
+    ["C:\\work\\repo\\", "C:\\work\\repo"],
+    ["c:/work/", "c:/work"],
+    ["C:\\", "C:\\"],
+    ["\\\\server\\share\\", "\\\\server\\share"],
+    ["//server/share/repo/", "//server/share/repo"],
   ])("takes %j as %j", async (input, key) => {
     expect(await newScopeKey(input, [], env())).toEqual({ isValid: true, key });
+  });
+
+  it("refuses a Windows path that differs from a scope it has only in case or slashes", async () => {
+    expect(await newScopeKey("c:/WORK/*", ["C:\\work\\*"], windowsEnv())).toEqual({
+      isValid: false,
+      error: "c:/WORK/* is the same scope as C:\\work\\*.",
+    });
   });
 
   it("refuses a path that normalises to a scope it has", async () => {
