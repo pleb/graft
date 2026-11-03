@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { statSync } from "node:fs";
+import { readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { trustKeys } from "./graft-tester-lib.ts";
 
 const NAME = "graft-tester";
 const TESTER_NAME = /^graft-tester( \(\d+\))?$/;
@@ -31,6 +32,56 @@ function claude(args: string[], options: { cwd?: string; capture?: boolean } = {
   return result;
 }
 
+function gitRoot(dir: string): string {
+  const result = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd: dir, encoding: "utf8" });
+  return result.status === 0 ? result.stdout.trim() : dir;
+}
+
+type Config = { projects?: Record<string, Record<string, unknown>> };
+
+function readConfig(path: string): Config {
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    throw error;
+  }
+  try {
+    return JSON.parse(text) as Config;
+  } catch (error) {
+    fail(`${path} does not parse, so the tester left it unchanged: ${(error as Error).message}`);
+  }
+}
+
+function untrusted(path: string, keys: string[]): string[] {
+  const projects = readConfig(path).projects ?? {};
+  return keys.filter((key) => projects[key]?.hasTrustDialogAccepted !== true);
+}
+
+function trust(path: string, keys: string[]): void {
+  if (untrusted(path, keys).length === 0) return;
+  const config = readConfig(path);
+  const projects = (config.projects ??= {});
+  for (const key of keys) projects[key] = { ...projects[key], hasTrustDialogAccepted: true };
+  const temp = `${path}.${process.pid}.tmp`;
+  writeFileSync(temp, JSON.stringify(config, null, 2));
+  for (let attempt = 1; ; attempt++) {
+    try {
+      renameSync(temp, path);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (attempt < 5 && (code === "EPERM" || code === "EBUSY")) {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+        continue;
+      }
+      rmSync(temp, { force: true });
+      fail(`Could not replace ${path}: ${(error as Error).message}`);
+    }
+  }
+}
+
 function automationNote(controller: string): string {
   return [
     "This session is an automated test of Graft, with no user attached.",
@@ -46,6 +97,14 @@ function start(args: string[]): void {
   }
   const dir = resolve(process.env.INIT_CWD ?? process.cwd(), cwd);
   if (!statSync(dir, { throwIfNoEntry: false })?.isDirectory()) fail(`Not a directory: ${dir}`);
+  const root = gitRoot(dir);
+  const trusted = trustKeys(root, realpathSync.native(root), homedir());
+  if ("refusal" in trusted) fail(`Refusing to trust ${root}: ${trusted.refusal}.`);
+  const config = join(process.env.CLAUDE_CONFIG_DIR ?? homedir(), ".claude.json");
+  trust(config, trusted.keys);
+  const missing = untrusted(config, trusted.keys);
+  if (missing.length > 0) fail(`${config} does not trust ${missing.join(", ")}.`);
+  console.log(`Trusted ${trusted.keys.join(", ")} in ${config}.`);
   claude(
     [
       "--bg",

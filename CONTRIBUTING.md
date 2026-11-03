@@ -11,7 +11,7 @@ The tester also runs in auto mode. It blocks actions it judges destructive, such
 ### Run a test
 
 1. Stop any tester left from an earlier test: `npm run stop-graft-tester`.
-2. Choose a scratch directory: a fresh git repo, or a plain directory to test outside a repo. For a fresh repo, run `claude` in it interactively once and accept the trust prompt.
+2. Choose a scratch directory: a fresh git repo, or a plain directory to test outside a repo. The tester trusts it, or its repo, in `~/.claude.json`, and refuses the home directory, drive and share roots, and ancestors of home.
 3. Note whether `~/.my-graft/graft-settings.json` exists, and its content.
 4. Find your session name. It is the `name` of the entry in `claude agents --json` whose `sessionId` is `$CLAUDE_CODE_SESSION_ID`. If that entry has no name, set one with `/rename`.
 5. Start the tester: `npm run start-graft-tester -- <dir> <your session name> "<slash command>"`, where `<dir>` is the scratch directory.
