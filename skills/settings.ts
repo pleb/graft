@@ -76,7 +76,11 @@ async function main(): Promise<void> {
     await readText(join(home, ".my-graft", "graft-settings.json")),
     catalog,
     // A relative root is joined without collapsing `..`, which git and realpath resolve after symlinks.
-    isAbsolute(root) || isWindowsPath(root) || root === "~" || root.startsWith("~/")
+    isAbsolute(root) ||
+      isWindowsPath(root) ||
+      root === "~" ||
+      root.startsWith("~/") ||
+      (process.platform === "win32" && root.startsWith("~\\"))
       ? root
       : `${process.cwd()}/${root}`,
     {

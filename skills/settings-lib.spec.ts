@@ -816,6 +816,15 @@ describe("settings.ts", () => {
     });
   });
 
+  it.runIf(process.platform === "win32")("expands a ~\\ root on Windows", () => {
+    const home = tempDir();
+    mkdirSync(join(home, "work", "repo"), { recursive: true });
+    const settings = JSON.stringify({ "~/work/repo": { overrides: { pr: { state: "ready" } } } });
+    const result = run(["~\\work\\repo"], settings, { home, cwd: tempDir() });
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ pr: { state: "ready" } });
+  });
+
   it("applies .. in the root as the platform does", () => {
     const base = tempDir();
     mkdirSync(join(base, "real", "team"), { recursive: true });
