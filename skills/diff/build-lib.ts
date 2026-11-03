@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, readlinkSync } from "node:fs";
-import { basename, extname, join } from "node:path";
+import { basename, extname, join, resolve } from "node:path";
 
 const MIN_NODE_MAJOR = 24;
 const MAX_GIT_OUTPUT = 512 * 1024 * 1024;
@@ -402,7 +402,8 @@ export function repoRoot(cwd: string): string {
     const reason = result.error?.message ?? result.stderr.trim();
     throw new BuildError(`${cwd} is not inside a git repository${reason ? `: ${reason}` : ""}`);
   }
-  return result.stdout.trim();
+  // git prints C:/... on Windows; resolve gives the native C:\... form.
+  return resolve(result.stdout.trim());
 }
 
 function resolves(root: string, ref: string): boolean {
