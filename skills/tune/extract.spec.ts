@@ -625,6 +625,21 @@ describe("planFromArgs", () => {
     expect(planFromArgs("then fresh-plan", root, new Set())).toBeUndefined();
   });
 
+  it("resolves a plan in the style of the transcript's root", () => {
+    expect(planFromArgs("fresh-plan", "/w/repo", new Set())).toBe(
+      "/w/repo/.claude/plans/fresh-plan.md",
+    );
+    for (const root of ["C:\\w\\repo", "C:/w/repo"]) {
+      expect(planFromArgs("fresh-plan", root, new Set())).toBe(
+        "C:\\w\\repo\\.claude\\plans\\fresh-plan.md",
+      );
+      expect(planFromArgs("docs\\plan.md", root, new Set())).toBe("C:\\w\\repo\\docs\\plan.md");
+      expect(planFromArgs("C:/w/repo/docs/plan.md", root, new Set())).toBe(
+        "C:\\w\\repo\\docs\\plan.md",
+      );
+    }
+  });
+
   it("gives null without a root", () => {
     expect(planFromArgs("add-cache", null, new Set())).toBeNull();
   });
@@ -646,6 +661,20 @@ describe("bashPlanPaths", () => {
   it("reads the tail of a word as a path under the root", () => {
     expect(bashPlanPaths('cat "$root/.claude/plans/a.md"', "/r")).toEqual([
       "/r/.claude/plans/a.md",
+    ]);
+  });
+
+  it("resolves plan paths from a Windows transcript in Windows form", () => {
+    for (const root of ["C:\\r", "C:/r"]) {
+      expect(bashPlanPaths("cat .claude/plans/a.md", root)).toEqual([
+        "C:\\r\\.claude\\plans\\a.md",
+      ]);
+      expect(bashPlanPaths('cat "$root/.claude/plans/a.md"', root)).toEqual([
+        "C:\\r\\.claude\\plans\\a.md",
+      ]);
+    }
+    expect(bashPlanPaths("cat D:/abs/.claude/plans/a.md", "C:\\r")).toEqual([
+      "D:\\abs\\.claude\\plans\\a.md",
     ]);
   });
 
@@ -910,6 +939,27 @@ describe("buildReport", () => {
         skill: "/graft:orchestrate",
         args: "ship-it",
         planFiles: [{ path: join(root, ".claude", "plans", "ship-it.md"), actions: ["argument"] }],
+      },
+    ]);
+  });
+
+  it("merges a plan's Windows paths into one entry", async () => {
+    const cwd = "C:\\work\\repo";
+    const lines = [
+      command("/graft:plan", "add a cache", 3, "win-cmd", { cwd }),
+      assistant(2, "win-as", [
+        toolUse("win-write", "Write", { file_path: `${cwd}\\.claude\\plans\\a.md`, content: "x" }),
+        toolUse("win-edit", "Edit", { file_path: "C:/work/repo/.claude/plans/a.md" }),
+        toolUse("win-bash", "Bash", { command: "cat .claude/plans/a.md" }),
+      ]),
+    ];
+    const { runs } = await report([transcript("windows", lines)]);
+    expect(runs).toMatchObject([
+      {
+        cwd,
+        planFiles: [
+          { path: "C:\\work\\repo\\.claude\\plans\\a.md", actions: ["write", "edit", "read"] },
+        ],
       },
     ]);
   });
