@@ -25,6 +25,7 @@ import {
   isSupportedNode,
   isTypedMessage,
   planFromArgs,
+  powerShellPlanPaths,
   stripIde,
 } from "./extract-lib.ts";
 import type { Line, Report, TranscriptFile } from "./extract-lib.ts";
@@ -683,6 +684,29 @@ describe("bashPlanPaths", () => {
   });
 });
 
+describe("powerShellPlanPaths", () => {
+  it("resolves plan paths written with backslashes", () => {
+    expect(
+      powerShellPlanPaths(
+        "Get-Content D:\\abs\\.claude\\plans\\a.md; type .claude\\plans\\b.md",
+        "C:\\r",
+      ),
+    ).toEqual(["D:\\abs\\.claude\\plans\\a.md", "C:\\r\\.claude\\plans\\b.md"]);
+    expect(powerShellPlanPaths("Get-Content $env:root\\.claude\\plans\\a.md", "C:\\r")).toEqual([
+      "C:\\r\\.claude\\plans\\a.md",
+    ]);
+  });
+
+  it("resolves plan paths written with forward slashes", () => {
+    expect(
+      powerShellPlanPaths(
+        "cat .claude/plans/a.md; Get-Content 'D:/abs/.claude/plans/b.md'",
+        "C:\\r",
+      ),
+    ).toEqual(["C:\\r\\.claude\\plans\\a.md", "D:\\abs\\.claude\\plans\\b.md"]);
+  });
+});
+
 describe("isSupportedNode", () => {
   it("needs Node 24 or later", () => {
     expect(isSupportedNode("22.18.0")).toBe(false);
@@ -960,6 +984,24 @@ describe("buildReport", () => {
         planFiles: [
           { path: "C:\\work\\repo\\.claude\\plans\\a.md", actions: ["write", "edit", "read"] },
         ],
+      },
+    ]);
+  });
+
+  it("merges a PowerShell read with a Write of the same plan", async () => {
+    const cwd = "C:\\work\\repo";
+    const lines = [
+      command("/graft:plan", "add a cache", 3, "ps-cmd", { cwd }),
+      assistant(2, "ps-as", [
+        toolUse("ps-write", "Write", { file_path: `${cwd}\\.claude\\plans\\a.md`, content: "x" }),
+        toolUse("ps-read", "PowerShell", { command: "Get-Content .claude\\plans\\a.md" }),
+      ]),
+    ];
+    const { runs } = await report([transcript("powershell", lines)]);
+    expect(runs).toMatchObject([
+      {
+        cwd,
+        planFiles: [{ path: "C:\\work\\repo\\.claude\\plans\\a.md", actions: ["write", "read"] }],
       },
     ]);
   });

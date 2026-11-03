@@ -31,9 +31,13 @@ const PLAN_FILE = /[\\/]\.claude[\\/]plans[\\/][^\\/]+\.md$/;
 const PLAN_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const BASH_PLAN =
   /(?:\b[A-Za-z]:)?(?:[\w.~@+-]*\/)*\.claude\/plans\/[\w@+-][\w.@+-]*\.md(?![\w.@+-])/g;
+const POWERSHELL_PLAN =
+  /(?:\b[A-Za-z]:)?(?:[\w.~@+-]*[\\/])*\.claude[\\/]plans[\\/][\w@+-][\w.@+-]*\.md(?![\w.@+-])/g;
 const WINDOWS_PATH = /^(?:[A-Za-z]:[\\/]|\\\\)/;
 // A plan path after any other character is the tail of a word such as `$root/.claude/plans/x.md`.
 const WORD_START = /[\s'"`=:;|&<>(]/;
+// As WORD_START, but `$env:root\.claude\plans\x.md` is also the tail of a word.
+const POWERSHELL_WORD_START = /[\s'"`=;|&<>(]/;
 const LEADING_IDE = /^\s*<(ide_\w+)>(?:(?!<\/?ide_)[\s\S])*<\/\1>/;
 const TRAILING_IDE = /<(ide_\w+)>(?:(?!<\/?ide_)[\s\S])*<\/\1>\s*$/;
 // Written by the "chat about this" choice on AskUserQuestion; not typed by the user.
@@ -431,16 +435,29 @@ export function planFromArgs(
   )?.path;
 }
 
-export function bashPlanPaths(command: string, root: string | null): string[] {
-  return [...command.matchAll(BASH_PLAN)].map((match) => {
+function commandPlanPaths(
+  command: string,
+  root: string | null,
+  plan: RegExp,
+  wordStart: RegExp,
+): string[] {
+  return [...command.matchAll(plan)].map((match) => {
     const before = command[match.index - 1];
-    const whole = before === undefined || WORD_START.test(before);
+    const whole = before === undefined || wordStart.test(before);
     const path =
-      whole && !match[0].startsWith("/.claude/")
+      whole && !/^[\\/]\.claude[\\/]/.test(match[0])
         ? match[0]
-        : match[0].slice(match[0].indexOf(".claude/plans/"));
-    return resolveIn(root, expandHome(path));
+        : match[0].slice(match[0].search(/\.claude[\\/]plans[\\/]/));
+    return resolveIn(root, expandHome(path.replace(/^~\\/, "~/")));
   });
+}
+
+export function bashPlanPaths(command: string, root: string | null): string[] {
+  return commandPlanPaths(command, root, BASH_PLAN, WORD_START);
+}
+
+export function powerShellPlanPaths(command: string, root: string | null): string[] {
+  return commandPlanPaths(command, root, POWERSHELL_PLAN, POWERSHELL_WORD_START);
 }
 
 function addPlanFile(run: Run, path: string | null | undefined, action: string): void {
@@ -760,6 +777,9 @@ class FileReader {
     }
     if (block.name === "Bash" && typeof input.command === "string") {
       for (const path of bashPlanPaths(input.command, root)) addPlanFile(run, path, "read");
+    }
+    if (block.name === "PowerShell" && typeof input.command === "string") {
+      for (const path of powerShellPlanPaths(input.command, root)) addPlanFile(run, path, "read");
     }
   }
 
