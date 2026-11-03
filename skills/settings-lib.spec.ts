@@ -132,6 +132,7 @@ describe("parseSettingsFile", () => {
         JSON.stringify({
           "~/work/*": { overrides: { pr: { state: "ready" } } },
           "/oss/graft": { overrides: {} },
+          "/oss/empty": {},
         }),
       ),
     ).toEqual({
@@ -141,6 +142,7 @@ describe("parseSettingsFile", () => {
         scopes: [
           { key: "~/work/*", overrides: { pr: { state: "ready" } } },
           { key: "/oss/graft", overrides: {} },
+          { key: "/oss/empty", overrides: {} },
         ],
       },
     });
@@ -178,6 +180,7 @@ describe("parseSettingsFile", () => {
     ["a non-object scope", '{"/a": []}'],
     ["non-object overrides", '{"/a": {"overrides": "x"}}'],
     ["null overrides", '{"/a": {"overrides": null}}'],
+    ["a scope with skill keys but no overrides", '{"/a/*": {"plan": {"questionsPerRound": "1"}}}'],
     ["a non-object skill entry in overrides", '{"/a": {"overrides": {"plan": 2}}}'],
   ])("refuses %s", (_, text) => {
     expect(parseSettingsFile(text)).toMatchObject({ isParsed: false });
@@ -643,7 +646,7 @@ describe("withSetting", () => {
     expect(Object.keys((edited as { json: object }).json).at(-1)).toBe("/new");
   });
 
-  it("removes an override on Inherit, and a scope left with no overrides", () => {
+  it("removes an override on Inherit, and a scope left with nothing else", () => {
     const { "/w/repo": _, ...rest } = file;
     expect(withSetting(file, "/w/repo", "plan", "questionsPerRound", undefined)).toEqual({
       isEdited: true,
@@ -651,7 +654,7 @@ describe("withSetting", () => {
     });
     expect(withSetting(file, "~/w/*", "pr", "state", undefined)).toEqual({
       isEdited: true,
-      json: { ...file, "~/w/*": { note: "kept" } },
+      json: { ...file, "~/w/*": { overrides: {}, note: "kept" } },
     });
   });
 
@@ -933,6 +936,11 @@ describe("settings.ts", () => {
     ["malformed JSON", "{", "graft-settings.json does not parse"],
     ["a non-object scope", '{"/a": 1}', 'the scope "/a" is not an object'],
     ["non-object overrides", '{"/a": {"overrides": []}}', 'the overrides of "/a"'],
+    [
+      "a scope without overrides",
+      '{"C:/x/*": {"plan": {}}}',
+      'the scope "C:/x/*" has no overrides',
+    ],
     ["a non-object skill entry", '{"plan": "2"}', 'the skill "plan" is not an object'],
   ])("exits 1 with the reason on %s", (_, settings, reason) => {
     const result = run([tempDir()], settings);

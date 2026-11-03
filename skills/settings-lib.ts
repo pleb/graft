@@ -99,6 +99,9 @@ export function parseSettingsFile(text: string | undefined): ParsedFile {
     if (!isObject(entry)) {
       return { isParsed: false, error: `the scope ${JSON.stringify(key)} is not an object` };
     }
+    if (!("overrides" in entry) && Object.keys(entry).length > 0) {
+      return { isParsed: false, error: `the scope ${JSON.stringify(key)} has no overrides` };
+    }
     const overrides = "overrides" in entry ? entry.overrides : {};
     if (!isObject(overrides)) {
       return {
@@ -335,7 +338,8 @@ function withEntry(
 }
 
 // `scope` undefined edits the defaults; `value` undefined removes the setting.
-// Empty skill entries, `overrides` and scopes are dropped; other keys are kept.
+// Empty skill entries are dropped, and so is a scope left with nothing else;
+// a scope with other keys keeps an empty `overrides`, which parsing requires.
 export function withSetting(
   json: Record<string, unknown>,
   scope: string | undefined,
@@ -369,10 +373,12 @@ export function withSetting(
     return { isEdited: true, json: nextValues };
   }
 
-  return {
-    isEdited: true,
-    json: withEntry(json, scope, withEntry(holder, "overrides", nextValues)),
-  };
+  const hasOtherKeys = Object.keys(holder).some((key) => key !== "overrides");
+  const nextHolder = hasOtherKeys
+    ? { ...holder, overrides: nextValues }
+    : withEntry(holder, "overrides", nextValues);
+
+  return { isEdited: true, json: withEntry(json, scope, nextHolder) };
 }
 
 const SCOPE_FORMS =
