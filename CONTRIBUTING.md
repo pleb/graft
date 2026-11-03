@@ -18,3 +18,7 @@ The tester also runs in auto mode. It blocks actions it judges destructive, such
 6. Answer its questions with `SendMessage` to the name in start's `backgrounded` line until the test is done.
 7. Stop the tester: `npm run stop-graft-tester`.
 8. Restore the settings file to what you noted in step 3, or delete it if it did not exist.
+
+## Windows
+
+An editor's oxfmt language server locks `node_modules/@oxfmt/binding-win32-x64-msvc/*.node`. Stop it, or close the editor, before `npm ci`, which otherwise empties `node_modules` and fails with `EPERM`.
