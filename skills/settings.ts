@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { readFile, realpath } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, hostname } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
@@ -87,6 +87,7 @@ async function main(): Promise<void> {
       home,
       resolve: (path) => realpath(path).catch(() => undefined),
       normaliseRoot,
+      hostname: hostname(),
     },
   );
   if (!result.isResolved) {

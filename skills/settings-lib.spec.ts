@@ -476,6 +476,39 @@ describe("resolveSettings", () => {
       expect(await values(file, "/c/work/repo")).toMatchObject({ pr: { state: "draft" } });
     });
 
+    it("reads a local admin share as its drive", async () => {
+      const file = {
+        "C:/work/*": { overrides: { plan: { questionsPerRound: "4" } } },
+        "\\\\BOX\\c$\\work\\repo": { overrides: { pr: { state: "ready" } } },
+      };
+      const environment = { ...windowsEnv(), hostname: "box" };
+      for (const root of [
+        "\\\\localhost\\C$\\work\\repo",
+        "//127.0.0.1/c$/work/repo",
+        "//Box/C$/work/repo/",
+        "C:/work/repo",
+      ]) {
+        expect(await resolved(file, root, environment), root).toMatchObject({
+          root: "c:/work/repo",
+        });
+        expect(await values(file, root, environment), root).toEqual({
+          plan: { questionsPerRound: "4" },
+          pr: { state: "ready" },
+        });
+      }
+      expect(await resolved(file, "//server/c$/work/repo", environment)).toMatchObject({
+        root: "//server/c$/work/repo",
+      });
+    });
+
+    it("reads a realpath on a local admin share as its drive", async () => {
+      const file = { "C:/work/repo": { overrides: { pr: { state: "ready" } } } };
+      const environment = windowsEnv({ "C:/work/link": "\\\\localhost\\C$\\work\\repo" });
+      expect(await values(file, "C:/work/link", environment)).toMatchObject({
+        pr: { state: "ready" },
+      });
+    });
+
     it("expands ~ with either separator to the Windows home", async () => {
       const file = {
         "~\\work\\*": { overrides: { plan: { questionsPerRound: "4" } } },
@@ -862,6 +895,15 @@ describe("settings.ts", () => {
     const settings = JSON.stringify({ [root]: { overrides: { pr: { state: "ready" } } } });
     const env = { HOME: msys(home), USERPROFILE: tempDir() };
     const result = run([msys(root)], settings, { home, env });
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ pr: { state: "ready" } });
+  });
+
+  it.runIf(process.platform === "win32")("reads a localhost admin share root as its drive", () => {
+    const root = tempDir();
+    const share = root.replace(/^([A-Za-z]):/, "\\\\localhost\\$1$$");
+    const settings = JSON.stringify({ [root]: { overrides: { pr: { state: "ready" } } } });
+    const result = run([share], settings);
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({ pr: { state: "ready" } });
   });

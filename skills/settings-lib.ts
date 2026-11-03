@@ -21,6 +21,8 @@ export type Environment = {
   normaliseRoot: (path: string) => Promise<string>;
   // On "win32", an MSYS path such as /c/x is read as C:/x. The running platform when omitted.
   platform?: string;
+  // This machine's name, whose admin shares (//name/c$/x) are read as drives like localhost's.
+  hostname?: string;
 };
 
 export type PathEnvironment = Omit<Environment, "normaliseRoot">;
@@ -120,17 +122,28 @@ export function parseSettingsFile(text: string | undefined): ParsedFile {
 
 const runningPlatform = () => (globalThis as { process?: { platform?: string } }).process?.platform;
 
-// The drive form of an MSYS path on Windows: /c/x is C:/x.
+const ADMIN_SHARE = /^[\\/]{2}([^\\/]+)[\\/]([A-Za-z])\$(?:[\\/]|$)/;
+
+// The drive form of a local admin share (//localhost/c$/x is C:/x) and, on
+// Windows, of an MSYS path (/c/x is C:/x).
 export function driveForm(
   path: string,
-  { platform = runningPlatform() }: Pick<Environment, "platform"> = {},
+  { platform = runningPlatform(), hostname }: Pick<Environment, "platform" | "hostname"> = {},
 ): string {
+  const share = ADMIN_SHARE.exec(path);
+  const host = share?.[1]!.toLowerCase();
+  if (share !== null && ["localhost", "127.0.0.1", hostname?.toLowerCase()].includes(host)) {
+    return `${share[2]!.toUpperCase()}:/${path.slice(share[0].length)}`;
+  }
   const msys = platform === "win32" ? /^\/([A-Za-z])(?:\/|$)/.exec(path) : null;
 
   return msys === null ? path : `${msys[1]!.toUpperCase()}:/${path.slice(msys[0].length)}`;
 }
 
-function expandHome(path: string, env: Pick<Environment, "home" | "platform">): string {
+function expandHome(
+  path: string,
+  env: Pick<Environment, "home" | "platform" | "hostname">,
+): string {
   const slashedHome = slashed(driveForm(env.home, env));
   if (path === "~") {
     return slashedHome;
@@ -178,7 +191,7 @@ export const isSamePath = (a: string, b: string) =>
 export async function normalisePath(path: string, env: PathEnvironment): Promise<string> {
   const expanded = expandHome(path, env);
 
-  return lexical((await env.resolve(expanded)) ?? expanded);
+  return lexical(driveForm((await env.resolve(expanded)) ?? expanded, env));
 }
 
 export async function normaliseScopeKey(key: string, env: PathEnvironment): Promise<ScopePath> {
