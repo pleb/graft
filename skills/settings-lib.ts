@@ -21,8 +21,8 @@ export type Environment = {
   normaliseRoot: (path: string) => Promise<string>;
   // On "win32", an MSYS path such as /c/x is read as C:/x. The running platform when omitted.
   platform?: string;
-  // This machine's name, whose admin shares (//name/c$/x) are read as drives like localhost's.
-  hostname?: string;
+  // This machine's names, whose admin shares (//name/c$/x) are read as drives like localhost's.
+  hostnames?: string[];
 };
 
 export type PathEnvironment = Omit<Environment, "normaliseRoot">;
@@ -99,7 +99,7 @@ export function parseSettingsFile(text: string | undefined): ParsedFile {
     if (!isObject(entry)) {
       return { isParsed: false, error: `the scope ${JSON.stringify(key)} is not an object` };
     }
-    if (!("overrides" in entry) && Object.keys(entry).length > 0) {
+    if (!("overrides" in entry) && Object.values(entry).some(isObject)) {
       return { isParsed: false, error: `the scope ${JSON.stringify(key)} has no overrides` };
     }
     const overrides = "overrides" in entry ? entry.overrides : {};
@@ -131,11 +131,15 @@ const ADMIN_SHARE = /^[\\/]{2}([^\\/]+)[\\/]([A-Za-z])\$(?:[\\/]|$)/;
 // Windows, of an MSYS path (/c/x is C:/x).
 export function driveForm(
   path: string,
-  { platform = runningPlatform(), hostname }: Pick<Environment, "platform" | "hostname"> = {},
+  {
+    platform = runningPlatform(),
+    hostnames = [],
+  }: Pick<Environment, "platform" | "hostnames"> = {},
 ): string {
   const share = ADMIN_SHARE.exec(path);
   const host = share?.[1]!.toLowerCase();
-  if (share !== null && ["localhost", "127.0.0.1", hostname?.toLowerCase()].includes(host)) {
+  const local = ["localhost", "127.0.0.1", ...hostnames.map((name) => name.toLowerCase())];
+  if (share !== null && local.includes(host!)) {
     return `${share[2]!.toUpperCase()}:/${path.slice(share[0].length)}`;
   }
   const msys = platform === "win32" ? /^\/([A-Za-z])(?:\/|$)/.exec(path) : null;
@@ -145,7 +149,7 @@ export function driveForm(
 
 function expandHome(
   path: string,
-  env: Pick<Environment, "home" | "platform" | "hostname">,
+  env: Pick<Environment, "home" | "platform" | "hostnames">,
 ): string {
   const slashedHome = slashed(driveForm(env.home, env));
   if (path === "~") {
@@ -345,7 +349,8 @@ function withEntry(
 
 // `scope` undefined edits the defaults; `value` undefined removes the setting.
 // Empty skill entries are dropped, and so is a scope left with nothing else;
-// a scope with other keys keeps an empty `overrides`, which parsing requires.
+// a scope with other keys keeps an empty `overrides`, which parsing requires
+// when one of them holds an object.
 export function withSetting(
   json: Record<string, unknown>,
   scope: string | undefined,

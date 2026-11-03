@@ -76,14 +76,15 @@ async function homeOf($: EngineInterface): Promise<string | undefined> {
   return profile === undefined || profile === "" ? undefined : profile;
 }
 
-async function hostnameOf($: EngineInterface): Promise<string | undefined> {
-  const computer = await $.env.get("COMPUTERNAME");
-  if (computer !== undefined && computer !== "") {
-    return computer;
-  }
-  const host = await $.env.get("HOSTNAME");
+async function hostnamesOf($: EngineInterface): Promise<string[]> {
+  const names = [await $.env.get("COMPUTERNAME"), await $.env.get("HOSTNAME")];
 
-  return host === undefined || host === "" ? undefined : host;
+  return names.filter((name): name is string => name !== undefined && name !== "");
+}
+
+// Hook modules have no Node process, so the platform comes from the environment.
+async function platformOf($: EngineInterface): Promise<string> {
+  return (await $.env.get("OS")) === "Windows_NT" ? "win32" : "posix";
 }
 
 async function clonePath($: EngineInterface): Promise<string | undefined> {
@@ -110,10 +111,12 @@ async function gitRoot($: EngineInterface, path: string): Promise<{ top?: string
   return { top: top.stdout.trim(), main: list.isOk ? mainWorktree(list.stdout) : undefined };
 }
 
-function environment($: EngineInterface, home: string, hostname?: string): Environment {
+function environment(
+  $: EngineInterface,
+  machine: Pick<Environment, "home" | "platform" | "hostnames">,
+): Environment {
   return {
-    home,
-    hostname,
+    ...machine,
     resolve: (path) =>
       $.fs
         .stat(path, { resolve: true })
@@ -156,7 +159,14 @@ async function load($: EngineInterface): Promise<Loaded> {
     return {
       catalog,
       file: parsed.isParsed
-        ? { ...parsed, env: environment($, home, await hostnameOf($)) }
+        ? {
+            ...parsed,
+            env: environment($, {
+              home,
+              platform: await platformOf($),
+              hostnames: await hostnamesOf($),
+            }),
+          }
         : parsed,
     };
   } catch (error) {
@@ -564,7 +574,9 @@ function defaultsView(
     <Box flexDirection="column">
       {settings.map((setting) => {
         const value = defaults[setting.skill]?.[setting.name];
-        const isDefault = value === undefined || value === setting.defaultValue;
+        const isDefault =
+          value === undefined ||
+          (isValid(setting, value) && String(value) === setting.defaultValue);
         const isListed = isDefault || isValid(setting, value);
         const options = [
           ...choicesOf(setting).map((choice) =>

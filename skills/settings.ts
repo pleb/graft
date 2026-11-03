@@ -87,7 +87,9 @@ async function main(): Promise<void> {
       home,
       resolve: (path) => realpath(path).catch(() => undefined),
       normaliseRoot,
-      hostname: hostname(),
+      hostnames: [hostname(), process.env.COMPUTERNAME, process.env.HOSTNAME].filter(
+        (name): name is string => !!name,
+      ),
     },
   );
   if (!result.isResolved) {

@@ -8,7 +8,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
@@ -133,6 +133,7 @@ describe("parseSettingsFile", () => {
           "~/work/*": { overrides: { pr: { state: "ready" } } },
           "/oss/graft": { overrides: {} },
           "/oss/empty": {},
+          "/oss/noted": { note: "x" },
         }),
       ),
     ).toEqual({
@@ -143,6 +144,7 @@ describe("parseSettingsFile", () => {
           { key: "~/work/*", overrides: { pr: { state: "ready" } } },
           { key: "/oss/graft", overrides: {} },
           { key: "/oss/empty", overrides: {} },
+          { key: "/oss/noted", overrides: {} },
         ],
       },
     });
@@ -499,11 +501,12 @@ describe("resolveSettings", () => {
         "C:/work/*": { overrides: { plan: { questionsPerRound: "4" } } },
         "\\\\BOX\\c$\\work\\repo": { overrides: { pr: { state: "ready" } } },
       };
-      const environment = { ...windowsEnv(), hostname: "box" };
+      const environment = { ...windowsEnv(), hostnames: ["box.corp.example", "BOX"] };
       for (const root of [
         "\\\\localhost\\C$\\work\\repo",
         "//127.0.0.1/c$/work/repo",
         "//Box/C$/work/repo/",
+        "//Box.Corp.Example/c$/work/repo",
         "C:/work/repo",
       ]) {
         expect(await resolved(file, root, environment), root).toMatchObject({
@@ -925,6 +928,20 @@ describe("settings.ts", () => {
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({ pr: { state: "ready" } });
   });
+
+  it.runIf(process.platform === "win32")(
+    "reads an admin share named by os.hostname() or COMPUTERNAME as its drive",
+    () => {
+      const root = tempDir();
+      const settings = JSON.stringify({ [root]: { overrides: { pr: { state: "ready" } } } });
+      for (const host of [hostname(), "NETBIOS-NAME"]) {
+        const share = root.replace(/^([A-Za-z]):/, `\\\\${host}\\$1$$`);
+        const result = run([share], settings, { env: { COMPUTERNAME: "NETBIOS-NAME" } });
+        expect(result.status, host).toBe(0);
+        expect(JSON.parse(result.stdout), host).toMatchObject({ pr: { state: "ready" } });
+      }
+    },
+  );
 
   it("applies .. in the root as the platform does", () => {
     const base = tempDir();

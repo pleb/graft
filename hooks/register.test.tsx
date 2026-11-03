@@ -818,6 +818,14 @@ test("a stored value equal to the default selects the default option", async ($,
   await ui.unmount();
 });
 
+test("a stored number equal to the default selects the default option", async ($, on) => {
+  world(on, '{"plan":{"questionsPerRound":3}}', ASK_AND_NUMBERS);
+  const ui = await mountOn($, "terminal");
+  expect((await ui.find({ key: "plan.questionsPerRound" }))?.props.value).toBe(":default");
+  expect(await ui.find({ type: "Text", text: /not allowed/ })).toBeUndefined();
+  await ui.unmount();
+});
+
 test("numeric values are offered in numeric order, with a not-allowed value last", async ($, on) => {
   world(on, '{"plan":{"questionsPerRound":"5"}}', ASK_AND_NUMBERS);
   const ui = await mountOn($, "terminal");
@@ -1100,6 +1108,46 @@ test("the effective view reads this machine's admin share as its drive", async (
   expect(
     await ui.find({ type: "Text", text: "orchestrate.manualChecks: defer (from C:/w/*)" }),
   ).toBeDefined();
+  await ui.unmount();
+});
+
+test("the effective view reads the admin share of this machine's HOSTNAME too", async ($, on) => {
+  const w = world(
+    on,
+    JSON.stringify({ "C:/w/*": { overrides: { orchestrate: { manualChecks: "defer" } } } }),
+    SHOWN_WHEN,
+    { COMPUTERNAME: "BOX", HOSTNAME: "box.corp.example" },
+  );
+  w.cwd = "//BOX.corp.example/c$/w/repo";
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: ":effective" });
+
+  expect(
+    await ui.find({ type: "Text", text: "orchestrate.manualChecks: defer (from C:/w/*)" }),
+  ).toBeDefined();
+  await ui.unmount();
+});
+
+test("on Windows, an MSYS scope applies to its drive path and is the same scope", async ($, on) => {
+  const w = world(
+    on,
+    JSON.stringify({ "/c/w/*": { overrides: { orchestrate: { manualChecks: "defer" } } } }),
+    SHOWN_WHEN,
+    { OS: "Windows_NT" },
+  );
+  w.cwd = "C:/w/repo";
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: ":effective" });
+  expect(
+    await ui.find({ type: "Text", text: "orchestrate.manualChecks: defer (from /c/w/*)" }),
+  ).toBeDefined();
+
+  await ui.select({ key: "scope", value: ":add" });
+  await ui.input({ key: "scopePath", text: "C:/w/*" });
+  expect(
+    await ui.find({ type: "Text", text: "C:/w/* is the same scope as /c/w/*." }),
+  ).toBeDefined();
+  expect((await ui.find({ key: "scope" }))?.props.value).toBe(":add");
   await ui.unmount();
 });
 
