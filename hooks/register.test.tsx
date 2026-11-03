@@ -1086,6 +1086,23 @@ test("the effective view resolves the session's repo and shows each value's scop
   await ui.unmount();
 });
 
+test("the effective view reads this machine's admin share as its drive", async ($, on) => {
+  const w = world(
+    on,
+    JSON.stringify({ "C:/w/*": { overrides: { orchestrate: { manualChecks: "defer" } } } }),
+    SHOWN_WHEN,
+    { COMPUTERNAME: "BOX" },
+  );
+  w.cwd = "//box/c$/w/repo";
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: ":effective" });
+
+  expect(
+    await ui.find({ type: "Text", text: "orchestrate.manualChecks: defer (from C:/w/*)" }),
+  ).toBeDefined();
+  await ui.unmount();
+});
+
 test("a dependent setting stays editable with a note in the Defaults and scope views", async ($, on) => {
   world(
     on,

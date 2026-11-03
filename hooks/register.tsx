@@ -76,6 +76,16 @@ async function homeOf($: EngineInterface): Promise<string | undefined> {
   return profile === undefined || profile === "" ? undefined : profile;
 }
 
+async function hostnameOf($: EngineInterface): Promise<string | undefined> {
+  const computer = await $.env.get("COMPUTERNAME");
+  if (computer !== undefined && computer !== "") {
+    return computer;
+  }
+  const host = await $.env.get("HOSTNAME");
+
+  return host === undefined || host === "" ? undefined : host;
+}
+
 async function clonePath($: EngineInterface): Promise<string | undefined> {
   const home = await homeOf($);
 
@@ -100,9 +110,10 @@ async function gitRoot($: EngineInterface, path: string): Promise<{ top?: string
   return { top: top.stdout.trim(), main: list.isOk ? mainWorktree(list.stdout) : undefined };
 }
 
-function environment($: EngineInterface, home: string): Environment {
+function environment($: EngineInterface, home: string, hostname?: string): Environment {
   return {
     home,
+    hostname,
     resolve: (path) =>
       $.fs
         .stat(path, { resolve: true })
@@ -142,7 +153,12 @@ async function load($: EngineInterface): Promise<Loaded> {
   try {
     const parsed = parseFile(await readText($, `${home}/.my-graft/${FILE}`));
 
-    return { catalog, file: parsed.isParsed ? { ...parsed, env: environment($, home) } : parsed };
+    return {
+      catalog,
+      file: parsed.isParsed
+        ? { ...parsed, env: environment($, home, await hostnameOf($)) }
+        : parsed,
+    };
   } catch (error) {
     return { catalog, file: { isParsed: false, error: errorText(error) } };
   }
