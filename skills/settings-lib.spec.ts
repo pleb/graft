@@ -77,15 +77,17 @@ function env({
         : real;
     },
     normaliseRoot: async (path) => roots[path] ?? path,
+    platform: "linux",
   };
 }
 
 // Windows paths that exist only through `reals`, as realpath gives them.
-function windowsEnv(reals: Record<string, string> = {}): Environment {
+function windowsEnv(reals: Record<string, string> = {}, home = "C:\\Users\\me"): Environment {
   return {
-    home: "C:\\Users\\me",
+    home,
     resolve: async (path) => reals[path],
     normaliseRoot: async (path) => path,
+    platform: "win32",
   };
 }
 
@@ -446,6 +448,32 @@ describe("resolveSettings", () => {
       expect(await values(file, "//server/share/repo", windowsEnv())).toMatchObject({
         plan: { questionsPerRound: "4" },
       });
+    });
+
+    it("reads an MSYS root, key and home as drive paths", async () => {
+      const file = {
+        "/c/work/*": { overrides: { plan: { questionsPerRound: "4" } } },
+        "C:/work/repo": { overrides: { pr: { state: "ready" } } },
+        "~\\other": { overrides: { pr: { state: "ready" } } },
+      };
+      expect(await resolved(file, "/c/work/repo", windowsEnv())).toMatchObject({
+        root: "c:/work/repo",
+      });
+      expect(await values(file, "/c/work/repo", windowsEnv())).toEqual({
+        plan: { questionsPerRound: "4" },
+        pr: { state: "ready" },
+      });
+      expect(await resolved(file, "/C", windowsEnv())).toMatchObject({ root: "c:/" });
+      const msysHome = windowsEnv({}, "/c/Users/me");
+      expect(await values(file, "C:\\Users\\me\\other", msysHome)).toMatchObject({
+        pr: { state: "ready" },
+      });
+    });
+
+    it("keeps /c/... a POSIX path on other platforms", async () => {
+      const file = { "C:/work/repo": { overrides: { pr: { state: "ready" } } } };
+      expect(await resolved(file, "/c/work/repo")).toMatchObject({ root: "/c/work/repo" });
+      expect(await values(file, "/c/work/repo")).toMatchObject({ pr: { state: "draft" } });
     });
 
     it("expands ~ with either separator to the Windows home", async () => {
@@ -821,6 +849,19 @@ describe("settings.ts", () => {
     mkdirSync(join(home, "work", "repo"), { recursive: true });
     const settings = JSON.stringify({ "~/work/repo": { overrides: { pr: { state: "ready" } } } });
     const result = run(["~\\work\\repo"], settings, { home, cwd: tempDir() });
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ pr: { state: "ready" } });
+  });
+
+  it.runIf(process.platform === "win32")("reads an MSYS root and HOME on Windows", () => {
+    const msys = (path: string) =>
+      path
+        .replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`)
+        .replaceAll("\\", "/");
+    const [home, root] = [tempDir(), tempDir()];
+    const settings = JSON.stringify({ [root]: { overrides: { pr: { state: "ready" } } } });
+    const env = { HOME: msys(home), USERPROFILE: tempDir() };
+    const result = run([msys(root)], settings, { home, env });
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({ pr: { state: "ready" } });
   });

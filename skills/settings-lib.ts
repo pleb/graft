@@ -19,7 +19,11 @@ export type Environment = {
   // The real path, or undefined when the path does not exist.
   resolve: (path: string) => Promise<string | undefined>;
   normaliseRoot: (path: string) => Promise<string>;
+  // On "win32", an MSYS path such as /c/x is read as C:/x. The running platform when omitted.
+  platform?: string;
 };
+
+export type PathEnvironment = Omit<Environment, "normaliseRoot">;
 
 export type ScopePath = { path: string; isSubtree: boolean };
 
@@ -114,15 +118,29 @@ export function parseSettingsFile(text: string | undefined): ParsedFile {
   return { isParsed: true, file: { defaults, scopes } };
 }
 
-function expandHome(path: string, home: string): string {
-  const slashedHome = slashed(home);
+const runningPlatform = () => (globalThis as { process?: { platform?: string } }).process?.platform;
+
+// The drive form of an MSYS path on Windows: /c/x is C:/x.
+export function driveForm(
+  path: string,
+  { platform = runningPlatform() }: Pick<Environment, "platform"> = {},
+): string {
+  const msys = platform === "win32" ? /^\/([A-Za-z])(?:\/|$)/.exec(path) : null;
+
+  return msys === null ? path : `${msys[1]!.toUpperCase()}:/${path.slice(msys[0].length)}`;
+}
+
+function expandHome(path: string, env: Pick<Environment, "home" | "platform">): string {
+  const slashedHome = slashed(driveForm(env.home, env));
   if (path === "~") {
     return slashedHome;
   }
   const isHomeRelative =
     path.startsWith("~/") || (isWindowsPath(slashedHome) && path.startsWith("~\\"));
 
-  return isHomeRelative ? slashed(`${slashedHome.replace(/\/$/, "")}/${path.slice(2)}`) : path;
+  return isHomeRelative
+    ? slashed(`${slashedHome.replace(/\/$/, "")}/${path.slice(2)}`)
+    : driveForm(path, env);
 }
 
 // `/`, a lowercased drive such as `c:/`, or `//server/share`.
@@ -157,20 +175,14 @@ function lexical(path: string): string {
 export const isSamePath = (a: string, b: string) =>
   comparable(lexical(a)) === comparable(lexical(b));
 
-export async function normalisePath(
-  path: string,
-  env: Pick<Environment, "home" | "resolve">,
-): Promise<string> {
-  const expanded = expandHome(path, env.home);
+export async function normalisePath(path: string, env: PathEnvironment): Promise<string> {
+  const expanded = expandHome(path, env);
 
   return lexical((await env.resolve(expanded)) ?? expanded);
 }
 
-export async function normaliseScopeKey(
-  key: string,
-  env: Pick<Environment, "home" | "resolve">,
-): Promise<ScopePath> {
-  const path = slashed(expandHome(key, env.home));
+export async function normaliseScopeKey(key: string, env: PathEnvironment): Promise<ScopePath> {
+  const path = slashed(expandHome(key, env));
   const isSubtree = path.endsWith(SUBTREE);
   const parent = path.slice(0, -SUBTREE.length);
   const dir = parent === "" || /^[A-Za-z]:$/.test(parent) ? `${parent}/` : parent;
@@ -179,7 +191,7 @@ export async function normaliseScopeKey(
 }
 
 export async function normaliseRootPath(root: string, env: Environment): Promise<string> {
-  return normalisePath(await env.normaliseRoot(expandHome(root, env.home)), env);
+  return normalisePath(await env.normaliseRoot(expandHome(root, env)), env);
 }
 
 const depth = (path: string) => path.split("/").filter((part) => part !== "").length;
@@ -197,7 +209,7 @@ function isUnder(path: string, dir: string): boolean {
 export async function layersFor(
   file: SettingsFile,
   path: string,
-  env: Pick<Environment, "home" | "resolve">,
+  env: PathEnvironment,
   { isSubtree = false } = {},
 ): Promise<Layer[]> {
   const normalised = await Promise.all(
@@ -226,7 +238,7 @@ export async function layersFor(
 export async function inheritedLayers(
   file: SettingsFile,
   key: string,
-  env: Pick<Environment, "home" | "resolve">,
+  env: PathEnvironment,
 ): Promise<Layer[]> {
   const { path, isSubtree } = await normaliseScopeKey(key, env);
 
@@ -358,7 +370,7 @@ export type NewScope = { isValid: true; key: string } | { isValid: false; error:
 export async function newScopeKey(
   input: string,
   existing: readonly string[],
-  env: Pick<Environment, "home" | "resolve">,
+  env: PathEnvironment,
 ): Promise<NewScope> {
   const path = input.trim();
   if (!path.startsWith("/") && !path.startsWith("~/") && !isWindowsPath(path)) {

@@ -5,7 +5,7 @@ import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
 import { parseCatalog } from "./settings-catalog.ts";
-import { effectiveValues, isWindowsPath, resolveSettings } from "./settings-lib.ts";
+import { driveForm, effectiveValues, isWindowsPath, resolveSettings } from "./settings-lib.ts";
 
 const USAGE = "Usage: node settings.ts <root> [--explain]";
 
@@ -52,7 +52,7 @@ async function readText(path: string): Promise<string | undefined> {
 
 // HOME, then USERPROFILE, as hooks/register.tsx reads them, so the pane and this script read the same file.
 function homeDirectory(): string {
-  return [process.env.HOME, process.env.USERPROFILE].find((home) => !!home) ?? homedir();
+  return driveForm([process.env.HOME, process.env.USERPROFILE].find((home) => !!home) ?? homedir());
 }
 
 async function main(): Promise<void> {
