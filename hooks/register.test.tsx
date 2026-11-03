@@ -113,7 +113,9 @@ function world(
       },
     ],
   ]);
-  const path = (p: string) => (p.endsWith("/skills/common.md") ? "common" : p);
+  // On Windows the engine hands fs.* native paths: backslashes, and a drive on POSIX fixture paths.
+  const posix = (p: string) => p.replaceAll("\\", "/").replace(/^[A-Za-z]:(?=\/)/, "");
+  const path = (p: string) => (posix(p).endsWith("/skills/common.md") ? "common" : posix(p));
 
   mock.env(on, { HOME, ...env });
   on("fs.exists", (_, e) => ({ value: files.has(path(e.path)) }));
@@ -123,12 +125,12 @@ function world(
     return text === undefined ? { deny: `ENOENT: ${e.path}` } : { value: text };
   });
   on("fs.write", (_, e) => {
-    files.set(e.path, e.text);
+    files.set(path(e.path), e.text);
 
     return { value: undefined };
   });
   on("fs.stat", (_, e) => ({
-    value: { kind: "dir", size: 0, mtimeMs: 0, isLink: false, realPath: e.path },
+    value: { kind: "dir", size: 0, mtimeMs: 0, isLink: false, realPath: path(e.path) },
   }));
   on("process.run", async (_, e) => {
     runs.push([...e.argv]);
