@@ -265,7 +265,6 @@ export async function inheritedLayers(
   return (await layersFor(file, path, env, { isSubtree })).filter(({ source }) => source !== key);
 }
 
-// A number or boolean is taken as its string form, so `1` is `"1"`.
 export function isValid(setting: CatalogSetting, value: unknown): boolean {
   const text = typeof value === "number" || typeof value === "boolean" ? String(value) : value;
 
