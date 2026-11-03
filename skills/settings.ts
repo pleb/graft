@@ -50,6 +50,11 @@ async function readText(path: string): Promise<string | undefined> {
   }
 }
 
+// HOME, then USERPROFILE, as hooks/register.tsx reads them, so the pane and this script read the same file.
+function homeDirectory(): string {
+  return [process.env.HOME, process.env.USERPROFILE].find((home) => !!home) ?? homedir();
+}
+
 async function main(): Promise<void> {
   let parsed;
   try {
@@ -61,7 +66,7 @@ async function main(): Promise<void> {
   if (root === undefined || root === "" || rest.length > 0) {
     fail(USAGE);
   }
-  const home = homedir();
+  const home = homeDirectory();
   const common = await readText(fileURLToPath(new URL("./common.md", import.meta.url)));
   const catalog =
     common === undefined

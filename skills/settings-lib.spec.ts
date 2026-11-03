@@ -683,7 +683,8 @@ describe("settings.ts", () => {
       script = SCRIPT,
       home = tempDir(),
       cwd,
-    }: { script?: string; home?: string; cwd?: string } = {},
+      env = {},
+    }: { script?: string; home?: string; cwd?: string; env?: Record<string, string> } = {},
   ) {
     if (settings !== undefined) {
       mkdirSync(join(home, ".my-graft"), { recursive: true });
@@ -692,7 +693,7 @@ describe("settings.ts", () => {
     return spawnSync(process.execPath, [script, ...args], {
       cwd,
       encoding: "utf8",
-      env: { ...process.env, HOME: home },
+      env: { ...process.env, HOME: home, USERPROFILE: home, ...env },
     });
   }
 
@@ -749,6 +750,27 @@ describe("settings.ts", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({ pr: { state: "draft" } });
   });
 
+  it("reads the settings file under HOME, then USERPROFILE", () => {
+    const [home, profile] = [tempDir(), tempDir()];
+    mkdirSync(join(home, ".my-graft"));
+    writeFileSync(join(home, ".my-graft", "graft-settings.json"), '{"pr": {"state": "ready"}}');
+    mkdirSync(join(profile, ".my-graft"));
+    writeFileSync(
+      join(profile, ".my-graft", "graft-settings.json"),
+      '{"plan": {"questionsPerRound": "1"}}',
+    );
+    const fromHome = run([home], undefined, { env: { HOME: home, USERPROFILE: profile } });
+    expect(JSON.parse(fromHome.stdout)).toMatchObject({
+      pr: { state: "ready" },
+      plan: { questionsPerRound: "3" },
+    });
+    const fromProfile = run([home], undefined, { env: { HOME: "", USERPROFILE: profile } });
+    expect(JSON.parse(fromProfile.stdout)).toMatchObject({
+      pr: { state: "draft" },
+      plan: { questionsPerRound: "1" },
+    });
+  });
+
   it("normalises the root through git", () => {
     const base = tempDir();
     const repo = join(base, "repo");
@@ -794,14 +816,16 @@ describe("settings.ts", () => {
     });
   });
 
-  it("follows a symlink in the root before applying ..", () => {
+  it("applies .. in the root as the platform does", () => {
     const base = tempDir();
     mkdirSync(join(base, "real", "team"), { recursive: true });
     mkdirSync(join(base, "real", "repo"));
-    mkdirSync(join(base, "work"));
+    mkdirSync(join(base, "work", "repo"), { recursive: true });
     symlinkSync(join(base, "real", "team"), join(base, "work", "link"));
+    // Windows applies `..` before following a link; POSIX follows the link first.
+    const target = process.platform === "win32" ? ["work", "repo"] : ["real", "repo"];
     const settings = JSON.stringify({
-      [join(base, "real", "repo")]: { overrides: { pr: { state: "ready" } } },
+      [join(base, ...target)]: { overrides: { pr: { state: "ready" } } },
     });
     for (const [root, cwd] of [
       [`${base}/work/link/../repo`, undefined],
