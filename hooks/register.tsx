@@ -242,19 +242,29 @@ const firstLine = (ran: Ran) =>
   ran.stderr.trim().split("\n")[0] || ran.stdout.trim().split("\n")[0] || "no output";
 
 // The user's ssh command, as git picks it, made to fail instead of prompting.
-// `-o BatchMode=yes` goes right after the program because ssh keeps the first value given for an option.
+// The batch option goes right after the program because ssh keeps the first value given for an option.
+// PuTTY's plink and TortoisePlink reject `-o`, so they get `-batch`.
 async function networkEnv($: EngineInterface, clone: string): Promise<Record<string, string>> {
   const command = (await $.env.get("GIT_SSH_COMMAND"))?.trim();
   const config = await run($, ["git", "-C", clone, "config", "core.sshCommand"]);
   const program = (await $.env.get("GIT_SSH"))?.trim();
-  const batch = (ssh: string) => ssh.replace(/^(\S+)/, "$1 -o BatchMode=yes");
+  const option = (path: string) =>
+    /(^|[\\/])(tortoise)?plink(\.exe)?$/i.test(path.replaceAll(/["']/g, ""))
+      ? "-batch"
+      : "-o BatchMode=yes";
+  const batch = (ssh: string) => {
+    const word = (/^(?:"(?:[^"\\]|\\.)*"|'[^']*'|\\.|[^\s"'\\])+/.exec(ssh) ??
+      /^\S+/.exec(ssh))![0];
+
+    return `${word} ${option(word)}${ssh.slice(word.length)}`;
+  };
   const sshCommand =
     command !== undefined && command !== ""
       ? batch(command)
       : config.isOk && config.stdout.trim() !== ""
         ? batch(config.stdout.trim())
         : program !== undefined && program !== ""
-          ? `'${program.replaceAll("'", "'\\''")}' -o BatchMode=yes`
+          ? `'${program.replaceAll("'", "'\\''")}' ${option(program)}`
           : "ssh -o BatchMode=yes";
 
   return { GIT_TERMINAL_PROMPT: "0", GIT_SSH_COMMAND: sshCommand };

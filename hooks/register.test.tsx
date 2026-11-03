@@ -626,7 +626,7 @@ test("network calls quote a Windows GIT_SSH path with spaces", async ($, on) => 
   await ui.unmount();
 });
 
-test("current behaviour: BatchMode=yes splits a quoted Windows core.sshCommand program with spaces", async ($, on) => {
+test("BatchMode=yes follows a double-quoted core.sshCommand program with spaces", async ($, on) => {
   const w = world(on);
   w.git("config core.sshCommand", {
     exitCode: 0,
@@ -636,8 +636,50 @@ test("current behaviour: BatchMode=yes splits a quoted Windows core.sshCommand p
   await ui.select({ key: "orchestrate.deletePlan", value: "never" });
 
   expect(sshCommands(w)[0]).toBe(
-    '"C:\\Program -o BatchMode=yes Files\\OpenSSH\\ssh.exe" -i ~/.ssh/graft',
+    '"C:\\Program Files\\OpenSSH\\ssh.exe" -o BatchMode=yes -i ~/.ssh/graft',
   );
+  await ui.unmount();
+});
+
+test("BatchMode=yes follows a single-quoted GIT_SSH_COMMAND program with spaces", async ($, on) => {
+  const w = world(on, undefined, COMMON, {
+    GIT_SSH_COMMAND: "'/opt/my ssh/bin/ssh' -i ~/.ssh/env",
+  });
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+  expect(sshCommands(w)[0]).toBe("'/opt/my ssh/bin/ssh' -o BatchMode=yes -i ~/.ssh/env");
+  await ui.unmount();
+});
+
+for (const [program, expected] of [
+  ["C:\\Program Files\\PuTTY\\plink.exe", "'C:\\Program Files\\PuTTY\\plink.exe' -batch"],
+  [
+    "C:\\Program Files\\TortoiseGit\\bin\\TortoisePlink.exe",
+    "'C:\\Program Files\\TortoiseGit\\bin\\TortoisePlink.exe' -batch",
+  ],
+  ["/usr/bin/plink", "'/usr/bin/plink' -batch"],
+] as const) {
+  test(`plink and TortoisePlink get -batch instead of BatchMode=yes: ${program}`, async ($, on) => {
+    const w = world(on, undefined, COMMON, { GIT_SSH: program });
+    const ui = await mountOn($, "terminal");
+    await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+    expect(sshCommands(w)[0]).toBe(expected);
+    await ui.unmount();
+  });
+}
+
+test("a plink core.sshCommand gets -batch after its program", async ($, on) => {
+  const w = world(on);
+  w.git("config core.sshCommand", {
+    exitCode: 0,
+    stdout: '"C:\\Program Files\\PuTTY\\PLINK.EXE" -i key.ppk\n',
+  });
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+  expect(sshCommands(w)[0]).toBe('"C:\\Program Files\\PuTTY\\PLINK.EXE" -batch -i key.ppk');
   await ui.unmount();
 });
 
