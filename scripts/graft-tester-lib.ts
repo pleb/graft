@@ -1,4 +1,14 @@
+import { randomBytes } from "node:crypto";
+
 export type TrustKeys = { keys: string[] } | { refusal: string };
+
+export function testerName(): string {
+  return `graft-tester-${randomBytes(3).toString("hex")}`;
+}
+
+export function isTesterName(name: string): boolean {
+  return /^graft-tester(-[0-9a-f]{6})?( \(\d+\))?$/.test(name);
+}
 
 function slashed(path: string): string {
   const forward = path.replaceAll("\\", "/");

@@ -2,10 +2,8 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { trustKeys } from "./graft-tester-lib.ts";
+import { isTesterName, testerName, trustKeys } from "./graft-tester-lib.ts";
 
-const NAME = "graft-tester";
-const TESTER_NAME = /^graft-tester( \(\d+\))?$/;
 const repoRoot = resolve(import.meta.dirname, "..");
 
 type Agent = { id: string; kind: string; name?: string };
@@ -59,8 +57,8 @@ function untrusted(path: string, keys: string[]): string[] {
   return keys.filter((key) => projects[key]?.hasTrustDialogAccepted !== true);
 }
 
-function trust(path: string, keys: string[]): void {
-  if (untrusted(path, keys).length === 0) return;
+function trust(path: string, keys: string[]): boolean {
+  if (untrusted(path, keys).length === 0) return false;
   const stat = statSync(path, { throwIfNoEntry: false });
   const real = stat ? realpathSync(path) : path;
   const mode = stat ? stat.mode & 0o777 : 0o600;
@@ -73,7 +71,7 @@ function trust(path: string, keys: string[]): void {
     writeFileSync(temp, JSON.stringify(config, null, 2), { mode });
     try {
       renameSync(temp, real);
-      return;
+      return true;
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (attempt < 5 && (code === "EPERM" || code === "EBUSY")) {
@@ -94,6 +92,11 @@ function automationNote(controller: string): string {
   ].join(" ");
 }
 
+function testers(): Agent[] {
+  const agents = JSON.parse(claude(["agents", "--json"], { capture: true })) as Agent[];
+  return agents.filter((agent) => agent.kind === "background" && isTesterName(agent.name ?? ""));
+}
+
 function start(args: string[]): void {
   const [cwd, controller, command] = args;
   if (args.length !== 3 || !cwd || !controller || !command) {
@@ -101,19 +104,23 @@ function start(args: string[]): void {
   }
   const dir = resolve(process.env.INIT_CWD ?? process.cwd(), cwd);
   if (!statSync(dir, { throwIfNoEntry: false })?.isDirectory()) fail(`Not a directory: ${dir}`);
+  const running = testers().map((agent) => agent.name);
+  if (running.length > 0)
+    fail(`${running.join(", ")} is running. Stop it with: npm run stop-graft-tester`);
   const root = gitRoot(dir);
   const trusted = trustKeys(root, realpathSync.native(root), homedir());
   if ("refusal" in trusted) fail(`Refusing to trust ${root}: ${trusted.refusal}.`);
   const config = join(process.env.CLAUDE_CONFIG_DIR ?? homedir(), ".claude.json");
-  trust(config, trusted.keys);
+  const wrote = trust(config, trusted.keys);
   const missing = untrusted(config, trusted.keys);
   if (missing.length > 0) fail(`${config} does not trust ${missing.join(", ")}.`);
-  console.log(`Trusted ${trusted.keys.join(", ")} in ${config}.`);
+  if (wrote) console.log(`Trusted ${trusted.keys.join(", ")} in ${config}.`);
+  const name = testerName();
   claude(
     [
       "--bg",
       "--name",
-      NAME,
+      name,
       "--plugin-dir",
       repoRoot,
       "--permission-mode",
@@ -137,20 +144,17 @@ function start(args: string[]): void {
 }
 
 function stop(): void {
-  const agents = JSON.parse(claude(["agents", "--json"], { capture: true })) as Agent[];
-  const testers = agents.filter(
-    (agent) => agent.kind === "background" && TESTER_NAME.test(agent.name ?? ""),
-  );
+  const running = testers();
   let failed = 0;
-  for (const tester of testers) {
+  for (const tester of running) {
     const result = run(["stop", tester.id]);
     if (result instanceof Error) {
       console.error(`${result.message} for ${tester.id}`);
       failed++;
     }
   }
-  console.log(`Stopped ${testers.length - failed} ${NAME} session(s).`);
-  if (failed > 0) fail(`Failed to stop ${failed} ${NAME} session(s).`);
+  console.log(`Stopped ${running.length - failed} graft-tester session(s).`);
+  if (failed > 0) fail(`Failed to stop ${failed} graft-tester session(s).`);
 }
 
 const [action, ...rest] = process.argv.slice(2);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { trustKeys } from "./graft-tester-lib.ts";
+import { isTesterName, testerName, trustKeys } from "./graft-tester-lib.ts";
 
 describe("trustKeys", () => {
   it("turns drive paths to forward slashes and keeps their case", () => {
@@ -51,4 +51,24 @@ describe("trustKeys", () => {
       keys: ["C:/Users/Me2"],
     });
   });
+});
+
+describe("testerName", () => {
+  it("makes a different name that isTesterName matches each time", () => {
+    const [a, b] = [testerName(), testerName()];
+    expect(a).not.toBe(b);
+    expect(isTesterName(a)).toBe(true);
+  });
+});
+
+describe("isTesterName", () => {
+  it.each(["graft-tester", "graft-tester (2)", "graft-tester-0a1b2c", "graft-tester-0a1b2c (2)"])(
+    "matches %s",
+    (name) => expect(isTesterName(name)).toBe(true),
+  );
+
+  it.each(["graft-30", "graft-tester-x", "my-graft-tester", "graft-tester-0a1b2c-old"])(
+    "does not match %s",
+    (name) => expect(isTesterName(name)).toBe(false),
+  );
 });
