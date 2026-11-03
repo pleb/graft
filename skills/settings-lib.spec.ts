@@ -342,6 +342,21 @@ describe("resolveSettings", () => {
     });
   });
 
+  it("takes a number or boolean as its string form, if that is allowed", async () => {
+    const file = {
+      plan: { questionsPerRound: 1 },
+      "/w/repo": { overrides: { plan: { questionsPerRound: 9 }, pr: { state: true } } },
+      "/w/other": { overrides: { plan: { questionsPerRound: 4 } } },
+    };
+    expect(await sources(file, "/w/repo")).toEqual({
+      "plan.questionsPerRound": "1 from Defaults",
+      "pr.state": "draft from Default",
+    });
+    expect(await sources(file, "/w/other")).toMatchObject({
+      "plan.questionsPerRound": "4 from /w/other",
+    });
+  });
+
   it("applies a stored Default as an override", async () => {
     const file = {
       pr: { state: "ready" },

@@ -261,8 +261,14 @@ export async function inheritedLayers(
   return (await layersFor(file, path, env, { isSubtree })).filter(({ source }) => source !== key);
 }
 
-export const isValid = (setting: CatalogSetting, value: unknown): value is string =>
-  typeof value === "string" && (value === setting.defaultValue || setting.values.includes(value));
+// A number or boolean is taken as its string form, so `1` is `"1"`.
+export function isValid(setting: CatalogSetting, value: unknown): boolean {
+  const text = typeof value === "number" || typeof value === "boolean" ? String(value) : value;
+
+  return (
+    typeof text === "string" && (text === setting.defaultValue || setting.values.includes(text))
+  );
+}
 
 export function explainLayers(layers: Layer[], settings: CatalogSetting[]): ExplainedSetting[] {
   return settings.map((setting) => {
@@ -271,7 +277,7 @@ export function explainLayers(layers: Layer[], settings: CatalogSetting[]): Expl
     for (const layer of layers) {
       const stored = layer.values[setting.skill]?.[setting.name];
       if (isValid(setting, stored)) {
-        value = stored;
+        value = String(stored);
         source = layer.source;
       }
     }
