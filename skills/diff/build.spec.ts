@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -67,6 +67,13 @@ function write(dir: string, files: Record<string, string | Buffer>): void {
     mkdirSync(dirname(join(dir, path)), { recursive: true });
     writeFileSync(join(dir, path), content);
   }
+}
+
+// Makes a file unreadable: by mode on POSIX, by denying Everyone read-data access on Windows.
+function lock(path: string): void {
+  if (process.platform !== "win32") return chmodSync(path, 0);
+  const result = spawnSync("icacls", [path, "/deny", "*S-1-1-0:(RD)"], { encoding: "utf8" });
+  if (result.status !== 0) throw new Error(`icacls ${path}: ${result.stdout}${result.stderr}`);
 }
 
 function commitAll(dir: string, message: string): void {
@@ -340,7 +347,7 @@ describe("collectPage", () => {
     );
     const head = git(dir, "rev-parse", "--short", "HEAD");
     expect({ ...data, files: [] }).toEqual({
-      repo: dir.split("/").at(-1),
+      repo: basename(dir),
       branch: "feature",
       base: "main",
       buildId: `${head}-3`,
@@ -659,7 +666,8 @@ describe("collectPage", () => {
     expect(files.get("broken")!.hunks![0].lines).toEqual([["+", null, 1, "missing", 1]]);
   });
 
-  it.skipIf(spawnSync("mkfifo", ["--help"]).error !== undefined)(
+  // Windows has no FIFOs; Git Bash's mkfifo makes a pipe.lnk file instead.
+  it.skipIf(process.platform === "win32" || spawnSync("mkfifo", ["--help"]).error !== undefined)(
     "shows an untracked FIFO without content",
     () => {
       const dir = newRepo({ "a.txt": "a\n" });
@@ -682,7 +690,7 @@ describe("collectPage", () => {
   it.skipIf(process.getuid?.() === 0)("includes git's stderr when git fails", () => {
     const dir = newRepo({ "a.txt": "a\n" });
     write(dir, { "locked.txt": "x\n" });
-    chmodSync(join(dir, "locked.txt"), 0);
+    lock(join(dir, "locked.txt"));
     expect(() => collectPage(dir, input({ untracked: ["locked.txt"] }))).toThrow(
       /Permission denied\nfatal: cannot hash locked\.txt/,
     );
@@ -702,15 +710,19 @@ describe("collectPage", () => {
     }
   });
 
-  it("excludes a quoted path with astral characters by its real name", () => {
-    const path = "emoji \u{1f600}\tx.md";
-    const dir = newRepo({ [path]: "one\n", "a.txt": "a\n" });
-    write(dir, { [path]: "two\n", "a.txt": "b\n" });
-    expect(collectPage(dir, input()).files.map((file) => file.path)).toEqual(["a.txt", path]);
-    expect(collectPage(dir, input({ exclude: [path] })).files.map((file) => file.path)).toEqual([
-      "a.txt",
-    ]);
-  });
+  // Windows file names cannot hold the tab that makes git quote the path.
+  it.skipIf(process.platform === "win32")(
+    "excludes a quoted path with astral characters by its real name",
+    () => {
+      const path = "emoji \u{1f600}\tx.md";
+      const dir = newRepo({ [path]: "one\n", "a.txt": "a\n" });
+      write(dir, { [path]: "two\n", "a.txt": "b\n" });
+      expect(collectPage(dir, input()).files.map((file) => file.path)).toEqual(["a.txt", path]);
+      expect(collectPage(dir, input({ exclude: [path] })).files.map((file) => file.path)).toEqual([
+        "a.txt",
+      ]);
+    },
+  );
 
   it("fails when there are no changes", () => {
     const dir = newRepo({ "a.txt": "a\n" });
@@ -721,11 +733,16 @@ describe("collectPage", () => {
 describe("renderPage", () => {
   it("escapes the repo and branch in the title", () => {
     const dir = newRepo({ "a.txt": "a\n" });
-    git(dir, "checkout", "-q", "-b", "feat/<x>&y");
+    // Windows file names cannot hold < or >, so the branch is a packed ref, not a loose ref file.
+    const branch = "feat/<x>&y";
+    writeFileSync(
+      join(dir, ".git/packed-refs"),
+      `${git(dir, "rev-parse", "HEAD")} refs/heads/${branch}\n`,
+    );
+    git(dir, "symbolic-ref", "HEAD", `refs/heads/${branch}`);
     write(dir, { "a.txt": "b\n" });
     const html = renderPage(TEMPLATE, collectPage(dir, input()));
-    const repo = dir.split("/").at(-1);
-    expect(html).toContain(`<title>${repo} / feat/&lt;x&gt;&amp;y diff</title>`);
+    expect(html).toContain(`<title>${basename(dir)} / feat/&lt;x&gt;&amp;y diff</title>`);
     expect(embedded(html).branch).toBe("feat/<x>&y");
   });
 
