@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { trustKeys } from "./graft-tester-lib.ts";
 
 const NAME = "graft-tester";
@@ -61,14 +61,18 @@ function untrusted(path: string, keys: string[]): string[] {
 
 function trust(path: string, keys: string[]): void {
   if (untrusted(path, keys).length === 0) return;
-  const config = readConfig(path);
-  const projects = (config.projects ??= {});
-  for (const key of keys) projects[key] = { ...projects[key], hasTrustDialogAccepted: true };
-  const temp = `${path}.${process.pid}.tmp`;
-  writeFileSync(temp, JSON.stringify(config, null, 2));
+  const stat = statSync(path, { throwIfNoEntry: false });
+  const real = stat ? realpathSync(path) : path;
+  const mode = stat ? stat.mode & 0o777 : 0o600;
+  const temp = join(dirname(real), `${basename(real)}.${process.pid}.tmp`);
   for (let attempt = 1; ; attempt++) {
+    const config = readConfig(real);
+    const projects = (config.projects ??= {});
+    for (const key of keys) projects[key] = { ...projects[key], hasTrustDialogAccepted: true };
+    rmSync(temp, { force: true });
+    writeFileSync(temp, JSON.stringify(config, null, 2), { mode });
     try {
-      renameSync(temp, path);
+      renameSync(temp, real);
       return;
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
