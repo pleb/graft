@@ -615,6 +615,30 @@ test("core.sshCommand wins over GIT_SSH", async ($, on) => {
   await ui.unmount();
 });
 
+test("network calls quote a Windows GIT_SSH path with spaces", async ($, on) => {
+  const w = world(on, undefined, COMMON, { GIT_SSH: "C:\\Program Files\\OpenSSH\\ssh.exe" });
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+  expect(sshCommands(w)[0]).toBe("'C:\\Program Files\\OpenSSH\\ssh.exe' -o BatchMode=yes");
+  await ui.unmount();
+});
+
+test("current behaviour: BatchMode=yes splits a quoted Windows core.sshCommand program with spaces", async ($, on) => {
+  const w = world(on);
+  w.git("config core.sshCommand", {
+    exitCode: 0,
+    stdout: '"C:\\Program Files\\OpenSSH\\ssh.exe" -i ~/.ssh/graft\n',
+  });
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+  expect(sshCommands(w)[0]).toBe(
+    '"C:\\Program -o BatchMode=yes Files\\OpenSSH\\ssh.exe" -i ~/.ssh/graft',
+  );
+  await ui.unmount();
+});
+
 test("the selects give way to text while a save runs", async ($, on) => {
   const clock = mock.clock(on);
   const w = world(on);
