@@ -15,9 +15,11 @@ The tester also runs in auto mode. It blocks actions it judges destructive, such
 3. Note whether `~/.my-graft/graft-settings.json` exists, and its content.
 4. Find your session name. It is the `name` of the entry in `claude agents --json` whose `sessionId` is `$CLAUDE_CODE_SESSION_ID`. If that entry has no name, set one with `/rename`.
 5. Start the tester: `npm run start-graft-tester -- <dir> <your session name> "<slash command>"`, where `<dir>` is the scratch directory.
-6. Answer its questions with `SendMessage` to the tester name on step 5's `backgrounded` line until the test is done.
-7. Stop the tester: `npm run stop-graft-tester`.
-8. Restore the settings file to what you noted in step 3, or delete it if it did not exist.
+6. Start a `Monitor` that prints the tester's `state` from `claude agents --json` every 5 minutes.
+7. Answer its questions with `SendMessage` to the tester name on step 5's `backgrounded` line until the test is done. When a poll shows `done` or `blocked` and no question has arrived, read the tester's last assistant message in its transcript, `~/.claude/projects/<dir with each / and . replaced by ->/<tester session id>.jsonl`, and act on it.
+8. If your session's name changes (for example, when the session moves to the background), send the new name to each running tester.
+9. Stop the tester: `npm run stop-graft-tester`.
+10. Restore the settings file to what you noted in step 3, or delete it if it did not exist.
 
 ## Windows
 
