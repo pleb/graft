@@ -8,15 +8,13 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 
 You bring `<target>` up to date with Graft and keep the user's mods.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Command failures`, `## Settings` and `## Target clone`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Command failures`, `## Settings`, `## Target clone` and `## Mod registry`.
 
 Once `## Target clone` sets `<target>`, get settings.
 
 ```bash
 node ${CLAUDE_SKILL_DIR}/../settings.ts <target>
 ```
-
-The mod registry is `<target>/MODS.md`.
 
 **Arguments:** $ARGUMENTS
 

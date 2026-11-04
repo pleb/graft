@@ -71,6 +71,22 @@ The target is the current directory's git top level when it is a Graft repo othe
 git rev-parse --show-toplevel
 ```
 
+## Mod registry
+
+The registry records `<target>`'s mods. Compare `owner/repo` case-insensitively, whatever the URL form.
+
+```bash
+git -C <target> remote get-url origin
+```
+
+The first that applies is the registry:
+
+- `<target>/INTERSTOCK-MODS.md` when `origin` is the `owner/repo` that file names.
+- `<target>/MODS.md` when `<target>/INTERSTOCK-MODS.md` is absent or the `origin` repo is named `my-graft`.
+- Otherwise, ask the user which.
+
+Picking the registry edits nothing. When `INTERSTOCK-MODS.md` exists, read it as well as the registry; write only to the registry.
+
 ## Sync the clone
 
 The clone is `<target>`, or `~/.my-graft` for a caller that does not follow `## Target clone`. Check that the clone is on `main` with no changed or untracked files.

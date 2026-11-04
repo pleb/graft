@@ -24,9 +24,19 @@ In `<dir>/README.md`, replace the install command under `## Install` with the co
 - Public: `Claude, install Graft https://raw.githubusercontent.com/<owner>/<repo>/main/agent-install.md`
 - Private: `Claude, install Graft by reading agent-install.md from <owner>/<repo> with gh api -H "Accept: application/vnd.github.raw" repos/<owner>/<repo>/contents/agent-install.md`
 
+Create `<dir>/INTERSTOCK-MODS.md`:
+
+```markdown
+Changes the interstock <owner>/<repo> makes to Graft. Clones of it keep their own in `MODS.md`. `/graft:update` keeps each one when it merges upstream.
+
+| Change | Intent |
+| ------ | ------ |
+```
+
 Commit and push.
 
 ```bash
+git -C <dir> add INTERSTOCK-MODS.md
 git -C <dir> commit -am "Make <owner>/<repo> an interstock"
 git -C <dir> push --set-upstream origin main
 ```

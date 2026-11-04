@@ -8,15 +8,13 @@ allowed-tools: Bash(node ~/.my-graft/skills/settings.ts *)
 
 You change the user's Graft clone at `<target>`, one mod at a time.
 
-Read `~/.my-graft/skills/common.md` and follow its sections `## Ask the user`, `## Command failures`, `## Settings` and `## Target clone`.
+Read `~/.my-graft/skills/common.md` and follow its sections `## Ask the user`, `## Command failures`, `## Settings`, `## Target clone` and `## Mod registry`.
 
 Once `## Target clone` sets `<target>`, get settings with this command as written, without expanding `~`.
 
 ```bash
 node ~/.my-graft/skills/settings.ts <target>
 ```
-
-The mod registry is `<target>/MODS.md`.
 
 **Arguments:** $ARGUMENTS
 
@@ -26,7 +24,7 @@ Follow common.md's `## Claude Code version`, then its `## Sync the clone`.
 
 ## Read the registry
 
-Read the registry if it exists. A change to an existing mod revises its row and keeps its Change name. A request that contradicts a mod says so in the first round.
+Read the registry if it exists. A change to an existing mod revises its row and keeps its Change name. When the registry is `MODS.md`, a change to a mod recorded only in `INTERSTOCK-MODS.md` is a new mod in the registry under its own Change name. A request that contradicts a mod says so in the first round.
 
 ## Settle
 
@@ -48,7 +46,7 @@ Read `<target>/skills/orchestrate/SKILL.md` and follow its sections `## Execute`
 
 ## Record
 
-Add or revise the mod's row in `<target>/MODS.md`. If the file is missing, create it with an intro line and the table header:
+Add or revise the mod's row in the registry. If the registry is missing, create `<target>/MODS.md` with an intro line and the table header:
 
 ```markdown
 Changes this copy makes to Graft. `/graft:update` keeps each one when it merges upstream.
@@ -58,6 +56,8 @@ Changes this copy makes to Graft. `/graft:update` keeps each one when it merges 
 ```
 
 Change is a short imperative name, and also the commit subject. Intent is one to three sentences on the behaviour the user wants and why. No file lists or implementation detail.
+
+When the registry is `INTERSTOCK-MODS.md` and the user says the interstock itself was renamed or transferred (not a fork), update the `owner/repo` the registry names in the same commit.
 
 ## Validate
 
