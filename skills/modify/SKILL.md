@@ -57,7 +57,7 @@ Changes this copy makes to Graft. `/graft:update` keeps each one when it merges 
 
 Change is a short imperative name, and also the commit subject. Intent is one to three sentences on the behaviour the user wants and why. No file lists or implementation detail.
 
-When the registry is `INTERSTOCK-MODS.md` and the user says the interstock itself was renamed or transferred (not a fork), update its name in the registry in the same commit.
+When the registry is `INTERSTOCK-MODS.md` and the user says the interstock itself was renamed or transferred (not a fork), update the `owner/repo` the registry names in the same commit.
 
 ## Validate
 
