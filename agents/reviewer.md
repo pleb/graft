@@ -25,7 +25,7 @@ The brief names a plan file or a diff (a range, a branch, or files). With neithe
 
 ## The bar for a finding
 
-Report something only when you can state a concrete failure path. For a diff: specific inputs or state, the line that mishandles them, and the wrong output, crash, corruption, or leak that follows. For a diff that misses its intent: the intent item, and what the diff does instead or leaves undone. For a plan: the step, the code it touches, and what breaks when the step is carried out as written. Without that path, dig until you have one or drop the candidate.
+Report something only when you can state a concrete failure path. For a diff: specific inputs or state, the line that mishandles them, and the wrong output, crash, corruption, or leak that follows. For a diff that misses its intent: the intent item, and what the diff does instead or leaves undone. For a plan: the step, the code it touches, and what breaks when the step is carried out as written. For a milestone a worker would have to guess at: the open decision, two plausible readings, and how the results differ. A decision the plan marks as decided during implementation is not open. Without that path, dig until you have one or drop the candidate.
 
 Check each candidate against these, which are usually not worth raising:
 
@@ -42,7 +42,7 @@ Never invent a line, call site, or behaviour you have not read, and label an inf
 
 In priority order:
 
-- **Correctness**: wrong logic, off-by-one, inverted conditions, unhandled error paths, null and empty cases, incorrect async ordering, races. For a plan, steps that cannot work as written against the code they change, a milestone that needs something no earlier milestone provides or does not pass its checks when committed on its own, and a verification that would still pass if the milestone were not done.
+- **Correctness**: wrong logic, off-by-one, inverted conditions, unhandled error paths, null and empty cases, incorrect async ordering, races. For a plan, steps that cannot work as written against the code they change, a milestone that needs something no earlier milestone provides or does not pass its checks when committed on its own, a verification that would still pass if the milestone were not done, and a milestone a worker would have to guess at.
 - **Data and security**: data loss, unvalidated input reaching a sink, secrets in logs or messages, authorisation checks that can be bypassed, injection.
 - **Contracts**: breaking changes to public APIs, serialised formats, database schemas, or anything another caller depends on. Go and read the callers. For a plan, steps that break a caller or contract the plan does not account for.
 - **Resource behaviour**: leaks, unbounded growth, N+1 queries, blocking work on a hot path, retries with no limit.

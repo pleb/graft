@@ -51,6 +51,9 @@ type World = {
   head: string;
   parent: string;
   subject: string;
+  cwd: string;
+  tops: Record<string, string>;
+  worktrees: Record<string, string>;
   land: (argv: readonly string[]) => void;
   git: (
     sub: string,
@@ -59,7 +62,8 @@ type World = {
 };
 
 // A fake engine: HOME set, an in-memory file system, and git answering as a
-// clean, up-to-date clone on main.
+// clean, up-to-date clone on main. Other directories are repos only when
+// `tops` maps them to a top level.
 function world(
   on: On,
   settings?: string,
@@ -75,7 +79,23 @@ function world(
   const inits: World["inits"] = [];
   const toasts: string[] = [];
   const answers = new Map<string, (argv: readonly string[]) => Promise<Answer> | Answer>([
-    ["rev-parse --show-toplevel", () => ({ exitCode: 0, stdout: `${CLONE}\n` })],
+    [
+      "rev-parse --show-toplevel",
+      (argv) => {
+        const top = argv[2] === CLONE ? CLONE : w.tops[argv[2]!];
+
+        return top === undefined
+          ? { exitCode: 128, stderr: "fatal" }
+          : { exitCode: 0, stdout: `${top}\n` };
+      },
+    ],
+    [
+      "worktree list",
+      (argv) => ({
+        exitCode: 0,
+        stdout: w.worktrees[argv[2]!] ?? `worktree ${argv[2]}\nHEAD c0\n`,
+      }),
+    ],
     ["symbolic-ref", () => ({ exitCode: 0, stdout: "main\n" })],
     ["rev-parse -q", () => ({ exitCode: 1 })],
     ["status", () => ({ exitCode: 0, stdout: "" })],
@@ -93,7 +113,9 @@ function world(
       },
     ],
   ]);
-  const path = (p: string) => (p.endsWith("/skills/common.md") ? "common" : p);
+  // On Windows the engine hands fs.* native paths: backslashes, and a drive on POSIX fixture paths.
+  const posix = (p: string) => p.replaceAll("\\", "/").replace(/^[A-Za-z]:(?=\/)/, "");
+  const path = (p: string) => (posix(p).endsWith("/skills/common.md") ? "common" : posix(p));
 
   mock.env(on, { HOME, ...env });
   on("fs.exists", (_, e) => ({ value: files.has(path(e.path)) }));
@@ -103,12 +125,12 @@ function world(
     return text === undefined ? { deny: `ENOENT: ${e.path}` } : { value: text };
   });
   on("fs.write", (_, e) => {
-    files.set(e.path, e.text);
+    files.set(path(e.path), e.text);
 
     return { value: undefined };
   });
   on("fs.stat", (_, e) => ({
-    value: { kind: "dir", size: 0, mtimeMs: 0, isLink: false, realPath: e.path },
+    value: { kind: "dir", size: 0, mtimeMs: 0, isLink: false, realPath: path(e.path) },
   }));
   on("process.run", async (_, e) => {
     runs.push([...e.argv]);
@@ -152,6 +174,7 @@ function world(
   on("ui.close", () => ({ value: undefined }));
   on("command.register", () => ({ value: { command: "graft-settings" } }));
   on("session.start", (_, e) => ({ cwd: e.cwd }));
+  on("session.cwd", () => ({ value: w.cwd }));
 
   const w: World = {
     files,
@@ -162,6 +185,9 @@ function world(
     head: "c0",
     parent: "",
     subject: "init",
+    cwd: "/",
+    tops: {},
+    worktrees: {},
     land: (argv) => {
       w.parent = w.head;
       w.head = `${w.head}+`;
@@ -179,18 +205,29 @@ const gitRuns = (w: World, sub: string) =>
 const mountOn = <S extends (typeof SURFACES)[number]>($: Engine, surface: S) =>
   $.ui.mount({ ...PANE, surface });
 
+const settingSelects = async (ui: {
+  findAll: (q: { type: string }) => Promise<{ key?: string }[]>;
+}) => (await ui.findAll({ type: "Select" })).filter((select) => select.key !== "scope");
+
 test("a missing settings file shows every setting as ask, on every surface", async ($, on) => {
   world(on);
   for (const surface of EDITABLE) {
     const ui = await mountOn($, surface);
     const select = await ui.find({ type: "Select", key: "orchestrate.deletePlan" });
     expect(select?.props.value).toBe(":default");
-    expect(await ui.findAll({ type: "Select" })).toHaveLength(2);
+    expect(await settingSelects(ui)).toHaveLength(2);
     expect(
       await ui.find({ type: "Text", text: /Deletes the plan\. Default: ask\./ }),
     ).toBeDefined();
     await ui.unmount();
   }
+});
+
+test("the settings file is found under USERPROFILE when HOME is unset", async ($, on) => {
+  world(on, '{"orchestrate":{"deletePlan":"never"}}', COMMON, { HOME: "", USERPROFILE: HOME });
+  const ui = await mountOn($, "terminal");
+  expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.value).toBe("never");
+  await ui.unmount();
 });
 
 test("mobile draws the settings as read-only text", async ($, on) => {
@@ -225,12 +262,24 @@ test("a malformed file is shown read-only with its parse error", async ($, on) =
 });
 
 test("keys not in the catalog are listed read-only", async ($, on) => {
-  world(on, '{"plan":{"outsideRepoPlans":"always","other":1},"extra":"x"}');
+  world(on, '{"plan":{"outsideRepoPlans":"always","other":1},"extra":{"x":"y"}}');
   for (const surface of SURFACES) {
     const ui = await mountOn($, surface);
     expect(await ui.find({ type: "Text", text: /plan\.other: 1/ })).toBeDefined();
-    expect(await ui.find({ type: "Text", text: /extra: x/ })).toBeDefined();
+    expect(await ui.find({ type: "Text", text: /extra\.x: y/ })).toBeDefined();
     expect(await ui.find({ key: "plan.other" })).toBeUndefined();
+    await ui.unmount();
+  }
+});
+
+test("a non-object entry, which skills refuse, is shown read-only with the reason", async ($, on) => {
+  world(on, '{"plan":{"outsideRepoPlans":"always"},"extra":"x"}');
+  for (const surface of SURFACES) {
+    const ui = await mountOn($, surface);
+    expect(await ui.find({ type: "Select" })).toBeUndefined();
+    expect(
+      await ui.find({ type: "Text", text: /does not parse: the skill "extra" is not an object/ }),
+    ).toBeDefined();
     await ui.unmount();
   }
 });
@@ -568,6 +617,72 @@ test("core.sshCommand wins over GIT_SSH", async ($, on) => {
   await ui.unmount();
 });
 
+test("network calls quote a Windows GIT_SSH path with spaces", async ($, on) => {
+  const w = world(on, undefined, COMMON, { GIT_SSH: "C:\\Program Files\\OpenSSH\\ssh.exe" });
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+  expect(sshCommands(w)[0]).toBe("'C:\\Program Files\\OpenSSH\\ssh.exe' -o BatchMode=yes");
+  await ui.unmount();
+});
+
+test("BatchMode=yes follows a double-quoted core.sshCommand program with spaces", async ($, on) => {
+  const w = world(on);
+  w.git("config core.sshCommand", {
+    exitCode: 0,
+    stdout: '"C:\\Program Files\\OpenSSH\\ssh.exe" -i ~/.ssh/graft\n',
+  });
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+  expect(sshCommands(w)[0]).toBe(
+    '"C:\\Program Files\\OpenSSH\\ssh.exe" -o BatchMode=yes -i ~/.ssh/graft',
+  );
+  await ui.unmount();
+});
+
+test("BatchMode=yes follows a single-quoted GIT_SSH_COMMAND program with spaces", async ($, on) => {
+  const w = world(on, undefined, COMMON, {
+    GIT_SSH_COMMAND: "'/opt/my ssh/bin/ssh' -i ~/.ssh/env",
+  });
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+  expect(sshCommands(w)[0]).toBe("'/opt/my ssh/bin/ssh' -o BatchMode=yes -i ~/.ssh/env");
+  await ui.unmount();
+});
+
+for (const [program, expected] of [
+  ["C:\\Program Files\\PuTTY\\plink.exe", "'C:\\Program Files\\PuTTY\\plink.exe' -batch"],
+  [
+    "C:\\Program Files\\TortoiseGit\\bin\\TortoisePlink.exe",
+    "'C:\\Program Files\\TortoiseGit\\bin\\TortoisePlink.exe' -batch",
+  ],
+  ["/usr/bin/plink", "'/usr/bin/plink' -batch"],
+] as const) {
+  test(`plink and TortoisePlink get -batch instead of BatchMode=yes: ${program}`, async ($, on) => {
+    const w = world(on, undefined, COMMON, { GIT_SSH: program });
+    const ui = await mountOn($, "terminal");
+    await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+    expect(sshCommands(w)[0]).toBe(expected);
+    await ui.unmount();
+  });
+}
+
+test("a plink core.sshCommand gets -batch after its program", async ($, on) => {
+  const w = world(on);
+  w.git("config core.sshCommand", {
+    exitCode: 0,
+    stdout: '"C:\\Program Files\\PuTTY\\PLINK.EXE" -i key.ppk\n',
+  });
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+
+  expect(sshCommands(w)[0]).toBe('"C:\\Program Files\\PuTTY\\PLINK.EXE" -batch -i key.ppk');
+  await ui.unmount();
+});
+
 test("the selects give way to text while a save runs", async ($, on) => {
   const clock = mock.clock(on);
   const w = world(on);
@@ -581,15 +696,15 @@ test("the selects give way to text while a save runs", async ($, on) => {
   const first = ui.select({ key: "orchestrate.deletePlan", value: "never" });
   await clock.settle();
 
-  expect(await ui.find({ type: "Select" })).toBeUndefined();
-  expect(await other.find({ type: "Select" })).toBeUndefined();
+  expect(await settingSelects(ui)).toHaveLength(0);
+  expect(await settingSelects(other)).toHaveLength(0);
   expect(await other.find({ type: "Text", text: /\(saving\)/ })).toBeDefined();
   await expect(other.select({ key: "plan.outsideRepoPlans", value: "always" })).rejects.toThrow();
 
   await clock.advance(1000);
   await first;
   expect(gitRuns(w, "commit")).toHaveLength(1);
-  expect(await other.findAll({ type: "Select" })).toHaveLength(2);
+  expect(await settingSelects(other)).toHaveLength(2);
   await ui.unmount();
   await other.unmount();
 });
@@ -605,10 +720,10 @@ test("a session start clears a lock that a reload left behind", async ($, on) =>
   const ui = await mountOn($, "terminal");
   const first = ui.select({ key: "orchestrate.deletePlan", value: "never" });
   await clock.settle();
-  expect(await ui.find({ type: "Select" })).toBeUndefined();
+  expect(await settingSelects(ui)).toHaveLength(0);
 
   await $.session.start({ cwd: "/", surface: "terminal", isInteractive: true });
-  expect(await ui.findAll({ type: "Select" })).toHaveLength(2);
+  expect(await settingSelects(ui)).toHaveLength(2);
 
   await clock.advance(1000);
   await first;
@@ -703,6 +818,14 @@ test("a stored value equal to the default selects the default option", async ($,
   await ui.unmount();
 });
 
+test("a stored number equal to the default selects the default option", async ($, on) => {
+  world(on, '{"plan":{"questionsPerRound":3}}', ASK_AND_NUMBERS);
+  const ui = await mountOn($, "terminal");
+  expect((await ui.find({ key: "plan.questionsPerRound" }))?.props.value).toBe(":default");
+  expect(await ui.find({ type: "Text", text: /not allowed/ })).toBeUndefined();
+  await ui.unmount();
+});
+
 test("numeric values are offered in numeric order, with a not-allowed value last", async ($, on) => {
   world(on, '{"plan":{"questionsPerRound":"5"}}', ASK_AND_NUMBERS);
   const ui = await mountOn($, "terminal");
@@ -731,6 +854,346 @@ test("the text list gives numeric values in numeric order", async ($, on) => {
       "  Deletes it.",
       "plan.questionsPerRound: 2 (1, 2, 3, 4)",
       "  Asks in rounds.",
+    ].join("\n"),
+  );
+});
+
+const REPO = `${HOME}/w/repo`;
+const SCOPED = JSON.stringify({
+  orchestrate: { deletePlan: "always" },
+  extra: { kept: true },
+  "~/w/*": { overrides: { orchestrate: { deletePlan: "never" } } },
+  [REPO]: { overrides: { plan: { outsideRepoPlans: "always" } } },
+});
+
+test("the picker lists Defaults, the effective view, each scope and Add override", async ($, on) => {
+  world(on, SCOPED);
+  const ui = await mountOn($, "terminal");
+  const picker = await ui.find({ key: "scope" });
+  expect(picker?.props.value).toBe(":defaults");
+  expect(picker?.props.options).toEqual([
+    { value: ":defaults", label: "Defaults" },
+    { value: ":effective", label: "Effective for this repo" },
+    { value: "~/w/*" },
+    { value: REPO },
+    { value: ":add", label: "Add override…" },
+  ]);
+  expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.value).toBe("always");
+  await ui.unmount();
+});
+
+test("a scope view starts at Inherit with the inherited value and source", async ($, on) => {
+  world(on, SCOPED);
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: REPO });
+
+  const deletePlan = await ui.find({ key: "orchestrate.deletePlan" });
+  expect(deletePlan?.props.value).toBe(":inherit");
+  expect(deletePlan?.props.options).toEqual([
+    { value: ":inherit", label: "Inherit: never (from ~/w/*)" },
+    { value: "always" },
+    { value: "never" },
+    { value: "ask" },
+  ]);
+  expect((await ui.find({ key: "plan.outsideRepoPlans" }))?.props.value).toBe("always");
+  expect(await ui.find({ type: "Text", text: "plan.outsideRepoPlans (overridden)" })).toBeDefined();
+  expect(
+    await ui.find({ type: "Text", text: "orchestrate.deletePlan (overridden)" }),
+  ).toBeUndefined();
+
+  await ui.select({ key: "scope", value: "~/w/*" });
+  expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.value).toBe("never");
+  expect((await ui.find({ key: "plan.outsideRepoPlans" }))?.props.options).toEqual([
+    { value: ":inherit", label: "Inherit: ask (Default)" },
+    { value: "always" },
+    { value: "ask" },
+  ]);
+  await ui.unmount();
+});
+
+test("a scope inherits from other keys for the same scope, as if it did not set the value", async ($, on) => {
+  world(
+    on,
+    JSON.stringify({
+      [`${HOME}/w/*`]: { overrides: { orchestrate: { deletePlan: "never" } } },
+      "~/w/*": { overrides: { orchestrate: { deletePlan: "always" } } },
+      [`${REPO}/`]: { overrides: { plan: { outsideRepoPlans: "always" } } },
+      [REPO]: { overrides: {} },
+    }),
+  );
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: "~/w/*" });
+  expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.options).toContainEqual({
+    value: ":inherit",
+    label: `Inherit: never (from ${HOME}/w/*)`,
+  });
+
+  await ui.select({ key: "scope", value: REPO });
+  expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.options).toContainEqual({
+    value: ":inherit",
+    label: "Inherit: always (from ~/w/*)",
+  });
+  expect((await ui.find({ key: "plan.outsideRepoPlans" }))?.props.options).toContainEqual({
+    value: ":inherit",
+    label: `Inherit: always (from ${REPO}/)`,
+  });
+  await ui.unmount();
+});
+
+test("a scoped write keeps other keys and scopes, and Inherit removes an emptied scope", async ($, on) => {
+  const w = world(on, SCOPED);
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: REPO });
+  await ui.select({ key: "orchestrate.deletePlan", value: "always" });
+
+  expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual({
+    ...JSON.parse(SCOPED),
+    [REPO]: {
+      overrides: { plan: { outsideRepoPlans: "always" }, orchestrate: { deletePlan: "always" } },
+    },
+  });
+  expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.value).toBe("always");
+
+  await ui.select({ key: "orchestrate.deletePlan", value: ":inherit" });
+  await ui.select({ key: "plan.outsideRepoPlans", value: ":inherit" });
+  const { [REPO]: _, ...rest } = JSON.parse(SCOPED);
+  expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual(rest);
+  expect(gitRuns(w, "commit").map((argv) => argv[6])).toEqual([
+    `Set orchestrate.deletePlan to always for ${REPO}`,
+    `Clear orchestrate.deletePlan for ${REPO}`,
+    `Clear plan.outsideRepoPlans for ${REPO}`,
+  ]);
+  const picker = await ui.find({ key: "scope" });
+  expect(picker?.props.value).toBe(REPO);
+  expect(picker?.props.options).toContainEqual({ value: REPO, label: `${REPO} (new)` });
+  await ui.unmount();
+});
+
+test("a scope stores the Default as an override", async ($, on) => {
+  const w = world(on, SCOPED);
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: "~/w/*" });
+  await ui.select({ key: "orchestrate.deletePlan", value: "ask" });
+
+  expect(JSON.parse(w.files.get(SETTINGS)!)["~/w/*"]).toEqual({
+    overrides: { orchestrate: { deletePlan: "ask" } },
+  });
+  expect((await ui.find({ key: "orchestrate.deletePlan" }))?.props.value).toBe("ask");
+  await ui.unmount();
+});
+
+test("adding a scope refuses a relative path and keeps a new one in the pane", async ($, on) => {
+  const w = world(on);
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: ":add" });
+  await ui.input({ key: "scopePath", text: "work/*" });
+
+  expect(
+    await ui.find({ type: "Text", text: /^A scope path starts with \/, ~\/, a drive/ }),
+  ).toBeDefined();
+  expect((await ui.find({ key: "scope" }))?.props.value).toBe(":add");
+
+  await ui.input({ key: "scopePath", text: "~/work/*/" });
+  const picker = await ui.find({ key: "scope" });
+  expect(picker?.props.value).toBe("~/work/*");
+  expect(picker?.props.options).toContainEqual({ value: "~/work/*", label: "~/work/* (new)" });
+  expect(await ui.find({ type: "Text", text: /A new scope is saved/ })).toBeDefined();
+  expect(w.files.has(SETTINGS)).toBe(false);
+
+  await ui.select({ key: "orchestrate.deletePlan", value: "never" });
+  expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual({
+    "~/work/*": { overrides: { orchestrate: { deletePlan: "never" } } },
+  });
+  expect((await ui.find({ key: "scope" }))?.props.options).toContainEqual({ value: "~/work/*" });
+  await ui.unmount();
+});
+
+test("adding a scope refuses a path that normalises to a scope it has", async ($, on) => {
+  world(on, SCOPED);
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: ":add" });
+  await ui.input({ key: "scopePath", text: "~/w/repo/" });
+
+  expect(
+    await ui.find({ type: "Text", text: `~/w/repo is the same scope as ${REPO}.` }),
+  ).toBeDefined();
+  expect((await ui.find({ key: "scope" }))?.props.value).toBe(":add");
+  await ui.unmount();
+});
+
+test("adding a scope warns for a linked worktree or a path below the top level", async ($, on) => {
+  const w = world(on);
+  w.tops = { "/r/wt": "/r/wt", "/r/main/sub": "/r/main", "/r/main": "/r/main" };
+  w.worktrees = {
+    "/r/wt": "worktree /r/main\nHEAD c0\n\nworktree /r/wt\nHEAD c1\n",
+  };
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: ":add" });
+  await ui.input({ key: "scopePath", text: "/r/wt" });
+  expect(
+    await ui.find({
+      type: "Text",
+      text: "/r/wt is a linked worktree. Skills there use the settings for /r/main.",
+    }),
+  ).toBeDefined();
+
+  await ui.select({ key: "scope", value: ":add" });
+  await ui.input({ key: "scopePath", text: "/r/main/sub" });
+  expect(
+    await ui.find({ type: "Text", text: /^\/r\/main\/sub is not a repo's top level\./ }),
+  ).toBeDefined();
+
+  await ui.select({ key: "scope", value: ":add" });
+  await ui.input({ key: "scopePath", text: "/r/main" });
+  expect((await ui.find({ key: "scope" }))?.props.value).toBe("/r/main");
+  expect(await ui.find({ type: "Text", text: /linked worktree|top level/ })).toBeUndefined();
+  await ui.unmount();
+});
+
+const SHOWN_WHEN = `# Shared rules
+
+## Settings
+
+| Key                         | Values           | Default     | Shown when                       | What it does       |
+| --------------------------- | ---------------- | ----------- | -------------------------------- | ------------------ |
+| \`plan.manualChecksQuestion\` | \`finish\`         | orchestrate | \`orchestrate.manualChecks = ask\` | Asks at Finish.    |
+| \`orchestrate.manualChecks\`  | \`pause\`, \`defer\` | ask         |                                  | Handles the checks. |
+`;
+
+test("the effective view resolves the session's repo and shows each value's scope", async ($, on) => {
+  const w = world(
+    on,
+    JSON.stringify({
+      plan: { manualChecksQuestion: "finish" },
+      "~/w/*": { overrides: { orchestrate: { manualChecks: "defer" } } },
+    }),
+    SHOWN_WHEN,
+  );
+  w.cwd = `${HOME}/w/repo-wt/sub`;
+  w.tops = { [w.cwd]: `${HOME}/w/repo-wt`, "/elsewhere": "/elsewhere" };
+  w.worktrees = {
+    [`${HOME}/w/repo-wt`]: `worktree ${REPO}\nHEAD c0\n\nworktree ${HOME}/w/repo-wt\nHEAD c1\n`,
+  };
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: ":effective" });
+
+  expect(await ui.find({ type: "Text", text: `Effective for ${REPO}` })).toBeDefined();
+  expect(
+    await ui.find({ type: "Text", text: "orchestrate.manualChecks: defer (from ~/w/*)" }),
+  ).toBeDefined();
+  expect(await ui.find({ type: "Text", text: /^plan\.manualChecksQuestion/ })).toBeUndefined();
+
+  await ui.input({ key: "effectivePath", text: "/elsewhere" });
+  expect(await ui.find({ type: "Text", text: "Effective for /elsewhere" })).toBeDefined();
+  expect(
+    await ui.find({ type: "Text", text: "orchestrate.manualChecks: ask (Default)" }),
+  ).toBeDefined();
+  expect(
+    await ui.find({ type: "Text", text: "plan.manualChecksQuestion: finish (from Defaults)" }),
+  ).toBeDefined();
+  await ui.unmount();
+});
+
+test("the effective view reads this machine's admin share as its drive", async ($, on) => {
+  const w = world(
+    on,
+    JSON.stringify({ "C:/w/*": { overrides: { orchestrate: { manualChecks: "defer" } } } }),
+    SHOWN_WHEN,
+    { COMPUTERNAME: "BOX" },
+  );
+  w.cwd = "//box/c$/w/repo";
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: ":effective" });
+
+  expect(
+    await ui.find({ type: "Text", text: "orchestrate.manualChecks: defer (from C:/w/*)" }),
+  ).toBeDefined();
+  await ui.unmount();
+});
+
+test("the effective view reads the admin share of this machine's HOSTNAME too", async ($, on) => {
+  const w = world(
+    on,
+    JSON.stringify({ "C:/w/*": { overrides: { orchestrate: { manualChecks: "defer" } } } }),
+    SHOWN_WHEN,
+    { COMPUTERNAME: "BOX", HOSTNAME: "box.corp.example" },
+  );
+  w.cwd = "//BOX.corp.example/c$/w/repo";
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: ":effective" });
+
+  expect(
+    await ui.find({ type: "Text", text: "orchestrate.manualChecks: defer (from C:/w/*)" }),
+  ).toBeDefined();
+  await ui.unmount();
+});
+
+test("on Windows, an MSYS scope applies to its drive path and is the same scope", async ($, on) => {
+  const w = world(
+    on,
+    JSON.stringify({ "/c/w/*": { overrides: { orchestrate: { manualChecks: "defer" } } } }),
+    SHOWN_WHEN,
+    { OS: "Windows_NT" },
+  );
+  w.cwd = "C:/w/repo";
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: ":effective" });
+  expect(
+    await ui.find({ type: "Text", text: "orchestrate.manualChecks: defer (from /c/w/*)" }),
+  ).toBeDefined();
+
+  await ui.select({ key: "scope", value: ":add" });
+  await ui.input({ key: "scopePath", text: "C:/w/*" });
+  expect(
+    await ui.find({ type: "Text", text: "C:/w/* is the same scope as /c/w/*." }),
+  ).toBeDefined();
+  expect((await ui.find({ key: "scope" }))?.props.value).toBe(":add");
+  await ui.unmount();
+});
+
+test("a dependent setting stays editable with a note in the Defaults and scope views", async ($, on) => {
+  world(
+    on,
+    JSON.stringify({ "~/w/*": { overrides: { orchestrate: { manualChecks: "defer" } } } }),
+    SHOWN_WHEN,
+  );
+  const ui = await mountOn($, "terminal");
+  const note =
+    /Asks at Finish\. Default: orchestrate\. Applies when orchestrate\.manualChecks is ask\./;
+  expect(await ui.find({ type: "Text", text: note })).toBeDefined();
+  expect(await ui.find({ key: "plan.manualChecksQuestion" })).toBeDefined();
+
+  await ui.select({ key: "scope", value: "~/w/*" });
+  expect(await ui.find({ type: "Text", text: note })).toBeDefined();
+  expect(await ui.find({ key: "plan.manualChecksQuestion" })).toBeDefined();
+  await ui.unmount();
+});
+
+test("the text list gives the defaults, then each scope's overrides", async ($, on) => {
+  const w = world(
+    on,
+    JSON.stringify({
+      orchestrate: { deletePlan: "always" },
+      "~/w/*": { overrides: { orchestrate: { deletePlan: "bogus" }, plan: { other: 1 } } },
+      [REPO]: { overrides: {} },
+    }),
+  );
+  w.placed = { isPlaced: false, reason: "no-surface: a -p run" };
+  await $.session.start({ cwd: "/", surface: null, isInteractive: false });
+
+  const ran = await $.command.run(RUN);
+  expect(ran.text).toBe(
+    [
+      "Graft settings in ~/.my-graft/graft-settings.json",
+      "plan.outsideRepoPlans: ask (always, ask)",
+      "  Saves plans.",
+      "orchestrate.deletePlan: always (always, never, ask)",
+      "  Deletes the plan.",
+      "Overrides for ~/w/*:",
+      "  orchestrate.deletePlan: bogus (not allowed)",
+      "  plan.other: 1 (not in the catalog)",
+      `Overrides for ${REPO}:`,
+      "  No overrides.",
     ].join("\n"),
   );
 });

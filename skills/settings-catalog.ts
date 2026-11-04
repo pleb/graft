@@ -1,6 +1,7 @@
 // Parses the `## Settings` table in common.md, or in README.md with
-// `isDefaultListed`, where Values include the Default. Keep it free of JSX and
-// Node or claude-code imports: hooks/register.tsx and vitest both load it.
+// `isDefaultListed`, where Values include the Default. An optional `Shown when`
+// column after Default names the setting a row depends on. Keep it free of JSX
+// and Node or claude-code imports: hooks/register.tsx and vitest both load it.
 
 export type CatalogSetting = {
   key: string;
@@ -9,14 +10,19 @@ export type CatalogSetting = {
   values: string[];
   defaultValue: string;
   description: string;
+  shownWhen?: Condition;
 };
+
+export type Condition = { key: string; value: string };
 
 export type Catalog =
   | { isParsed: true; settings: CatalogSetting[] }
   | { isParsed: false; error: string };
 
 const HEADER = ["Key", "Values", "Default", "What it does"];
+const SHOWN_HEADER = ["Key", "Values", "Default", "Shown when", "What it does"];
 const KEY = /^`([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)`$/;
+const CONDITION = /^`([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+) = ([^`\s]+)`$/;
 const VALUE = /^`([^`]+)`$/;
 
 function cells(line: string): string[] {
@@ -52,7 +58,9 @@ export function parseCatalog(markdown: string, { isDefaultListed = false } = {})
     return { isParsed: false, error: `cannot read the row: ${after.trim()}` };
   }
   const [header, separator, ...body] = rows;
-  if (header === undefined || cells(header).join("|") !== HEADER.join("|")) {
+  const columns = header === undefined ? "" : cells(header).join("|");
+  const hasShownWhen = columns === SHOWN_HEADER.join("|");
+  if (!hasShownWhen && columns !== HEADER.join("|")) {
     return { isParsed: false, error: `the table's columns are not ${HEADER.join(", ")}` };
   }
   if (separator === undefined || !cells(separator).every((cell) => /^:?-+:?$/.test(cell))) {
@@ -61,9 +69,12 @@ export function parseCatalog(markdown: string, { isDefaultListed = false } = {})
 
   const settings: CatalogSetting[] = [];
   for (const row of body) {
-    const [key = "", values = "", defaultValue = "", description = "", ...rest] = cells(row);
+    const rowCells = cells(row);
+    const shownWhen = hasShownWhen ? rowCells.splice(3, 1)[0] : "";
+    const [key = "", values = "", defaultValue = "", description = "", ...rest] = rowCells;
     const keyMatch = KEY.exec(key);
-    if (rest.length > 0 || keyMatch === null) {
+    const conditionMatch = shownWhen ? CONDITION.exec(shownWhen) : undefined;
+    if (rest.length > 0 || keyMatch === null || conditionMatch === null) {
       return { isParsed: false, error: `cannot read the row: ${row.trim()}` };
     }
     const parsedValues = values.split(", ").map((value) => VALUE.exec(value)?.[1]);
@@ -89,10 +100,31 @@ export function parseCatalog(markdown: string, { isDefaultListed = false } = {})
       values: parsedValues as string[],
       defaultValue,
       description,
+      ...(conditionMatch === undefined
+        ? {}
+        : { shownWhen: { key: conditionMatch[1]!, value: conditionMatch[2]! } }),
     });
   }
   if (settings.length === 0) {
     return { isParsed: false, error: "the table has no settings" };
+  }
+  for (const { key, shownWhen } of settings) {
+    if (shownWhen === undefined) {
+      continue;
+    }
+    const target = settings.find((setting) => setting.key === shownWhen.key);
+    if (target === undefined) {
+      return {
+        isParsed: false,
+        error: `${key} is shown when an unknown key is set: ${shownWhen.key}`,
+      };
+    }
+    if (shownWhen.value !== target.defaultValue && !target.values.includes(shownWhen.value)) {
+      return {
+        isParsed: false,
+        error: `${key} is shown when ${shownWhen.key} is ${shownWhen.value}, which it cannot be`,
+      };
+    }
   }
 
   return { isParsed: true, settings };

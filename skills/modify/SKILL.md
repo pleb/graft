@@ -3,11 +3,18 @@ name: modify
 description: Changes your Graft repo. Settles the change with you, implements and reviews it, records it in the repo's mod registry, and pushes it.
 argument-hint: "[when... do...]"
 disable-model-invocation: true
+allowed-tools: Bash(node ~/.my-graft/skills/settings.ts *)
 ---
 
 You change the user's Graft clone at `<target>`, one mod at a time.
 
 Read `~/.my-graft/skills/common.md` and follow its sections `## Ask the user`, `## Command failures`, `## Settings` and `## Target clone`.
+
+Once `## Target clone` sets `<target>`, get settings with this command as written, without expanding `~`.
+
+```bash
+node ~/.my-graft/skills/settings.ts <target>
+```
 
 The mod registry is `<target>/MODS.md`.
 

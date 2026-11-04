@@ -25,6 +25,7 @@ import {
   isSupportedNode,
   isTypedMessage,
   planFromArgs,
+  powerShellPlanPaths,
   stripIde,
 } from "./extract-lib.ts";
 import type { Line, Report, TranscriptFile } from "./extract-lib.ts";
@@ -350,6 +351,13 @@ function orchestrateLines(cwd: string): Line[] {
   return [command("/graft:orchestrate", "ship-it", 1, "orch-cmd", { cwd })];
 }
 
+function executeLines(cwd: string): Line[] {
+  return [
+    command("/graft:execute", "ship-it", 3, "exec-cmd", { cwd }),
+    typed("Use the cache", 2, "exec-msg"),
+  ];
+}
+
 function warningLines(): Line[] {
   return [
     command("/graft:plan", "warn", 1, "warn-cmd"),
@@ -618,6 +626,21 @@ describe("planFromArgs", () => {
     expect(planFromArgs("then fresh-plan", root, new Set())).toBeUndefined();
   });
 
+  it("resolves a plan in the style of the transcript's root", () => {
+    expect(planFromArgs("fresh-plan", "/w/repo", new Set())).toBe(
+      "/w/repo/.claude/plans/fresh-plan.md",
+    );
+    for (const root of ["C:\\w\\repo", "C:/w/repo"]) {
+      expect(planFromArgs("fresh-plan", root, new Set())).toBe(
+        "C:\\w\\repo\\.claude\\plans\\fresh-plan.md",
+      );
+      expect(planFromArgs("docs\\plan.md", root, new Set())).toBe("C:\\w\\repo\\docs\\plan.md");
+      expect(planFromArgs("C:/w/repo/docs/plan.md", root, new Set())).toBe(
+        "C:\\w\\repo\\docs\\plan.md",
+      );
+    }
+  });
+
   it("gives null without a root", () => {
     expect(planFromArgs("add-cache", null, new Set())).toBeNull();
   });
@@ -642,8 +665,45 @@ describe("bashPlanPaths", () => {
     ]);
   });
 
+  it("resolves plan paths from a Windows transcript in Windows form", () => {
+    for (const root of ["C:\\r", "C:/r"]) {
+      expect(bashPlanPaths("cat .claude/plans/a.md", root)).toEqual([
+        "C:\\r\\.claude\\plans\\a.md",
+      ]);
+      expect(bashPlanPaths('cat "$root/.claude/plans/a.md"', root)).toEqual([
+        "C:\\r\\.claude\\plans\\a.md",
+      ]);
+    }
+    expect(bashPlanPaths("cat D:/abs/.claude/plans/a.md", "C:\\r")).toEqual([
+      "D:\\abs\\.claude\\plans\\a.md",
+    ]);
+  });
+
   it("ignores paths that only start like a plan", () => {
     expect(bashPlanPaths("cat .claude/plans/a.md.bak", "/r")).toEqual([]);
+  });
+});
+
+describe("powerShellPlanPaths", () => {
+  it("resolves plan paths written with backslashes", () => {
+    expect(
+      powerShellPlanPaths(
+        "Get-Content D:\\abs\\.claude\\plans\\a.md; type .claude\\plans\\b.md",
+        "C:\\r",
+      ),
+    ).toEqual(["D:\\abs\\.claude\\plans\\a.md", "C:\\r\\.claude\\plans\\b.md"]);
+    expect(powerShellPlanPaths("Get-Content $env:root\\.claude\\plans\\a.md", "C:\\r")).toEqual([
+      "C:\\r\\.claude\\plans\\a.md",
+    ]);
+  });
+
+  it("resolves plan paths written with forward slashes", () => {
+    expect(
+      powerShellPlanPaths(
+        "cat .claude/plans/a.md; Get-Content 'D:/abs/.claude/plans/b.md'",
+        "C:\\r",
+      ),
+    ).toEqual(["C:\\r\\.claude\\plans\\a.md", "D:\\abs\\.claude\\plans\\b.md"]);
   });
 });
 
@@ -904,6 +964,59 @@ describe("buildReport", () => {
         args: "ship-it",
         planFiles: [{ path: join(root, ".claude", "plans", "ship-it.md"), actions: ["argument"] }],
       },
+    ]);
+  });
+
+  it("merges a plan's Windows paths into one entry", async () => {
+    const cwd = "C:\\work\\repo";
+    const lines = [
+      command("/graft:plan", "add a cache", 3, "win-cmd", { cwd }),
+      assistant(2, "win-as", [
+        toolUse("win-write", "Write", { file_path: `${cwd}\\.claude\\plans\\a.md`, content: "x" }),
+        toolUse("win-edit", "Edit", { file_path: "C:/work/repo/.claude/plans/a.md" }),
+        toolUse("win-bash", "Bash", { command: "cat .claude/plans/a.md" }),
+      ]),
+    ];
+    const { runs } = await report([transcript("windows", lines)]);
+    expect(runs).toMatchObject([
+      {
+        cwd,
+        planFiles: [
+          { path: "C:\\work\\repo\\.claude\\plans\\a.md", actions: ["write", "edit", "read"] },
+        ],
+      },
+    ]);
+  });
+
+  it("merges a PowerShell read with a Write of the same plan", async () => {
+    const cwd = "C:\\work\\repo";
+    const lines = [
+      command("/graft:plan", "add a cache", 3, "ps-cmd", { cwd }),
+      assistant(2, "ps-as", [
+        toolUse("ps-write", "Write", { file_path: `${cwd}\\.claude\\plans\\a.md`, content: "x" }),
+        toolUse("ps-read", "PowerShell", { command: "Get-Content .claude\\plans\\a.md" }),
+      ]),
+    ];
+    const { runs } = await report([transcript("powershell", lines)]);
+    expect(runs).toMatchObject([
+      {
+        cwd,
+        planFiles: [{ path: "C:\\work\\repo\\.claude\\plans\\a.md", actions: ["write", "read"] }],
+      },
+    ]);
+  });
+
+  it("records an execute run as a plan run", async () => {
+    const root = tempDir("tune-execute-");
+    mkdirSync(join(root, ".git"));
+    mkdirSync(join(root, ".claude", "plans"), { recursive: true });
+    writeFileSync(join(root, ".claude", "plans", "ship-it.md"), "");
+    const { runs, candidates } = await report([transcript("execute", executeLines(root))]);
+    expect(runs).toMatchObject([
+      { id: "execute#1", skill: "/graft:execute", args: "ship-it", planFiles: [] },
+    ]);
+    expect(candidates.map(({ uuid, run }) => ({ uuid, run }))).toEqual([
+      { uuid: "exec-msg", run: "execute#1" },
     ]);
   });
 });

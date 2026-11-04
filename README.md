@@ -17,7 +17,7 @@ To install Graft on another machine, or again after `/graft:uninstall`, run the 
 
 ## How it works
 
-![Graft's flow: /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:diff publishes a Claude Code artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
+![Graft's flow: /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:execute runs plan and then orchestrate in one session. /graft:diff publishes a Claude Code artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
 
 Start by creating a plan. Plans are automatically saved to `.claude/plans` in the repo. The first time, Graft asks whether to ignore them.
 
@@ -33,6 +33,8 @@ Once the plan is ready to execute, use the orchestrator to implement the plan.
 /graft:orchestrate deploy-static-site-to-azure
 ```
 
+Or use `/graft:execute` to plan and then orchestrate in one session, with no `/clear` in between.
+
 And when you're ready to ship the changes:
 
 ```text
@@ -44,6 +46,7 @@ And when you're ready to ship the changes:
 ```text
 /graft:plan [plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]
 /graft:orchestrate [plan path | plan name | task] [issues] [reviewer model: sonnet | opus (default) | fable]
+/graft:execute [plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr request]
 /graft:diff
 /graft:pr [guidance] [state: draft (default) | ready-state]
 ```
@@ -59,7 +62,7 @@ And when you're ready to ship the changes:
 
 Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps your mods when it brings in upstream changes.
 
-`/graft:tune` finds corrections you keep making to plan and orchestrate runs and turns the ones you pick into mods.
+`/graft:tune` finds corrections you keep making to plan, orchestrate and execute runs and turns the ones you pick into mods.
 
 ![How your copy of Graft stays current: /graft:update merges the latest Graft from pleb/graft into your clone at ~/.my-graft, keeping your mods. /graft:modify commits a mod to the clone, recorded in MODS.md. /graft:tune finds corrections you keep making and hands the ones you pick to /graft:modify. The clone pushes to your private \<login\>/my-graft repo, and your other machines pull from it. Claude Code loads Graft from the clone, and /reload-plugins picks up changes.](./docs/update.svg)
 
@@ -69,16 +72,31 @@ Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps 
 /graft-settings
 ```
 
-`/graft-settings` opens a pane listing each Graft setting with its allowed values, default and current value. A change is saved to `~/.my-graft/graft-settings.json`, then committed and pushed.
+`/graft-settings` opens a pane that edits the defaults and per-repo overrides. A change is saved, then committed and pushed.
 
-| Key                        | Values                       | Default | What it does                                                                                                                                                                                                                                 |
-| -------------------------- | ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `common.reviewerModel`     | `fable`, `opus`, `sonnet`    | opus    | The reviewer model when the command names none.                                                                                                                                                                                              |
-| `plan.outsideRepoPlans`    | `always`, `ask`, `never`     | ask     | What `/graft:plan` does outside a repo: save plans in `~/.my-graft/.claude/plans/` (`always`), ask first (`ask`) or stop (`never`).                                                                                                          |
-| `plan.questionsPerRound`   | `1`, `2`, `3`, `4`           | 3       | The most questions `/graft:plan` asks at once.                                                                                                                                                                                               |
-| `orchestrate.finishedPlan` | `archive`, `delete`, `leave` | leave   | What `/graft:orchestrate` does with an untracked plan once every milestone is done: move it to `~/.my-graft/.claude/plans/<repo>/<plan>.md` (`archive`), delete it (`delete`) or leave it in place (`leave`). Archives stay on this machine. |
-| `pr.state`                 | `draft`, `ready`             | draft   | The state `/graft:pr` opens a new PR in when the command names none.                                                                                                                                                                         |
-| `update.mode`              | `ask`, `auto`                | ask     | Whether `/graft:update` asks before merging (`ask`) or merges straight away (`auto`) when the command names no mode.                                                                                                                         |
+| Key                         | Values                       | Default     | Shown when                       | What it does                                                                                                                                                                                                                                 |
+| --------------------------- | ---------------------------- | ----------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common.reviewerModel`      | `fable`, `opus`, `sonnet`    | opus        |                                  | The reviewer model when the command names none.                                                                                                                                                                                              |
+| `plan.outsideRepoPlans`     | `always`, `ask`, `never`     | ask         |                                  | What `/graft:plan` does outside a repo: save plans in `~/.my-graft/.claude/plans/` (`always`), ask first (`ask`) or stop (`never`).                                                                                                          |
+| `plan.questionsPerRound`    | `1`, `2`, `3`, `4`           | 3           |                                  | The most questions `/graft:plan` asks at once.                                                                                                                                                                                               |
+| `plan.manualChecksQuestion` | `finish`, `orchestrate`      | orchestrate | `orchestrate.manualChecks = ask` | When `orchestrate.manualChecks` is `ask`, whether `/graft:plan` asks how a plan's Manual checks are handled in its Finish question (`finish`) or leaves it to `/graft:orchestrate` (`orchestrate`).                                          |
+| `orchestrate.finishedPlan`  | `archive`, `delete`, `leave` | leave       |                                  | What `/graft:orchestrate` does with an untracked plan once every milestone is done: move it to `~/.my-graft/.claude/plans/<repo>/<plan>.md` (`archive`), delete it (`delete`) or leave it in place (`leave`). Archives stay on this machine. |
+| `orchestrate.manualChecks`  | `ask`, `defer`, `pause`      | ask         |                                  | How `/graft:orchestrate` handles a plan's Manual checks: stop after each milestone that has them until you report the result (`pause`), list them in its report (`defer`) or ask at the start of the run (`ask`).                            |
+| `pr.state`                  | `draft`, `ready`             | draft       |                                  | The state `/graft:pr` opens a new PR in when the command names none.                                                                                                                                                                         |
+| `update.mode`               | `ask`, `auto`                | ask         |                                  | Whether `/graft:update` asks before merging (`ask`) or merges straight away (`auto`) when the command names no mode.                                                                                                                         |
+
+Settings live in `~/.my-graft/graft-settings.json`:
+
+```json
+{
+  "pr": { "state": "draft" },
+  "~/work/*": { "overrides": { "pr": { "state": "ready" } } },
+  "/Users/me/oss/graft": { "overrides": { "plan": { "questionsPerRound": "4" } } },
+  "C:/work/*": { "overrides": { "pr": { "state": "ready" } } }
+}
+```
+
+Top-level skill keys are the defaults. A key that is a path is a scope whose `overrides` apply to that repo, or to every repo under a directory ending in `/*`; scopes apply from the broadest to the repo's own path. On Windows, write scope paths with forward slashes; `/c/...` and local admin shares such as `//localhost/C$/...` are read as `C:/...`.
 
 ## Interstocks
 

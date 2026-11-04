@@ -13,25 +13,31 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, posix, resolve, win32 } from "node:path";
 import { createInterface } from "node:readline";
 
 const MIN_NODE_MAJOR = 24;
 const TEXT_LIMIT = 1500;
 const CONTEXT_LIMIT = 600;
 const INPUT_VALUE_LIMIT = 200;
-const SKILLS = new Set(["/graft:plan", "/graft:orchestrate"]);
+const SKILLS = new Set(["/graft:plan", "/graft:orchestrate", "/graft:execute"]);
 export const KINDS = ["answer", "message", "rejection", "interrupt"] as const;
 const FILE_TOOLS = new Set(["Write", "Edit", "MultiEdit", "Read"]);
 const INTERRUPTS = new Set([
   "[Request interrupted by user]",
   "[Request interrupted by user for tool use]",
 ]);
-const PLAN_FILE = /\/\.claude\/plans\/[^/]+\.md$/;
+const PLAN_FILE = /[\\/]\.claude[\\/]plans[\\/][^\\/]+\.md$/;
 const PLAN_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const BASH_PLAN = /(?:[\w.~@+-]*\/)*\.claude\/plans\/[\w@+-][\w.@+-]*\.md(?![\w.@+-])/g;
+const BASH_PLAN =
+  /(?:\b[A-Za-z]:)?(?:[\w.~@+-]*\/)*\.claude\/plans\/[\w@+-][\w.@+-]*\.md(?![\w.@+-])/g;
+const POWERSHELL_PLAN =
+  /(?:\b[A-Za-z]:)?(?:[\w.~@+-]*[\\/])*\.claude[\\/]plans[\\/][\w@+-][\w.@+-]*\.md(?![\w.@+-])/g;
+const WINDOWS_PATH = /^(?:[A-Za-z]:[\\/]|\\\\)/;
 // A plan path after any other character is the tail of a word such as `$root/.claude/plans/x.md`.
 const WORD_START = /[\s'"`=:;|&<>(]/;
+// As WORD_START, but `$env:root\.claude\plans\x.md` is also the tail of a word.
+const POWERSHELL_WORD_START = /[\s'"`=;|&<>(]/;
 const LEADING_IDE = /^\s*<(ide_\w+)>(?:(?!<\/?ide_)[\s\S])*<\/\1>/;
 const TRAILING_IDE = /<(ide_\w+)>(?:(?!<\/?ide_)[\s\S])*<\/\1>\s*$/;
 // Written by the "chat about this" choice on AskUserQuestion; not typed by the user.
@@ -373,12 +379,13 @@ function repoRoot(cwd: string | null): string | null {
   let root = roots.get(cwd);
   if (root === undefined) {
     root = cwd;
-    for (let dir = resolve(cwd); existsSync(dir); dir = dirname(dir)) {
-      if (existsSync(join(dir, ".git"))) {
+    const path = WINDOWS_PATH.test(cwd) ? win32 : posix;
+    for (let dir = path.resolve(cwd); existsSync(dir); dir = path.dirname(dir)) {
+      if (existsSync(path.join(dir, ".git"))) {
         root = dir;
         break;
       }
-      if (dirname(dir) === dir) break;
+      if (path.dirname(dir) === dir) break;
     }
     roots.set(cwd, root);
   }
@@ -387,6 +394,13 @@ function repoRoot(cwd: string | null): string | null {
 
 function expandHome(path: string): string {
   return path.replace(/^~(?=\/)/, homedir());
+}
+
+// Transcripts can come from either OS, so a path resolves in the style of the OS that wrote it.
+function resolveIn(root: string | null, path: string): string {
+  return [root, path].some((part) => part !== null && WINDOWS_PATH.test(part))
+    ? win32.resolve(root ?? "\\", path)
+    : posix.resolve(root ?? "/", path);
 }
 
 export function planFromArgs(
@@ -402,15 +416,15 @@ export function planFromArgs(
       .replace(/^@/, "")
       .replace(/[)"'`.,;:!?]+$/, "");
     const first = index === 0;
-    if (token.includes("/")) {
+    if (token.includes("/") || (WINDOWS_PATH.test(root) && token.includes("\\"))) {
       if (token.endsWith(".md"))
-        candidates.push({ path: resolve(root, expandHome(token)), fallback: first });
+        candidates.push({ path: resolveIn(root, expandHome(token)), fallback: first });
       continue;
     }
     const name = token.replace(/\.md$/, "");
     if (!PLAN_NAME.test(name)) continue;
     candidates.push({
-      path: join(root, ".claude", "plans", `${name}.md`),
+      path: resolveIn(root, `.claude/plans/${name}.md`),
       fallback: first && (name.includes("-") || token.endsWith(".md")),
     });
   }
@@ -421,16 +435,29 @@ export function planFromArgs(
   )?.path;
 }
 
-export function bashPlanPaths(command: string, root: string | null): string[] {
-  return [...command.matchAll(BASH_PLAN)].map((match) => {
+function commandPlanPaths(
+  command: string,
+  root: string | null,
+  plan: RegExp,
+  wordStart: RegExp,
+): string[] {
+  return [...command.matchAll(plan)].map((match) => {
     const before = command[match.index - 1];
-    const whole = before === undefined || WORD_START.test(before);
+    const whole = before === undefined || wordStart.test(before);
     const path =
-      whole && !match[0].startsWith("/.claude/")
+      whole && !/^[\\/]\.claude[\\/]/.test(match[0])
         ? match[0]
-        : match[0].slice(match[0].indexOf(".claude/plans/"));
-    return resolve(root ?? "/", expandHome(path));
+        : match[0].slice(match[0].search(/\.claude[\\/]plans[\\/]/));
+    return resolveIn(root, expandHome(path.replace(/^~\\/, "~/")));
   });
+}
+
+export function bashPlanPaths(command: string, root: string | null): string[] {
+  return commandPlanPaths(command, root, BASH_PLAN, WORD_START);
+}
+
+export function powerShellPlanPaths(command: string, root: string | null): string[] {
+  return commandPlanPaths(command, root, POWERSHELL_PLAN, POWERSHELL_WORD_START);
 }
 
 function addPlanFile(run: Run, path: string | null | undefined, action: string): void {
@@ -745,11 +772,14 @@ class FileReader {
       FILE_TOOLS.has(block.name) &&
       typeof input.file_path === "string"
     ) {
-      const path = resolve(root ?? "/", input.file_path);
+      const path = resolveIn(root, input.file_path);
       if (PLAN_FILE.test(path)) addPlanFile(run, path, block.name.toLowerCase());
     }
     if (block.name === "Bash" && typeof input.command === "string") {
       for (const path of bashPlanPaths(input.command, root)) addPlanFile(run, path, "read");
+    }
+    if (block.name === "PowerShell" && typeof input.command === "string") {
+      for (const path of powerShellPlanPaths(input.command, root)) addPlanFile(run, path, "read");
     }
   }
 

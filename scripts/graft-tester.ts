@@ -1,10 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { statSync } from "node:fs";
+import { readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
+import { isTesterName, testerName, trustKeys } from "./graft-tester-lib.ts";
 
-const NAME = "graft-tester";
-const TESTER_NAME = /^graft-tester( \(\d+\))?$/;
 const repoRoot = resolve(import.meta.dirname, "..");
 
 type Agent = { id: string; kind: string; name?: string };
@@ -31,12 +30,71 @@ function claude(args: string[], options: { cwd?: string; capture?: boolean } = {
   return result;
 }
 
+function gitRoot(dir: string): string {
+  const result = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd: dir, encoding: "utf8" });
+  return result.status === 0 ? result.stdout.trim() : dir;
+}
+
+type Config = { projects?: Record<string, Record<string, unknown>> };
+
+function readConfig(path: string): Config {
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    throw error;
+  }
+  try {
+    return JSON.parse(text) as Config;
+  } catch (error) {
+    fail(`${path} does not parse, so the tester left it unchanged: ${(error as Error).message}`);
+  }
+}
+
+function untrusted(path: string, keys: string[]): string[] {
+  const projects = readConfig(path).projects ?? {};
+  return keys.filter((key) => projects[key]?.hasTrustDialogAccepted !== true);
+}
+
+function trust(path: string, keys: string[]): boolean {
+  if (untrusted(path, keys).length === 0) return false;
+  const stat = statSync(path, { throwIfNoEntry: false });
+  const real = stat ? realpathSync(path) : path;
+  const mode = stat ? stat.mode & 0o777 : 0o600;
+  const temp = join(dirname(real), `${basename(real)}.${process.pid}.tmp`);
+  for (let attempt = 1; ; attempt++) {
+    const config = readConfig(real);
+    const projects = (config.projects ??= {});
+    for (const key of keys) projects[key] = { ...projects[key], hasTrustDialogAccepted: true };
+    rmSync(temp, { force: true });
+    writeFileSync(temp, JSON.stringify(config, null, 2), { mode });
+    try {
+      renameSync(temp, real);
+      return true;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (attempt < 5 && (code === "EPERM" || code === "EBUSY")) {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+        continue;
+      }
+      rmSync(temp, { force: true });
+      fail(`Could not replace ${path}: ${(error as Error).message}`);
+    }
+  }
+}
+
 function automationNote(controller: string): string {
   return [
     "This session is an automated test of Graft, with no user attached.",
     `Send every question you would ask the user to the session named "${controller}" with SendMessage, including its options and your recommendation.`,
     "Then wait for the reply and act on it as the user's answer.",
   ].join(" ");
+}
+
+function testers(): Agent[] {
+  const agents = JSON.parse(claude(["agents", "--json"], { capture: true })) as Agent[];
+  return agents.filter((agent) => agent.kind === "background" && isTesterName(agent.name ?? ""));
 }
 
 function start(args: string[]): void {
@@ -46,11 +104,23 @@ function start(args: string[]): void {
   }
   const dir = resolve(process.env.INIT_CWD ?? process.cwd(), cwd);
   if (!statSync(dir, { throwIfNoEntry: false })?.isDirectory()) fail(`Not a directory: ${dir}`);
+  const running = testers().map((agent) => agent.name);
+  if (running.length > 0)
+    fail(`${running.join(", ")} is running. Stop it with: npm run stop-graft-tester`);
+  const root = gitRoot(dir);
+  const trusted = trustKeys(root, realpathSync.native(root), homedir());
+  if ("refusal" in trusted) fail(`Refusing to trust ${root}: ${trusted.refusal}.`);
+  const config = join(process.env.CLAUDE_CONFIG_DIR ?? homedir(), ".claude.json");
+  const wrote = trust(config, trusted.keys);
+  const missing = untrusted(config, trusted.keys);
+  if (missing.length > 0) fail(`${config} does not trust ${missing.join(", ")}.`);
+  if (wrote) console.log(`Trusted ${trusted.keys.join(", ")} in ${config}.`);
+  const name = testerName();
   claude(
     [
       "--bg",
       "--name",
-      NAME,
+      name,
       "--plugin-dir",
       repoRoot,
       "--permission-mode",
@@ -74,20 +144,17 @@ function start(args: string[]): void {
 }
 
 function stop(): void {
-  const agents = JSON.parse(claude(["agents", "--json"], { capture: true })) as Agent[];
-  const testers = agents.filter(
-    (agent) => agent.kind === "background" && TESTER_NAME.test(agent.name ?? ""),
-  );
+  const running = testers();
   let failed = 0;
-  for (const tester of testers) {
+  for (const tester of running) {
     const result = run(["stop", tester.id]);
     if (result instanceof Error) {
       console.error(`${result.message} for ${tester.id}`);
       failed++;
     }
   }
-  console.log(`Stopped ${testers.length - failed} ${NAME} session(s).`);
-  if (failed > 0) fail(`Failed to stop ${failed} ${NAME} session(s).`);
+  console.log(`Stopped ${running.length - failed} graft-tester session(s).`);
+  if (failed > 0) fail(`Failed to stop ${failed} graft-tester session(s).`);
 }
 
 const [action, ...rest] = process.argv.slice(2);

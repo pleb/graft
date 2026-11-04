@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 501" width="830" height="501" role="img" aria-labelledby="flow-title flow-desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 629" width="830" height="629" role="img" aria-labelledby="flow-title flow-desc">
   <title id="flow-title">How Graft's flow works</title>
-  <desc id="flow-desc">Three steps from left to right, and a fourth below the middle one. /graft:plan: you answer questions, researcher finds facts, and reviewer and adversarial-reviewer review; it writes .claude/plans/&lt;name&gt;.md. /graft:orchestrate: for each milestone, worker implements and then the change is committed, with reviewer and adversarial-reviewer reviewing beside the loop; then comment-editor and docs-editor clean up; it produces commits on a branch. /graft:pr: push and open a PR; it produces a PR. Below orchestrate, /graft:diff publishes a Claude Code artifact of the commits on a branch for you to review and comment on, then Claude acts on your feedback.</desc>
+  <desc id="flow-desc">Three steps from left to right, and two rows below them. /graft:plan: you answer questions, researcher finds facts, and reviewer and adversarial-reviewer review; it writes .claude/plans/&lt;name&gt;.md. /graft:orchestrate: for each milestone, worker implements and then the change is committed, with reviewer and adversarial-reviewer reviewing beside the loop; then comment-editor and docs-editor clean up; it produces commits on a branch. /graft:pr: push and open a PR; it produces a PR. Below plan and orchestrate, /graft:execute runs plan and then orchestrate in one session. Below that, /graft:diff publishes a Claude Code artifact of the commits on a branch for you to review and comment on, then Claude acts on your feedback.</desc>
   <style>
     text { font-size: 14px; fill: #1f2328; text-anchor: middle; }
     .sans { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
@@ -122,27 +122,42 @@
       <text x="766" y="340" class="sans">a PR</text>
     </g>
   </g>
-  <path class="arrow" d="M459,361 V389" marker-end="url(#arrowhead)"/>
+  <path class="arrow" d="M108,395 V377" marker-end="url(#arrowhead)"/>
+  <path class="arrow" d="M459,395 V377" marker-end="url(#arrowhead)"/>
 
   <g>
-    <rect x="250" y="395" width="418" height="104" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
+    <rect x="1" y="395" width="624" height="104" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
     <g>
-      <rect x="260" y="405" width="398" height="34" rx="6" fill="#0969da"/>
-      <text x="459" y="427" class="mono head">/graft:diff</text>
+      <rect x="11" y="405" width="604" height="34" rx="6" fill="#0969da"/>
+      <text x="313" y="427" class="mono head">/graft:execute</text>
     </g>
     <g>
-      <rect x="260" y="455" width="96" height="34" rx="17" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
-      <text x="308" y="477" class="sans">publish</text>
+      <rect x="153" y="455" width="320" height="34" rx="17" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+      <text x="313" y="477" class="sans">plan, then orchestrate, in one session</text>
     </g>
-    <path class="arrow" d="M356,472 H372" marker-end="url(#arrowhead)"/>
+  </g>
+
+  <path class="arrow" d="M644,361 V517" marker-end="url(#arrowhead)"/>
+
+  <g>
+    <rect x="250" y="523" width="418" height="104" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
     <g>
-      <rect x="378" y="455" width="118" height="34" rx="17" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
-      <text x="437" y="477" class="sans">you · comment</text>
+      <rect x="260" y="533" width="398" height="34" rx="6" fill="#0969da"/>
+      <text x="459" y="555" class="mono head">/graft:diff</text>
     </g>
-    <path class="arrow" d="M496,472 H512" marker-end="url(#arrowhead)"/>
     <g>
-      <rect x="518" y="455" width="140" height="34" rx="17" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
-      <text x="588" y="477" class="sans">act on comments</text>
+      <rect x="260" y="583" width="96" height="34" rx="17" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+      <text x="308" y="605" class="sans">publish</text>
+    </g>
+    <path class="arrow" d="M356,600 H372" marker-end="url(#arrowhead)"/>
+    <g>
+      <rect x="378" y="583" width="118" height="34" rx="17" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
+      <text x="437" y="605" class="sans">you · comment</text>
+    </g>
+    <path class="arrow" d="M496,600 H512" marker-end="url(#arrowhead)"/>
+    <g>
+      <rect x="518" y="583" width="140" height="34" rx="17" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+      <text x="588" y="605" class="sans">act on comments</text>
     </g>
   </g>
 </svg>

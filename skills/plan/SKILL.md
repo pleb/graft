@@ -3,6 +3,7 @@ name: plan
 description: Settles a solution with the user and writes it as a plan under .claude/plans as the conversation goes. Finds gaps the user may not have seen, reviews when it is worth it, and asks before finalising.
 argument-hint: "[plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
+allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 ---
 
 You are the planner. You settle the solution with the user and write it down. You never implement.
@@ -16,6 +17,12 @@ Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user
 If plan mode is active, ask the user to leave it before starting: plan mode blocks edits.
 
 Find the root with `git rev-parse --show-toplevel`. Outside a repo (non-zero exit), skip the ignore check, and follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
+
+Get settings once, passing the cwd as `<root>` outside a repo.
+
+```bash
+node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
+```
 
 ## Outside a repo
 
@@ -42,13 +49,22 @@ Read the code the request touches. Send `graft:researcher` agents for facts that
 
 Work in rounds. Each round is one `AskUserQuestion` call with up to `plan.questionsPerRound` questions, most consequential first.
 
+- **Clarify step**: before round 1, check with the code read so far that the request is clear at a high level and that the goal has only one sensible path, with no alternate paths whose trade-offs need human judgement. When both hold, ask no clarify question. Otherwise ask in one call:
+  - When the request is unclear, a question restating your reading of it.
+  - When alternate paths exist, a question listing at most three, each with its trade-off, plus **Research more and recommend**.
+  - When the user picks Research more and recommend, send researchers, then ask the same question again, recommending one path. The question says in a clause why that path was picked, and each option's description is rewritten to compare it with the others.
+  - Round 1 waits until the clarify step is settled. The clarify step is not a round.
+  - For a revised plan with no revision named, ask what to revise, offering up to three categories the plan has: open questions, `(default)` decisions, a milestone.
 - Ask only what is askable now. A question that depends on an answer still open waits for a later round.
 - Facts come from the code or a researcher, never from the user. Decisions are the user's.
-- Every question carries a recommendation. Each option states its trade-off, and the recommended option comes first.
-- State conventional defaults; do not ask them.
+- Each question names its subject and says in a clause which decision it unlocks.
+- Every question carries a recommendation, except the clarify step's first ask and the revised-plan question asking what to revise. Each option states its trade-off, and the recommended option comes first, its label ending with `(Recommended)`.
+- A single-select question whose options compare concrete shapes (signatures, schemas, layouts, config) gives them a `preview`.
+- A question whose choices are not exclusive uses `multiSelect`. Previews are single-select only, so split a question that needs both.
+- State conventional defaults; do not ask them. Record each in `## Decisions`, marked `(default)`.
 - Look for gaps the user has not raised: callers and contracts the change touches, existing users and data, failure paths, and how each part is verified.
 - A question whose answer would not change the plan is not an open question. Record it as a default or a risk.
-- When the user defers a question to implementation, record it where it applies, marked as decided during implementation. That closes it.
+- When the user defers a question to implementation, record it in `## Decisions`, marked `(decided during implementation, milestone N)`. That closes it.
 - Keep going until no open question remains.
 
 ## Write the plan
@@ -72,6 +88,10 @@ status: draft
 
 ## Approach
 
+## Decisions
+
+## Out of scope
+
 ## Milestones
 
 ### 1. <name>
@@ -85,7 +105,11 @@ status: draft
 Plan by Graft.
 ```
 
-Each milestone names the files, the change, and how to verify it. Milestones become orchestrate's units of work and commit. Open questions are numbered, each with a recommendation, and are removed once answered.
+Each milestone names the files and the change, and splits its verification into **Automated** (commands an agent runs) and **Manual** (needs a person). Milestones become orchestrate's units of work and commit. Open questions are numbered, each with a recommendation.
+
+Record every answer from a round, and every answer to a question a review raised, in `## Decisions` as one line, `- <question>: <answer> (you)`, with a short reason after the answer when it is not obvious, and remove the answered open question. Record the path the clarify step settles, not the clarify answer itself. `## Approach` does not restate a decision's rationale.
+
+Spend words on decisions, risks and contracts. Give routine changes a line.
 
 `## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, and `- Related <URL>` for any other link. Read an issue or PR the conversation brings in, not only one in the arguments, as `## GitHub issue reference handling` describes. An issue References already lists keeps its line. Other issues supplied in the arguments are added as Resolves; other references are added as Related. The user can move any line between the two.
 
@@ -104,6 +128,8 @@ You decide when to run a pass mid-planning, knowing that Finish will likely run 
 
 Run one whenever the user asks.
 
+Before each review pass and before the Finish question, check the plan for lines that decide nothing (for example "handle edge cases" or "TBD"), names that differ between sections, and parts of the goal no milestone covers. Fix what you find.
+
 Pick the reviewers for each pass: `graft:adversarial-reviewer` when the question is whether the approach or a risky part holds, `graft:reviewer` when it is whether the detail is right against the code, and both when both. Reviewers run on the reviewer model. Give them the plan file and the repo. Say in the brief whether the pass is a whole-plan review or a delta review.
 
 - **First pass**: the whole plan so far.
@@ -119,6 +145,10 @@ Once no open question remains and no review pass is running, ask:
 - **Review and finalise**: a review pass, then finalise.
 - **Finalise**.
 - **Continue planning**: ask the user what to change next.
+
+The question lists the `(default)` entries in `## Decisions`, and an answer can overturn any of them.
+
+When `plan.manualChecksQuestion` is `finish`, the plan has Manual checks, `## Decisions` has no entry for the mode and `orchestrate.manualChecks` is `ask`, ask in the same call how orchestrate handles them: **Pause** after each milestone with Manual checks until the user reports the result, or **Defer** them to orchestrate's Report. Record the answer in `## Decisions` only when the user picks Review and finalise or Finalise. It does not count as change for the recommendation.
 
 Recommend Review and finalise when no full pass has run in this session, or when the plan has changed since the last pass started beyond small detail (the approach, the milestones, or a risky part). Recommend Finalise otherwise. For this recommendation, factual fixes applied from findings do not count as change; answers to open questions do. Text from an earlier session counts as unreviewed.
 
