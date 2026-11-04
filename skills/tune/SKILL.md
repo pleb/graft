@@ -36,7 +36,7 @@ Show the user the lines after `Wrote`, including any `Warning:` line (a likely t
 
 ## Analyse
 
-Send one `graft:researcher` the candidates file and the clone, with every path absolute (expand `~/.my-graft`): the clone's current `skills/common.md`, `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/execute/SKILL.md`, `skills/pr/SKILL.md`, `agents/*.md` and, when it exists, `MODS.md`. Its brief carries the user's guidance and these rules:
+Send one `graft:researcher` the candidates file and the clone, with every path absolute (expand `~/.my-graft`): the clone's current `skills/common.md`, `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/execute/SKILL.md`, `skills/pr/SKILL.md`, `agents/*.md` and, when they exist, `MODS.md` and `INTERSTOCK-MODS.md`. Its brief carries the user's guidance and these rules:
 
 - **Guidance**: apply the user's guidance first (for example, skip the runs it excludes).
 - **Evidence**: the candidates file is the only evidence. Do not open transcripts.
@@ -61,7 +61,7 @@ Send one `graft:researcher` the candidates file and the clone, with every path a
   - Compare that time in UTC with the latest correction's `skillTime`, or the start of its run when it has none.
   - When the current text covers a finding and the covering text reached the clone after that time, drop the finding.
   - When the covering text was already there, keep the finding as a rule that is not holding (to strengthen or move).
-  - A rule that is not holding although a mod already strengthened it (per `MODS.md` and the log) gets a different change (move it, or change how the step works), not more emphasis.
+  - A rule that is not holding although a mod already strengthened it (per the registries and the log) gets a different change (move it, or change how the step works), not more emphasis.
 
 - **Report**: for each finding, the rule in general terms, the target file, any existing line it strengthens or moves, the commit its coverage judgement rests on, and the runs it came from (date, repo, a short quote).
 
@@ -75,7 +75,7 @@ With no findings, say so, show the counts from Extract, and stop.
 
 For each pick in turn, read `~/.my-graft/skills/modify/SKILL.md` and follow it, targeting `~/.my-graft`, with the finding's rule as its arguments and the evidence as context.
 
-- The mod's text, its `MODS.md` row and its commit state the rule in general terms and name no repo, path or quote from the evidence. Every brief modify sends says so.
+- The mod's text, its registry row and its commit state the rule in general terms and name no repo, path or quote from the evidence. Every brief modify sends says so.
 - Leave the `/reload-plugins` request out of modify's `## Report`.
 
 ## Report
