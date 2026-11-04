@@ -24,7 +24,7 @@ Follow common.md's `## Claude Code version`, then its `## Sync the clone`.
 
 ## Read the registry
 
-Read the registry if it exists. A change to an existing mod revises its row and keeps its Change name. A request that contradicts a mod says so in the first round.
+Read the registry if it exists. A change to an existing mod revises its row and keeps its Change name. When the registry is `MODS.md`, a change to a mod recorded only in `INTERSTOCK-MODS.md` is a new mod in the registry under its own Change name. A request that contradicts a mod says so in the first round.
 
 ## Settle
 
@@ -57,7 +57,7 @@ Changes this copy makes to Graft. `/graft:update` keeps each one when it merges 
 
 Change is a short imperative name, and also the commit subject. Intent is one to three sentences on the behaviour the user wants and why. No file lists or implementation detail.
 
-When the user says the interstock itself was renamed or transferred (not a fork), update its name in `INTERSTOCK-MODS.md` in the same commit.
+When the registry is `INTERSTOCK-MODS.md` and the user says the interstock itself was renamed or transferred (not a fork), update its name in the registry in the same commit.
 
 ## Validate
 
