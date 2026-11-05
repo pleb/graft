@@ -166,6 +166,63 @@ describe("parseCatalog", () => {
     });
   });
 
+  describe("text", () => {
+    const TEXT = TABLE.replace(
+      "| Does one.    |\n",
+      "| Does one.    |\n| `b.two` | text | Other model | Names it. |\n",
+    );
+
+    it("reads a bare text Values cell as a free-text setting with no values", () => {
+      expect(parseCatalog(TEXT)).toMatchObject({
+        isParsed: true,
+        settings: [
+          { key: "a.one", values: ["always", "never"] },
+          {
+            key: "b.two",
+            values: [],
+            isText: true,
+            defaultValue: "Other model",
+            description: "Names it.",
+          },
+        ],
+      });
+      const catalog = parseCatalog(TEXT);
+      expect(catalog.isParsed && catalog.settings[0]).not.toHaveProperty("isText");
+    });
+
+    it("reads a backticked text as a listed value and refuses text in a list", () => {
+      expect(parseCatalog(TEXT.replace("| text |", "| `text` |"))).toMatchObject({
+        isParsed: true,
+        settings: [{}, { values: ["text"] }],
+      });
+      expect(parseCatalog(TEXT.replace("| text |", "| text, `a` |"))).toMatchObject({
+        isParsed: false,
+      });
+    });
+
+    it("with isDefaultListed, reads a text row without listing its default", () => {
+      const listed = TEXT.replace("`never`", "`never`, `ask`");
+      expect(parseCatalog(listed, { isDefaultListed: true })).toMatchObject({
+        isParsed: true,
+        settings: [{}, { key: "b.two", values: [], isText: true }],
+      });
+    });
+
+    it("reads a condition on any value of a text setting", () => {
+      const shown = `## Settings
+
+| Key       | Values | Default     | Shown when      | What it does |
+| --------- | ------ | ----------- | --------------- | ------------ |
+| \`a.one\` | text   | Other model |                 | Names it.    |
+| \`b.two\` | \`on\`   | off         | \`a.one = GPT\` | Does two.    |
+`;
+      expect(parseCatalog(shown)).toMatchObject({
+        isParsed: true,
+        settings: [{ isText: true }, { shownWhen: { key: "a.one", value: "GPT" } }],
+      });
+    });
+  });
+
   describe("Shown when", () => {
     const SHOWN = `## Settings
 
@@ -242,9 +299,12 @@ describe("parseCatalog", () => {
     );
     readme.settings.forEach((setting, i) => {
       const expected = common.settings[i]!;
-      expect(new Set(setting.values), setting.key).toEqual(
-        new Set([...expected.values, expected.defaultValue]),
-      );
+      expect(setting.isText, setting.key).toBe(expected.isText);
+      if (!expected.isText) {
+        expect(new Set(setting.values), setting.key).toEqual(
+          new Set([...expected.values, expected.defaultValue]),
+        );
+      }
     });
   });
 });
