@@ -183,6 +183,9 @@ function flatten(values: SkillValues): [string, unknown][] {
 const isNumeric = (value: string) => value.trim() !== "" && Number.isFinite(Number(value));
 
 function choicesOf(setting: CatalogSetting): string[] {
+  if (setting.isText) {
+    return [];
+  }
   const choices = [...setting.values, setting.defaultValue];
 
   return choices.every(isNumeric) ? choices.sort((a, b) => Number(a) - Number(b)) : choices;
@@ -213,8 +216,9 @@ function describe({ catalog, file }: Loaded): string[] {
   for (const setting of settings) {
     const value = defaults[setting.skill]?.[setting.name];
     const note = conditionNote(setting);
+    const choices = setting.isText ? "" : ` (${choicesOf(setting).join(", ")})`;
     lines.push(
-      `${setting.key}: ${value === undefined ? setting.defaultValue : shown(value)} (${choicesOf(setting).join(", ")})`,
+      `${setting.key}: ${value === undefined ? setting.defaultValue : shown(value)}${choices}`,
       `  ${setting.description}`,
       ...(note === undefined ? [] : [`  ${note}`]),
     );
@@ -501,6 +505,23 @@ async function scopeWarning(
     : `${key} is a linked worktree. Skills there use the settings for ${root}.`;
 }
 
+async function submitText(
+  $: EngineInterface,
+  setting: CatalogSetting,
+  scope: string | undefined,
+  value: string,
+) {
+  const text = value.trim();
+  if (text !== "" && !isValid(setting, text)) {
+    await update($, notice, () => `${setting.key} takes a single line of text.`);
+
+    return;
+  }
+  await update($, notice, () => "");
+  const isCleared = text === "" || (scope === undefined && text === setting.defaultValue);
+  await save($, setting, scope, isCleared ? undefined : text);
+}
+
 async function pickView($: EngineInterface, picked: string) {
   await update($, view, () => picked);
   await update($, notice, () => "");
@@ -542,6 +563,41 @@ function control(ui: Ui, pane: GraftSettingsPane, setting: CatalogSetting, c: Co
   );
 }
 
+type TextControl = {
+  title: string;
+  inputKey: string;
+  stored: unknown;
+  placeholder: string;
+  savingText: string;
+  onSubmit: (value: string) => void;
+};
+
+function textControl(ui: Ui, pane: GraftSettingsPane, setting: CatalogSetting, c: TextControl) {
+  const { Box, Input, Text } = ui;
+  const note = conditionNote(setting);
+  const isAllowed = c.stored === undefined || isValid(setting, c.stored);
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      <Text bold>{c.title}</Text>
+      <Text dimColor>
+        {setting.description} Default: {setting.defaultValue}.{note === undefined ? "" : ` ${note}`}
+      </Text>
+      {!isAllowed && <Text>{shown(c.stored)} (not allowed)</Text>}
+      {pane.isSaving ? (
+        <Text>{c.savingText} (saving)</Text>
+      ) : (
+        <Input
+          key={c.inputKey}
+          placeholder={c.placeholder}
+          value={c.stored !== undefined && isAllowed ? String(c.stored) : ""}
+          onSubmit={c.onSubmit}
+        />
+      )}
+    </Box>
+  );
+}
+
 function notInCatalog(ui: Ui, keys: [string, unknown][]) {
   const { Box, Text } = ui;
 
@@ -574,6 +630,16 @@ function defaultsView(
     <Box flexDirection="column">
       {settings.map((setting) => {
         const value = defaults[setting.skill]?.[setting.name];
+        if (setting.isText) {
+          return textControl(ui, pane, setting, {
+            title: setting.key,
+            inputKey: `${DEFAULTS_VIEW}:${setting.key}`,
+            stored: value,
+            placeholder: `${setting.defaultValue} (Default)`,
+            savingText: value === undefined ? setting.defaultValue : shown(value),
+            onSubmit: (submitted) => void submitText($, setting, undefined, submitted),
+          });
+        }
         const isDefault =
           value === undefined ||
           (isValid(setting, value) && String(value) === setting.defaultValue);
@@ -620,6 +686,17 @@ async function scopeView(
       {scope === undefined && <Text dimColor>A new scope is saved with its first override.</Text>}
       {settings.map((setting, i) => {
         const stored = overrides[setting.skill]?.[setting.name];
+        const title = stored === undefined ? setting.key : `${setting.key} (overridden)`;
+        if (setting.isText) {
+          return textControl(ui, pane, setting, {
+            title,
+            inputKey: `${key}:${setting.key}`,
+            stored,
+            placeholder: sourceLabel(inherited[i]!),
+            savingText: stored === undefined ? sourceLabel(inherited[i]!) : shown(stored),
+            onSubmit: (submitted) => void submitText($, setting, key, submitted),
+          });
+        }
         const isListed = stored === undefined || isValid(setting, stored);
         const options = [
           { value: INHERIT, label: `Inherit: ${sourceLabel(inherited[i]!)}` },
@@ -628,7 +705,7 @@ async function scopeView(
         ];
 
         return control(ui, pane, setting, {
-          title: stored === undefined ? setting.key : `${setting.key} (overridden)`,
+          title,
           options,
           selected: stored === undefined ? INHERIT : isListed ? String(stored) : UNLISTED,
           savingText: stored === undefined ? sourceLabel(inherited[i]!) : shown(stored),

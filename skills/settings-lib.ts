@@ -268,9 +268,13 @@ export async function inheritedLayers(
 export function isValid(setting: CatalogSetting, value: unknown): boolean {
   const text = typeof value === "number" || typeof value === "boolean" ? String(value) : value;
 
-  return (
-    typeof text === "string" && (text === setting.defaultValue || setting.values.includes(text))
-  );
+  if (typeof text !== "string") {
+    return false;
+  }
+
+  return setting.isText
+    ? text.trim() !== "" && !/[\r\n]/.test(text)
+    : text === setting.defaultValue || setting.values.includes(text);
 }
 
 export function explainLayers(layers: Layer[], settings: CatalogSetting[]): ExplainedSetting[] {

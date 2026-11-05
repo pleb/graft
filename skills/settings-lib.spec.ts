@@ -12,11 +12,12 @@ import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Catalog } from "./settings-catalog.ts";
+import type { Catalog, CatalogSetting } from "./settings-catalog.ts";
 import {
   effectiveValues,
   explainLayers,
   inheritedLayers,
+  isValid,
   mainWorktree,
   newScopeKey,
   parseSettingsFile,
@@ -692,6 +693,56 @@ describe("withSetting", () => {
     expect(withSetting(json, scope, "plan", "questionsPerRound", "1")).toMatchObject({
       isEdited: false,
     });
+  });
+});
+
+describe("text settings", () => {
+  const credit: CatalogSetting = {
+    key: "codex.prCredit",
+    skill: "codex",
+    name: "prCredit",
+    values: [],
+    isText: true,
+    defaultValue: "Other model",
+    description: "",
+  };
+
+  it.each(["GPT", " GPT 5 ", "Other model"])("accepts the single line %j", (value) => {
+    expect(isValid(credit, value)).toBe(true);
+  });
+
+  it.each(["", "   ", "GPT\n5", "GPT\r\n", "\nGPT", undefined, {}])("refuses %j", (value) => {
+    expect(isValid(credit, value)).toBe(false);
+  });
+
+  it("explains a stored text value and falls back to the Default for an invalid one", () => {
+    const layers = [
+      { source: "Defaults", values: { codex: { prCredit: "GPT" } } },
+      { source: "/r", values: { codex: { prCredit: "two\nlines" } } },
+    ];
+    expect(explainLayers(layers, [credit])).toEqual([
+      { key: "codex.prCredit", skill: "codex", name: "prCredit", value: "GPT", source: "Defaults" },
+    ]);
+    expect(explainLayers([{ source: "Defaults", values: {} }], [credit])).toMatchObject([
+      { value: "Other model", source: "Default" },
+    ]);
+  });
+
+  it("saves and clears the text as given", () => {
+    const set = withSetting({}, "/r", "codex", "prCredit", "GPT 5");
+    expect(set).toEqual({
+      isEdited: true,
+      json: { "/r": { overrides: { codex: { prCredit: "GPT 5" } } } },
+    });
+    expect(
+      withSetting(
+        (set as { json: Record<string, unknown> }).json,
+        "/r",
+        "codex",
+        "prCredit",
+        undefined,
+      ),
+    ).toEqual({ isEdited: true, json: {} });
   });
 });
 

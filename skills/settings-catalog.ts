@@ -1,13 +1,16 @@
 // Parses the `## Settings` table in common.md, or in README.md with
 // `isDefaultListed`, where Values include the Default. An optional `Shown when`
-// column after Default names the setting a row depends on. Keep it free of JSX
-// and Node or claude-code imports: hooks/register.tsx and vitest both load it.
+// column after Default names the setting a row depends on. A Values cell of the
+// bare word `text` marks a free-text setting, which lists no values. Keep it
+// free of JSX and Node or claude-code imports: hooks/register.tsx and vitest
+// both load it.
 
 export type CatalogSetting = {
   key: string;
   skill: string;
   name: string;
   values: string[];
+  isText?: true;
   defaultValue: string;
   description: string;
   shownWhen?: Condition;
@@ -24,6 +27,7 @@ const SHOWN_HEADER = ["Key", "Values", "Default", "Shown when", "What it does"];
 const KEY = /^`([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)`$/;
 const CONDITION = /^`([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+) = ([^`\s]+)`$/;
 const VALUE = /^`([^`]+)`$/;
+const TEXT = "text";
 
 function cells(line: string): string[] {
   return line
@@ -77,7 +81,8 @@ export function parseCatalog(markdown: string, { isDefaultListed = false } = {})
     if (rest.length > 0 || keyMatch === null || conditionMatch === null) {
       return { isParsed: false, error: `cannot read the row: ${row.trim()}` };
     }
-    const parsedValues = values.split(", ").map((value) => VALUE.exec(value)?.[1]);
+    const isText = values === TEXT;
+    const parsedValues = isText ? [] : values.split(", ").map((value) => VALUE.exec(value)?.[1]);
     if (parsedValues.some((value) => value === undefined) || defaultValue === "") {
       return { isParsed: false, error: `cannot read the row: ${row.trim()}` };
     }
@@ -87,7 +92,7 @@ export function parseCatalog(markdown: string, { isDefaultListed = false } = {})
     if (!isDefaultListed && parsedValues.includes(defaultValue)) {
       return { isParsed: false, error: `the default is also listed as a value: ${row.trim()}` };
     }
-    if (isDefaultListed && !parsedValues.includes(defaultValue)) {
+    if (isDefaultListed && !isText && !parsedValues.includes(defaultValue)) {
       return { isParsed: false, error: `the default is not listed as a value: ${row.trim()}` };
     }
     if (settings.some((setting) => setting.key === `${keyMatch[1]}.${keyMatch[2]}`)) {
@@ -98,6 +103,7 @@ export function parseCatalog(markdown: string, { isDefaultListed = false } = {})
       skill: keyMatch[1]!,
       name: keyMatch[2]!,
       values: parsedValues as string[],
+      ...(isText ? { isText: true as const } : {}),
       defaultValue,
       description,
       ...(conditionMatch === undefined
@@ -119,7 +125,11 @@ export function parseCatalog(markdown: string, { isDefaultListed = false } = {})
         error: `${key} is shown when an unknown key is set: ${shownWhen.key}`,
       };
     }
-    if (shownWhen.value !== target.defaultValue && !target.values.includes(shownWhen.value)) {
+    if (
+      !target.isText &&
+      shownWhen.value !== target.defaultValue &&
+      !target.values.includes(shownWhen.value)
+    ) {
       return {
         isParsed: false,
         error: `${key} is shown when ${shownWhen.key} is ${shownWhen.value}, which it cannot be`,

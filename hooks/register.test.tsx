@@ -1197,3 +1197,108 @@ test("the text list gives the defaults, then each scope's overrides", async ($, 
     ].join("\n"),
   );
 });
+
+const TEXT = `# Shared rules
+
+## Settings
+
+| Key              | Values   | Default     | Shown when             | What it does   |
+| ---------------- | -------- | ----------- | ---------------------- | -------------- |
+| \`codex.enabled\`  | \`true\`   | false       |                        | Runs Codex.    |
+| \`codex.prCredit\` | text     | Other model | \`codex.enabled = true\` | Names Codex.   |
+`;
+
+test("a text setting is typed in the Defaults view, and its default or nothing clears it", async ($, on) => {
+  const w = world(on, undefined, TEXT);
+  const ui = await mountOn($, "terminal");
+  const input = await ui.find({ type: "Input", key: ":defaults:codex.prCredit" });
+  expect(input?.props.value).toBe("");
+  expect(input?.props.placeholder).toBe("Other model (Default)");
+  expect(
+    await ui.find({
+      type: "Text",
+      text: /Names Codex\. Default: Other model\. Applies when codex\.enabled is true\./,
+    }),
+  ).toBeDefined();
+
+  await ui.input({ key: ":defaults:codex.prCredit", text: "  GPT 5 " });
+  expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual({ codex: { prCredit: "GPT 5" } });
+  expect((await ui.find({ key: ":defaults:codex.prCredit" }))?.props.value).toBe("GPT 5");
+
+  await ui.input({ key: ":defaults:codex.prCredit", text: "Other model" });
+  expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual({});
+
+  await ui.input({ key: ":defaults:codex.prCredit", text: "GPT" });
+  await ui.input({ key: ":defaults:codex.prCredit", text: "  " });
+  expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual({});
+  expect(gitRuns(w, "commit").map((argv) => argv[6])).toEqual([
+    "Set codex.prCredit to GPT 5",
+    "Clear codex.prCredit",
+    "Set codex.prCredit to GPT",
+    "Clear codex.prCredit",
+  ]);
+  expect(w.toasts).toEqual([]);
+  await ui.unmount();
+});
+
+test("a text setting in a scope shows what it inherits, stores the default and inherits on empty", async ($, on) => {
+  const w = world(on, JSON.stringify({ codex: { prCredit: "GPT" } }), TEXT);
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: ":add" });
+  await ui.input({ key: "scopePath", text: REPO });
+  const key = `${REPO}:codex.prCredit`;
+  const input = await ui.find({ type: "Input", key });
+  expect(input?.props.value).toBe("");
+  expect(input?.props.placeholder).toBe("GPT (from Defaults)");
+  expect(
+    await ui.find({ type: "Text", text: /Applies when codex\.enabled is true\./ }),
+  ).toBeDefined();
+
+  await ui.input({ key, text: "Other model" });
+  expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual({
+    codex: { prCredit: "GPT" },
+    [REPO]: { overrides: { codex: { prCredit: "Other model" } } },
+  });
+  expect((await ui.find({ key }))?.props.value).toBe("Other model");
+  expect(await ui.find({ type: "Text", text: "codex.prCredit (overridden)" })).toBeDefined();
+
+  await ui.input({ key, text: "" });
+  expect(JSON.parse(w.files.get(SETTINGS)!)).toEqual({ codex: { prCredit: "GPT" } });
+  expect(gitRuns(w, "commit").map((argv) => argv[6])).toEqual([
+    `Set codex.prCredit to Other model for ${REPO}`,
+    `Clear codex.prCredit for ${REPO}`,
+  ]);
+  await ui.unmount();
+});
+
+test("text with a newline shows a notice and writes nothing", async ($, on) => {
+  const w = world(on, undefined, TEXT);
+  const ui = await mountOn($, "terminal");
+  await ui.input({ key: ":defaults:codex.prCredit", text: "GPT\nfive" });
+
+  expect(
+    await ui.find({ type: "Text", text: "codex.prCredit takes a single line of text." }),
+  ).toBeDefined();
+  expect(w.files.has(SETTINGS)).toBe(false);
+  expect(w.runs).toEqual([]);
+  expect(w.toasts).toEqual([]);
+  await ui.unmount();
+});
+
+test("the text list gives a text setting's value without choices", async ($, on) => {
+  const w = world(on, JSON.stringify({ codex: { prCredit: "GPT" } }), TEXT);
+  w.placed = { isPlaced: false, reason: "no-surface: a -p run" };
+  await $.session.start({ cwd: "/", surface: null, isInteractive: false });
+
+  const ran = await $.command.run(RUN);
+  expect(ran.text).toBe(
+    [
+      "Graft settings in ~/.my-graft/graft-settings.json",
+      "codex.enabled: false (true, false)",
+      "  Runs Codex.",
+      "codex.prCredit: GPT",
+      "  Names Codex.",
+      "  Applies when codex.enabled is true.",
+    ].join("\n"),
+  );
+});
