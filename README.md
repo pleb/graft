@@ -51,6 +51,14 @@ And when you're ready to ship the changes:
 /graft:pr [guidance] [state: draft (default) | ready-state]
 ```
 
+## Helper commands
+
+```text
+/graft:review [pr number | url] [reviewer model: sonnet | opus (default) | fable]
+```
+
+`/graft:review` runs the reviewer and adversarial reviewer over a PR or the working tree, combines their findings and prints the review, then offers to post the findings to the PR or apply them locally through plan.
+
 ## Utility commands
 
 ```text
@@ -118,3 +126,4 @@ Inspired by:
 - [github/spec-kit](https://github.com/github/spec-kit)
 - [obra/superpowers](https://github.com/obra/superpowers)
 - [humanlayer/claudelayer](https://github.com/humanlayer/claudelayer)
+- [MakerXStudio/yoke](https://github.com/MakerXStudio/yoke)
