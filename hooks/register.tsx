@@ -505,7 +505,6 @@ async function scopeWarning(
     : `${key} is a linked worktree. Skills there use the settings for ${root}.`;
 }
 
-// `scope` undefined edits the defaults, where the catalog default clears the key.
 async function submitText(
   $: EngineInterface,
   setting: CatalogSetting,
