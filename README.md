@@ -57,7 +57,7 @@ And when you're ready to ship the changes:
 /graft:review [pr number | url] [reviewer model: sonnet | opus (default) | fable]
 ```
 
-`/graft:review` reviews a PR or the working tree with the reviewer and adversarial reviewer, prints one combined review, then offers to post findings to the PR or apply them through plan.
+`/graft:review` reviews a PR or the working tree with the reviewer and adversarial reviewer, prints one combined review, then offers to post findings to the PR or apply them through execute.
 
 ## Utility commands
 

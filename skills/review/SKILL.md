@@ -1,6 +1,6 @@
 ---
 name: review
-description: Reviews a PR or the working tree with a reviewer and an adversarial reviewer, combines their findings into one review, then posts chosen findings to the PR or applies them through plan.
+description: Reviews a PR or the working tree with a reviewer and an adversarial reviewer, combines their findings into one review, then posts chosen findings to the PR or applies them through execute.
 argument-hint: "[pr number | url] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
 allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *), Bash(node ${CLAUDE_SKILL_DIR}/pr.ts *)
@@ -28,7 +28,7 @@ node ${CLAUDE_SKILL_DIR}/pr.ts view <number | url>
 
 With none, run `node ${CLAUDE_SKILL_DIR}/pr.ts view`. When it prints a PR, ask **Review the PR** (recommended) or **Review the working tree**. When it prints `null`, or on the working-tree answer, the target is the working tree: the diff from the merge base with the default branch, plus uncommitted and untracked changes.
 
-`view` prints `{url, repo, number, state, title, body, headRefName, headRefOid, baseRefName, baseRefOid, prior}`. Keep it for the rest of the run.
+`view` prints `{url, repo, number, state, title, body, headRefName, headRefOid, baseRefName, baseRefOid, prior}`, which later steps use.
 
 ## Prepare a PR
 
@@ -68,7 +68,7 @@ Combine the reports into one list of findings:
   - `confirmed`: both reviewers raised it.
   - `disputed`: the reviewers disagree on the diagnosis or fix.
   - `one reviewer`: only one raised it.
-- Keep a finding that a test the diff added or changed cannot fail when the behaviour it covers breaks, even from one reviewer, at minor or above.
+- When a test the diff adds or changes would still pass with the behaviour it tests broken, keep that finding at minor or above, even when only one reviewer raised it.
 - Drop a finding whose recommendation is to add a comment, or whose defect is a missing comment. Keep one about a comment the change made stale or wrong.
 - Order by severity, then source, `confirmed` first.
 - Never name a reviewer by model or tool; write "one reviewer" or "both reviewers".
@@ -146,7 +146,7 @@ Relay its output: the review URL and how many findings went inline, into the bod
 
 ## Apply
 
-Read `${CLAUDE_SKILL_DIR}/../plan/SKILL.md` and follow it. In that file, read `CLAUDE_SKILL_DIR` as `${CLAUDE_SKILL_DIR}`. Its `$ARGUMENTS` is:
+Read `${CLAUDE_SKILL_DIR}/../execute/SKILL.md` and follow it. In that file, read `CLAUDE_SKILL_DIR` as `${CLAUDE_SKILL_DIR}`. Its `$ARGUMENTS` is:
 
 - The work: the full text of each chosen finding.
 - Context, not an issue to resolve: the target, as the PR's URL and branch or the working tree.
