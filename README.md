@@ -106,6 +106,14 @@ Settings live in `~/.my-graft/graft-settings.json`:
 
 Top-level skill keys are the defaults. A key that is a path is a scope whose `overrides` apply to that repo, or to every repo under a directory ending in `/*`; scopes apply from the broadest to the repo's own path. On Windows, write scope paths with forward slashes; `/c/...` and local admin shares such as `//localhost/C$/...` are read as `C:/...`.
 
+A repo or folder can also keep its own settings, as Claude Code does, in `.claude/graft-settings.json` (shared) and `.claude/graft-settings.local.json` (yours; keep it out of git) at the top level of the repo the skills run in (a linked worktree's own), or in the current folder outside a repo. Each holds skill keys only, with no scopes:
+
+```json
+{ "pr": { "state": "ready" } }
+```
+
+They apply over `~/.my-graft/graft-settings.json`, the local file last. `/graft-settings` edits only `~/.my-graft/graft-settings.json`, but its effective view includes these files.
+
 ## Interstocks
 
 An interstock (in horticulture, the middle piece of a double graft) is an organisation's shared copy of Graft that sits between `pleb/graft` and its users, replacing `pleb/graft` with its own repo. To create one:

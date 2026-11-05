@@ -16,6 +16,8 @@ import {
   normaliseRootPath,
   normaliseScopeKey,
   parseSettingsFile,
+  projectFilePaths,
+  projectLayers,
   withSetting,
 } from "../skills/settings-lib.ts";
 import type {
@@ -727,8 +729,18 @@ async function effectiveView(
 ) {
   const { Box, Input, Text } = ui;
   const cwd = await $.session.cwd();
-  const root = await normaliseRootPath(pane.effectivePath === "" ? cwd : pane.effectivePath, env);
-  const explained = explainLayers(await layersFor(file, root, env), settings);
+  const given = pane.effectivePath === "" ? cwd : pane.effectivePath;
+  const root = await normaliseRootPath(given, env);
+  const top = (await gitRoot($, given)).top ?? given;
+  const project = projectLayers(
+    await Promise.all(
+      projectFilePaths(top).map(async (source) => ({ source, text: await readText($, source) })),
+    ),
+  );
+  const explained = explainLayers(
+    [...(await layersFor(file, root, env)), ...(typeof project === "string" ? [] : project)],
+    settings,
+  );
   const isShown = (setting: CatalogSetting) =>
     setting.shownWhen === undefined ||
     explained.find(({ key }) => key === setting.shownWhen?.key)?.value === setting.shownWhen.value;
@@ -743,6 +755,7 @@ async function effectiveView(
         onSubmit={(value) => void update($, effectivePath, () => value.trim())}
       />
       <Text dimColor>Effective for {root}</Text>
+      {typeof project === "string" && <Text>{project}</Text>}
       {settings.map((setting, i) =>
         isShown(setting) ? (
           <Text>

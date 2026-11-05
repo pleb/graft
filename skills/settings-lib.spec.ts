@@ -24,7 +24,7 @@ import {
   resolveSettings,
   withSetting,
 } from "./settings-lib.ts";
-import type { Environment, ExplainedSetting, SettingsFile } from "./settings-lib.ts";
+import type { Environment, ExplainedSetting, ProjectFile, SettingsFile } from "./settings-lib.ts";
 
 const SCRIPT = fileURLToPath(new URL("./settings.ts", import.meta.url));
 const HOME = "/home/me";
@@ -597,6 +597,57 @@ describe("resolveSettings", () => {
     });
   });
 
+  describe("project files", () => {
+    const project = (source: string, file: object | string | undefined) => ({
+      source,
+      text: file === undefined || typeof file === "string" ? file : JSON.stringify(file),
+    });
+
+    async function withProject(file: object | undefined, ...projectFiles: ProjectFile[]) {
+      const text = file === undefined ? undefined : JSON.stringify(file);
+      return resolveSettings(text, CATALOG, "/w/repo", env(), projectFiles);
+    }
+
+    it("apply over every scope, the later file last", async () => {
+      const result = await withProject(
+        {
+          plan: { questionsPerRound: "1" },
+          "/w/repo": { overrides: { pr: { state: "ready" }, plan: { questionsPerRound: "2" } } },
+        },
+        project("shared", { plan: { questionsPerRound: "4" }, pr: { state: "draft" } }),
+        project("local", { plan: { questionsPerRound: "1" } }),
+      );
+      expect(
+        result.isResolved && result.settings.map((s) => `${s.key}=${s.value} ${s.source}`),
+      ).toEqual(["plan.questionsPerRound=1 local", "pr.state=draft shared"]);
+    });
+
+    it("skip a missing file and an invalid value", async () => {
+      const result = await withProject(
+        { pr: { state: "ready" } },
+        project("shared", undefined),
+        project("local", { pr: { state: "sideways" } }),
+      );
+      expect(result.isResolved && effectiveValues(result.settings)).toEqual({
+        plan: { questionsPerRound: "3" },
+        pr: { state: "ready" },
+      });
+    });
+
+    it("refuse a file that does not parse or holds a scope", async () => {
+      expect(await withProject(undefined, project("shared", "{"))).toMatchObject({
+        isResolved: false,
+        error: expect.stringMatching(/^shared does not parse: /),
+      });
+      expect(await withProject(undefined, project("local", { "/w/*": { overrides: {} } }))).toEqual(
+        {
+          isResolved: false,
+          error: 'local takes skill keys only, not the scope "/w/*"',
+        },
+      );
+    });
+  });
+
   it("refuses a catalog that does not parse", async () => {
     expect(
       await resolveSettings(undefined, { isParsed: false, error: "bad" }, "/r", env()),
@@ -797,6 +848,8 @@ describe("newScopeKey", () => {
 });
 
 describe("settings.ts", () => {
+  const slash = (path: string) =>
+    process.platform === "win32" ? path.replaceAll("\\", "/") : path;
   const tempDirs: string[] = [];
 
   function tempDir(): string {
@@ -875,6 +928,42 @@ describe("settings.ts", () => {
       pr: { state: { value: "ready", source: "~/../*" } },
       common: { reviewerModel: { value: "opus", source: "Default" } },
     });
+  });
+
+  it("applies the root's .claude settings files over the global file, the local one last", () => {
+    const root = tempDir();
+    mkdirSync(join(root, ".claude"));
+    writeFileSync(
+      join(root, ".claude", "graft-settings.json"),
+      '{"pr": {"state": "ready"}, "plan": {"questionsPerRound": "4"}}',
+    );
+    writeFileSync(
+      join(root, ".claude", "graft-settings.local.json"),
+      '{"plan": {"questionsPerRound": "1"}}',
+    );
+    const result = run(
+      [root, "--explain"],
+      JSON.stringify({ [root]: { overrides: { pr: { state: "draft" } } } }),
+    );
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      pr: { state: { value: "ready", source: `${slash(root)}/.claude/graft-settings.json` } },
+      plan: {
+        questionsPerRound: {
+          value: "1",
+          source: `${slash(root)}/.claude/graft-settings.local.json`,
+        },
+      },
+    });
+  });
+
+  it("stops on a .claude settings file that does not parse", () => {
+    const root = tempDir();
+    mkdirSync(join(root, ".claude"));
+    writeFileSync(join(root, ".claude", "graft-settings.json"), "{");
+    const result = run([root]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`${slash(root)}/.claude/graft-settings.json does not parse`);
   });
 
   it("treats a missing file as no settings", () => {

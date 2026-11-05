@@ -1,4 +1,4 @@
-// Resolves ~/.my-graft/graft-settings.json for a repo root. Keep it free of JSX
+// Resolves ~/.my-graft/graft-settings.json, then the root's own settings files, for a repo root. Keep it free of JSX
 // and Node or claude-code imports: hooks/register.tsx and vitest both load it,
 // and the caller supplies the filesystem and git through Environment.
 
@@ -30,6 +30,8 @@ export type PathEnvironment = Omit<Environment, "normaliseRoot">;
 export type ScopePath = { path: string; isSubtree: boolean };
 
 export type Layer = { source: string; values: SkillValues };
+
+export type ProjectFile = { source: string; text: string | undefined };
 
 export type ExplainedSetting = {
   key: string;
@@ -304,11 +306,47 @@ export function effectiveValues(
   return values;
 }
 
+// At the root's own git top level (a linked worktree's, not its main checkout's), or the root
+// itself outside a repo, the local file last. Joined as text so `..` is left for the OS to apply.
+export function projectFilePaths(top: string): string[] {
+  const dir = slashed(top).replace(/\/+$/, "");
+
+  return [`${dir}/.claude/graft-settings.json`, `${dir}/.claude/graft-settings.local.json`];
+}
+
+function projectLayer(file: ProjectFile): Layer | string {
+  const parsed = parseSettingsFile(file.text);
+  if (!parsed.isParsed) {
+    return `${file.source} does not parse: ${parsed.error}`;
+  }
+  const [scope] = parsed.file.scopes;
+  if (scope !== undefined) {
+    return `${file.source} takes skill keys only, not the scope ${JSON.stringify(scope.key)}`;
+  }
+
+  return { source: file.source, values: parsed.file.defaults };
+}
+
+// Project files apply over every scope, later files over earlier ones.
+export function projectLayers(files: ProjectFile[]): Layer[] | string {
+  const layers: Layer[] = [];
+  for (const file of files.filter(({ text }) => text !== undefined)) {
+    const layer = projectLayer(file);
+    if (typeof layer === "string") {
+      return layer;
+    }
+    layers.push(layer);
+  }
+
+  return layers;
+}
+
 export async function resolveSettings(
   text: string | undefined,
   catalog: Catalog,
   root: string,
   env: Environment,
+  projectFiles: ProjectFile[] = [],
 ): Promise<Resolved> {
   if (!catalog.isParsed) {
     return { isResolved: false, error: `the settings catalog does not parse: ${catalog.error}` };
@@ -318,7 +356,11 @@ export async function resolveSettings(
     return { isResolved: false, error: `graft-settings.json does not parse: ${parsed.error}` };
   }
   const path = await normaliseRootPath(root, env);
-  const layers = await layersFor(parsed.file, path, env);
+  const project = projectLayers(projectFiles);
+  if (typeof project === "string") {
+    return { isResolved: false, error: project };
+  }
+  const layers = [...(await layersFor(parsed.file, path, env)), ...project];
 
   return { isResolved: true, root: path, settings: explainLayers(layers, catalog.settings) };
 }
