@@ -193,7 +193,6 @@ export function parsePrior(text: string): PriorComment[] {
     });
 }
 
-// Prior comments as reviewers see them: markers stripped, and any left empty dropped.
 export function withoutMarkers(prior: PriorComment[]): PriorComment[] {
   return prior
     .map((comment) => ({ ...comment, body: stripMarkers(comment.body) }))

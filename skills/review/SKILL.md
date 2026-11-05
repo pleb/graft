@@ -60,7 +60,7 @@ Combine the reports into one list of findings:
 - Remove duplicates.
 - Give each finding a severity, taking the lower tier when unsure:
   - **blocker**: ships broken behaviour, such as a crash, data loss, a security hole, a broken build or existing tests, or a violated stated requirement.
-  - **major**: a likely bug, missing handling of a real failure mode, or a regression in existing behaviour. Major needs a concrete failure mode or regression; downgrade a major whose impact is taste or hypothetical.
+  - **major**: a likely bug, missing handling of a real failure mode, or a regression in existing behaviour. Downgrade a major whose impact is taste or hypothetical.
   - **minor**: a narrow correctness or clarity issue with limited reach.
   - **nit**: style, naming, micro-refactors or comment wording.
 - Give each finding a source:

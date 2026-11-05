@@ -198,8 +198,8 @@ function isWorktree(root: string, dir: string): boolean {
   return paths.slice(1).some((path) => sameDir(path, dir));
 }
 
-// The hostname ssh connects to for host, or host itself when ssh cannot say.
 function sshHostname(host: string): string {
+  // ssh would read a host starting with "-" as an option.
   if (host.startsWith("-")) return host;
   try {
     const config = run("ssh", ["-G", host]);
