@@ -76,34 +76,50 @@ export function parseTarget(arg: string): number | PrRef {
   return parsePrUrl(arg);
 }
 
-function remoteRepo(url: string): { host: string; path: string } | null {
+function remoteRepo(url: string): { host: string; path: string; ssh: boolean } | null {
   let host: string;
   let path: string;
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) {
+  let ssh: boolean;
+  const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(url);
+  if (scheme) {
     try {
       ({ hostname: host, pathname: path } = new URL(url));
     } catch {
       return null;
     }
+    ssh = scheme[1].toLowerCase().split("+").includes("ssh");
   } else {
     // scp-like syntax: [user@]host:owner/repo
     const match = /^(?:[^@/]+@)?([^:/]+):(?!\/)(.+)$/.exec(url);
     if (!match) return null;
     [, host, path] = match;
+    ssh = true;
   }
   path = path.replace(/^\/+|\/+$/g, "").replace(/\.git$/, "");
-  return { host: host.toLowerCase(), path: path.toLowerCase() };
+  return { host: host.toLowerCase(), path: path.toLowerCase(), ssh };
+}
+
+// GitHub serves SSH on port 443 at ssh.github.com.
+function canonicalHost(host: string): string {
+  const lower = host.toLowerCase();
+  return lower === "ssh.github.com" ? "github.com" : lower;
 }
 
 // The first remote in `git remote -v` output whose fetch URL is the PR's host and repo.
-export function remoteFor(remotes: string, ref: PrRef): string | null {
-  const host = ref.host.toLowerCase();
+// resolveHost maps an SSH host, such as an ~/.ssh/config alias, to its real hostname.
+export function remoteFor(
+  remotes: string,
+  ref: PrRef,
+  resolveHost: (host: string) => string = (host) => host,
+): string | null {
+  const host = canonicalHost(ref.host);
   const path = `${ref.owner}/${ref.repo}`.toLowerCase();
   for (const line of remotes.split("\n")) {
     const match = /^(\S+)\s+(\S+) \(fetch\)$/.exec(line);
     if (!match) continue;
     const repo = remoteRepo(match[2]);
-    if (repo?.host === host && repo.path === path) return match[1];
+    if (repo?.path !== path) continue;
+    if (canonicalHost(repo.ssh ? resolveHost(repo.host) : repo.host) === host) return match[1];
   }
   return null;
 }

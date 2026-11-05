@@ -198,13 +198,25 @@ function isWorktree(root: string, dir: string): boolean {
   return paths.slice(1).some((path) => sameDir(path, dir));
 }
 
+// The hostname ssh connects to for host, or host itself when ssh cannot say.
+function sshHostname(host: string): string {
+  if (host.startsWith("-")) return host;
+  try {
+    const config = run("ssh", ["-G", host]);
+    return /^hostname\s+(\S+)$/m.exec(config)?.[1] ?? host;
+  } catch (error) {
+    if (!(error instanceof PrError)) throw error;
+    return host;
+  }
+}
+
 function prepare(url: string, dir: string): void {
   const ref = parsePrUrl(url);
   const root = repoRoot();
-  const remote = remoteFor(git(root, ["remote", "-v"]).stdout, ref);
+  const remote = remoteFor(git(root, ["remote", "-v"]).stdout, ref, sshHostname);
   if (remote === null) {
     throw new PrError(
-      `No remote of ${root} is ${repoSlug(ref)}; run the review from a clone of that repo`,
+      `No remote of ${root} is ${repoSlug(ref)}; run the review from a clone of that repo. A remote still pointing at a renamed or transferred repo's old name does not match, so update its URL with git remote set-url`,
     );
   }
   const pr = JSON.parse(

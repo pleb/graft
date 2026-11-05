@@ -150,3 +150,4 @@ Read `${CLAUDE_SKILL_DIR}/../plan/SKILL.md` and follow it. In that file, read `C
 
 - The work: the full text of each chosen finding.
 - Context, not an issue to resolve: the target, as the PR's URL and branch or the working tree.
+- The reviewer model.

@@ -199,6 +199,32 @@ describe("remoteFor", () => {
     ].join("\n");
     expect(remoteFor(remotes, ref)).toBeNull();
   });
+
+  it("matches an SSH host alias that resolves to the PR's host", () => {
+    const resolve = (host: string) => (host === "github-work" ? "github.com" : host);
+    for (const url of ["git@github-work:pleb/graft.git", "ssh://git@github-work/pleb/graft.git"]) {
+      expect(remoteFor(`origin\t${url} (fetch)`, ref, resolve), url).toBe("origin");
+    }
+    expect(
+      remoteFor("origin\thttps://github-work/pleb/graft.git (fetch)", ref, resolve),
+    ).toBeNull();
+  });
+
+  it("treats ssh.github.com as github.com", () => {
+    for (const url of [
+      "ssh://git@ssh.github.com:443/pleb/graft.git",
+      "git@ssh.github.com:pleb/graft.git",
+    ]) {
+      expect(remoteFor(`origin\t${url} (fetch)`, ref), url).toBe("origin");
+    }
+    const resolve = (host: string) => (host === "github-443" ? "ssh.github.com" : host);
+    expect(remoteFor("origin\tgit@github-443:pleb/graft.git (fetch)", ref, resolve)).toBe("origin");
+  });
+
+  it("refuses an SSH host alias that does not resolve", () => {
+    const resolve = (host: string) => host;
+    expect(remoteFor("origin\tgit@github-work:pleb/graft.git (fetch)", ref, resolve)).toBeNull();
+  });
 });
 
 describe("worktreePaths", () => {
