@@ -19,7 +19,7 @@ const REMOVED_FROM_INDEX = "Removed from the index; kept as an untracked file.";
 // The largest page Claude reads in full before publishing it.
 export const MAX_PAGE_BYTES = 300 * 1024;
 
-const DIFF_ARGS = [
+export const DIFF_ARGS = [
   "-c",
   "core.quotePath=false",
   "-c",
