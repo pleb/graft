@@ -130,7 +130,7 @@ Then follow common.md's `## Publish the change` with the branch `graft/update-<Y
 > Merge this PR with a merge commit. Squash or rebase merging drops upstream's history, and the next `/graft:update` re-conflicts.
 ```
 
-- Cover the incoming changes, each conflict resolution, and each review finding acted on with its fix.
+- Require as listed items the incoming changes, each conflict resolution, and each review finding acted on with its fix.
 - When Review ran, keep the PR skill's Graft line; otherwise the Graft line is `_Graft: validated, not AI-reviewed._`.
 
 ## Report
@@ -139,7 +139,7 @@ Then follow common.md's `## Publish the change` with the branch `graft/update-<Y
 - Each conflict and how it was resolved.
 - Mods revised or dropped, with their registry rows.
 - Review findings acted on, with their fixes.
-- Outside a personal my-graft, the PR URL, or the branch when no PR was raised.
+- Outside a personal my-graft, the PR URL, or the branch when no PR was raised, with the PR guidance above (the Graft line chosen and the items filled in) as the arguments to pass to `/graft:pr`.
 - When `## Personal clone` set the gh default, say so.
-- When a PR was raised, say to merge it with a merge commit, not squash or rebase.
+- Outside a personal my-graft, say to merge the PR with a merge commit, not squash or rebase.
 - When the target is `~/.my-graft`, ask the user to run `/reload-plugins`.

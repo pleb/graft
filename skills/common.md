@@ -113,10 +113,15 @@ If the pull cannot fast-forward, help the user merge `origin/main`; never rebase
 git -C <target> remote get-url origin
 ```
 
-For a target that is not personal, point `gh` at `origin`:
+For a target that is not personal, point `gh` at `origin`. Read `GH_REPO`; exit 1 with no output means it is unset.
 
-- When `GH_REPO` is set to another repo, ask whether to carry on with it unset for this run (prefix every `gh` command with `env -u GH_REPO`), or stop.
-- Read the gh default from `<target>`. It exits 0 either way; empty output means no default.
+```bash
+printenv GH_REPO
+```
+
+When it names another repo, ask whether to carry on with it unset for this run (prefix every `gh` command with `env -u GH_REPO`), or stop.
+
+Read the gh default from `<target>`. It exits 0 either way; empty output means no default.
 
 ```bash
 (cd <target> && gh repo set-default --view)
@@ -151,7 +156,7 @@ git -C <target> switch -c <branch>
 git -C <target> branch -f main origin/main
 ```
 
-Read `<target>/skills/pr/SKILL.md` and follow it with `<target>` as the cwd and the caller's PR guidance as its arguments, reading `${CLAUDE_SKILL_DIR}` as `<target>/skills/pr`.
+Read `<target>/skills/pr/SKILL.md` and follow it with the caller's PR guidance as its arguments, running each of its commands from `<target>` (`git -C <target>` or `(cd <target> && ...)`), reading `${CLAUDE_SKILL_DIR}` as `<target>/skills/pr`.
 
 Then switch back to `main`, also when raising the PR fails or the user stops. When no PR was raised, the caller's Report names the branch and says to raise it with `/graft:pr` from that branch.
 
