@@ -1,6 +1,6 @@
 ---
 name: modify
-description: Changes your Graft repo. Settles the change with you, implements and reviews it, records it in the repo's mod registry, and pushes it, or raises a PR outside a my-graft.
+description: Changes your Graft repo. Settles the change with you, implements and reviews it, records it in the repo's mod registry, and pushes it, or raises a PR for an interstock or pleb/graft.
 argument-hint: "[when... do...]"
 disable-model-invocation: true
 allowed-tools: Bash(node ~/.my-graft/skills/settings.ts *)
@@ -86,7 +86,7 @@ A mod is done once `origin` has it, or its PR is raised.
 
 - The registry row.
 - The commit.
-- Outside a personal my-graft, the PR URL, or the branch when no PR was raised.
+- For a shared stock, the PR URL and that it needs merging, or the branch when no PR was raised.
 - When `## Personal clone` set the gh default, say so.
 - Anything left undone.
 - When the target is `~/.my-graft`, ask the user to run `/reload-plugins`.

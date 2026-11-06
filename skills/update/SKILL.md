@@ -1,6 +1,6 @@
 ---
 name: update
-description: Merges the latest Graft from upstream into your clone, keeping your mods, reviews the merge when the registry has mods, and pushes it to your Graft repo, or raises a PR outside a my-graft. Asks before merging unless the arguments, or update.mode when they name no mode, say auto.
+description: Merges the latest Graft from upstream into your clone, keeping your mods, reviews the merge when the registry has mods, and pushes it to your Graft repo, or raises a PR for an interstock or pleb/graft. Asks before merging unless the arguments, or update.mode when they name no mode, say auto.
 argument-hint: "[mode: ask (default) | auto]"
 disable-model-invocation: true
 allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
@@ -47,7 +47,7 @@ git -C <target> diff --stat HEAD...upstream/main
 
 The mode is `ask` or `auto` from the arguments, else `update.mode`. With `ask`, ask before merging.
 
-Follow common.md's `## Personal clone`. For a target that is not personal, check that `origin` allows merge commits.
+Follow common.md's `## Personal clone`. For a shared stock, check that `origin` allows merge commits.
 
 ```bash
 gh repo view <origin-repo> --json mergeCommitAllowed
@@ -139,7 +139,6 @@ Then follow common.md's `## Publish the change` with the branch `graft/update-<Y
 - Each conflict and how it was resolved.
 - Mods revised or dropped, with their registry rows.
 - Review findings acted on, with their fixes.
-- Outside a personal my-graft, the PR URL, or the branch when no PR was raised, with the PR guidance above (the Graft line chosen and the items filled in) as the arguments to pass to `/graft:pr`.
+- For a shared stock, the PR URL and that it needs merging with a merge commit, not squash or rebase. When no PR was raised, the branch, with the PR guidance above (the Graft line chosen and the items filled in) as the arguments to pass to `/graft:pr`.
 - When `## Personal clone` set the gh default, say so.
-- Outside a personal my-graft, say to merge the PR with a merge commit, not squash or rebase.
 - When the target is `~/.my-graft`, ask the user to run `/reload-plugins`.
