@@ -509,6 +509,7 @@ function splitAnswer(
   multiSelect: boolean,
 ): { selected: string[]; freeText: string } {
   if (labels.includes(answer)) return { selected: [answer], freeText: "" };
+  if (answer === "(notes only)") return { selected: [], freeText: "" };
   if (!multiSelect) return { selected: [], freeText: answer.trim() };
   const elements = answerElements(answer);
   const selected = elements.filter((element) => labels.includes(element));
