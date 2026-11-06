@@ -105,6 +105,60 @@ git -C <target> pull --ff-only origin main
 
 If the pull cannot fast-forward, help the user merge `origin/main`; never rebase. For any conflicts, read the registry to understand what each mod changes, and get a decision from the user on how to resolve them.
 
+## Personal clone
+
+`<origin-repo>` is the `owner/repo` of `<target>`'s `origin`. The target is a personal my-graft when the `origin` repo is named `my-graft` and is not the `owner/repo` that `<target>/INTERSTOCK-MODS.md` names. Compare as `## Mod registry` does.
+
+```bash
+git -C <target> remote get-url origin
+```
+
+For a target that is not personal, point `gh` at `origin`:
+
+- When `GH_REPO` is set to another repo, ask whether to carry on with it unset for this run (prefix every `gh` command with `env -u GH_REPO`), or stop.
+- Read the gh default from `<target>`. It exits 0 either way; empty output means no default.
+
+```bash
+(cd <target> && gh repo set-default --view)
+```
+
+With no default, set it and note that for Report. When the default is another repo, ask before replacing it, and stop when the user declines.
+
+```bash
+(cd <target> && gh repo set-default <origin-repo>)
+```
+
+## Publish the change
+
+The caller gives a branch name and PR guidance. For a personal my-graft, push and stop.
+
+```bash
+git -C <target> push origin main
+```
+
+Otherwise, with the commit on local `main`, pick the branch: the caller's name, with `-2`, `-3`, ... appended while the name is taken. A name is taken when it exists locally, on `origin`, or as the head of any PR.
+
+```bash
+git -C <target> branch --list <branch>
+git -C <target> ls-remote --heads origin <branch>
+gh pr list -R <origin-repo> --head <branch> --state all
+```
+
+Move the commit to the branch and put local `main` back at `origin/main`.
+
+```bash
+git -C <target> switch -c <branch>
+git -C <target> branch -f main origin/main
+```
+
+Read `<target>/skills/pr/SKILL.md` and follow it with `<target>` as the cwd and the caller's PR guidance as its arguments, reading `${CLAUDE_SKILL_DIR}` as `<target>/skills/pr`.
+
+Then switch back to `main`, also when raising the PR fails or the user stops. When no PR was raised, the caller's Report names the branch and says to raise it with `/graft:pr` from that branch.
+
+```bash
+git -C <target> switch main
+```
+
 ## Settings
 
 Get settings by running `settings.ts`, which is beside this file, with the root. It prints every setting's effective value as JSON keyed by skill (`common` for settings this file's shared sections read), then by setting. On a non-zero exit, follow `## Command failures`. A setting value given in a brief replaces running it for that setting.

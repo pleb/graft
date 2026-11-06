@@ -1,6 +1,6 @@
 ---
 name: modify
-description: Changes your Graft repo. Settles the change with you, implements and reviews it, records it in the repo's mod registry, and pushes it.
+description: Changes your Graft repo. Settles the change with you, implements and reviews it, records it in the repo's mod registry, and pushes it, or raises a PR outside a my-graft.
 argument-hint: "[when... do...]"
 disable-model-invocation: true
 allowed-tools: Bash(node ~/.my-graft/skills/settings.ts *)
@@ -8,7 +8,7 @@ allowed-tools: Bash(node ~/.my-graft/skills/settings.ts *)
 
 You change the user's Graft clone at `<target>`, one mod at a time.
 
-Read `~/.my-graft/skills/common.md` and follow its sections `## Ask the user`, `## Command failures`, `## Settings`, `## Target clone` and `## Mod registry`.
+Read `~/.my-graft/skills/common.md` and follow its sections `## Ask the user`, `## Command failures`, `## Settings`, `## Target clone`, `## Mod registry`, `## Personal clone` and `## Publish the change`.
 
 Once `## Target clone` sets `<target>`, get settings with this command as written, without expanding `~`.
 
@@ -20,7 +20,7 @@ node ~/.my-graft/skills/settings.ts <target>
 
 ## Sync
 
-Follow common.md's `## Claude Code version`, then its `## Sync the clone`.
+Follow common.md's `## Claude Code version`, then its `## Sync the clone`, then its `## Personal clone`.
 
 ## Read the registry
 
@@ -71,19 +71,22 @@ Send any finding to a worker before committing.
 
 ## Commit and push
 
-Make one commit whose subject is the Change name, with the registry row included, and push it.
+Make one commit whose subject is the Change name, with the registry row included.
 
 ```bash
 git -C <target> add -A
 git -C <target> commit -m "<Change>"
-git -C <target> push origin main
 ```
 
-A mod is done once `origin` has it.
+Then follow common.md's `## Publish the change` with the branch `graft/<Change name in kebab case>` and the registry row as PR guidance.
+
+A mod is done once `origin` has it, or its PR is raised.
 
 ## Report
 
 - The registry row.
 - The commit.
+- Outside a personal my-graft, the PR URL, or the branch when no PR was raised.
+- When `## Personal clone` set the gh default, say so.
 - Anything left undone.
 - When the target is `~/.my-graft`, ask the user to run `/reload-plugins`.
