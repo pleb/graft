@@ -465,6 +465,19 @@ describe("answerCorrections", () => {
     ]);
   });
 
+  it("reads a notes-only answer as its note alone", () => {
+    for (const multiSelect of [false, true]) {
+      expect(corrections(multiSelect, "(notes only)", "use teal")).toEqual([
+        {
+          source: "note",
+          question: "Which colours?",
+          text: "use teal",
+          context: { question: "Which colours?", options, selected: [] },
+        },
+      ]);
+    }
+  });
+
   it("ignores results without questions", () => {
     expect(answerCorrections(null)).toEqual([]);
     expect(answerCorrections({ answers: { q: "x" } })).toEqual([]);
@@ -512,6 +525,12 @@ describe("clarifyCorrections", () => {
         context: { question: "Unknown?", options: null, selected: [] },
       },
     ]);
+  });
+
+  it("reads a notes-only answer to a question it was not given as no answer", () => {
+    expect(
+      clarifyCorrections('Questions asked:\n- "Unknown?"\n  Answer: (notes only)', []),
+    ).toEqual([]);
   });
 
   it("finds nothing without the questions list", () => {
