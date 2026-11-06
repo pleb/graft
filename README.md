@@ -114,7 +114,7 @@ An interstock (in horticulture, the middle piece of a double graft) is an organi
 Claude, install Graft https://raw.githubusercontent.com/pleb/graft/main/interstock.md
 ```
 
-Colleagues install with the install command in the interstock repo's README. Running `/graft:update` and `/graft:modify` in a clone of the interstock repo is how its caretaker updates or modifies it. In a clone whose `origin` is not a `my-graft` repo, such as an interstock, `/graft:update` and `/graft:modify` raise a PR instead of pushing to `main`. The interstock records its mods in `INTERSTOCK-MODS.md`, and each clone records its own in `MODS.md`.
+Colleagues install with the install command in the interstock repo's README. Running `/graft:update` and `/graft:modify` in a clone of the interstock repo is how its caretaker updates or modifies it. There, and in any clone whose `origin` is not a `my-graft` repo, they raise a PR instead of pushing to `main`. The interstock records its mods in `INTERSTOCK-MODS.md`, and each clone records its own in `MODS.md`.
 
 ## Acknowledgements
 

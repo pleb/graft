@@ -158,7 +158,7 @@ git -C <target> branch -f main origin/main
 
 Read `<target>/skills/pr/SKILL.md` and follow it with the caller's PR guidance as its arguments, running each of its commands from `<target>` (`git -C <target>` or `(cd <target> && ...)`), reading `${CLAUDE_SKILL_DIR}` as `<target>/skills/pr`.
 
-Then switch back to `main`, also when raising the PR fails or the user stops. When no PR was raised, the caller's Report names the branch and says to raise it with `/graft:pr` from that branch.
+Then switch back to `main`, even when raising the PR fails or the user stops. When no PR was raised, the caller's Report names the branch and says to raise it with `/graft:pr` from that branch.
 
 ```bash
 git -C <target> switch main

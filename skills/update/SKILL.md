@@ -53,7 +53,7 @@ Follow common.md's `## Personal clone`. For a target that is not personal, check
 gh repo view <origin-repo> --json mergeCommitAllowed
 ```
 
-When it is `false`, ask the user to enable merge commits on the repo and check again, or stop.
+When it is `false`, ask the user to enable merge commits on the repo, then check again; stop if they decline.
 
 ## Merge
 
