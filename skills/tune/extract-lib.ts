@@ -509,7 +509,6 @@ function splitAnswer(
   multiSelect: boolean,
 ): { selected: string[]; freeText: string } {
   if (labels.includes(answer)) return { selected: [answer], freeText: "" };
-  if (answer === "(notes only)") return { selected: [], freeText: "" };
   if (!multiSelect) return { selected: [], freeText: answer.trim() };
   const elements = answerElements(answer);
   const selected = elements.filter((element) => labels.includes(element));
@@ -558,9 +557,12 @@ function questionCorrections(
   const corrections: Correction[] = [];
   const context: QuestionContext = { question: truncate(text, CONTEXT_LIMIT), options: labels };
   if (typeof answer === "string") {
-    const { selected, freeText } = labels
-      ? splitAnswer(answer, labels, multiSelect)
-      : { selected: [], freeText: answer.trim() };
+    const { selected, freeText } =
+      answer === "(notes only)" && !labels?.includes(answer)
+        ? { selected: [], freeText: "" }
+        : labels
+          ? splitAnswer(answer, labels, multiSelect)
+          : { selected: [], freeText: answer.trim() };
     context.selected = selected;
     if (freeText && labels?.length !== 0)
       corrections.push({ source: "other", question: text, text: freeText, context });

@@ -59,7 +59,7 @@ Work in rounds. Each round is one `AskUserQuestion` call with up to `plan.questi
 - Facts come from the code or a researcher, never from the user. Decisions are the user's.
 - Each question names its subject and says in a clause which decision it unlocks.
 - Every question carries a recommendation, except the clarify step's first ask and the revised-plan question asking what to revise. Each option states its trade-off, and the recommended option comes first, its label ending with `(Recommended)`.
-- A single-select question other than a clarify question whose options compare concrete shapes (signatures, schemas, layouts, config) gives them a `preview`.
+- A clarify question has no previews. Any other single-select question with at most 3 options that compare concrete shapes (signatures, schemas, layouts, config) gives them a `preview`.
 - A question whose choices are not exclusive uses `multiSelect`. Previews are single-select only, so split a question that needs both.
 - State conventional defaults; do not ask them. Record each in `## Decisions`, marked `(default)`.
 - Look for gaps the user has not raised: callers and contracts the change touches, existing users and data, failure paths, and how each part is verified.

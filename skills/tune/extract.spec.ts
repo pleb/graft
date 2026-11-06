@@ -527,6 +527,12 @@ describe("clarifyCorrections", () => {
     ]);
   });
 
+  it("reads a notes-only answer to a question it was not given as no answer", () => {
+    expect(
+      clarifyCorrections('Questions asked:\n- "Unknown?"\n  Answer: (notes only)', []),
+    ).toEqual([]);
+  });
+
   it("finds nothing without the questions list", () => {
     expect(clarifyCorrections("The user wants to clarify these questions.", [])).toEqual([]);
   });
