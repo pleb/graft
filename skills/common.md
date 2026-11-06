@@ -6,7 +6,7 @@ Skills follow the sections they name.
 
 Ask every question with `AskUserQuestion`.
 
-A single-select question with an option `preview` has at most 3 other options and ends with the option **Something else**, whose `preview` and description both read "What should Claude do instead?". Read that option's notes, or notes given with no option picked, as the user's own answer. When **Something else** comes back with no notes, ask the question again without previews.
+A single-select question with an option `preview` has at most 3 other options and ends with **Something else**, whose `preview` and description both read "What should Claude do instead?". Read that option's notes, or notes given with no option picked, as the user's own answer. When **Something else** comes back with no notes, ask the question again without previews.
 
 ## Command failures
 
