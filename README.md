@@ -72,21 +72,13 @@ Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps 
 
 `/graft:tune` finds corrections you keep making to plan, orchestrate and execute runs and turns the ones you pick into mods.
 
-![How your copy of Graft stays current: /graft:update merges the latest Graft from pleb/graft into your clone at ~/.my-graft, keeping your mods. /graft:modify commits a mod to the clone, recorded in MODS.md. /graft:tune finds corrections you keep making and hands the ones you pick to /graft:modify. The clone pushes to your private \<login\>/my-graft repo, and your other machines pull from it. Claude Code loads Graft from the clone, and /reload-plugins picks up changes. Graft's mod in Claude Code tells you when /graft:update is due.](./docs/update.svg)
+![How your copy of Graft stays current: /graft:update merges the latest Graft from pleb/graft into your clone at ~/.my-graft, keeping your mods. /graft:modify commits a mod to the clone, recorded in MODS.md. /graft:tune finds corrections you keep making and hands the ones you pick to /graft:modify. The clone pushes to your private \<login\>/my-graft repo, and your other machines pull from it. Claude Code loads Graft from the clone, and /reload-plugins picks up changes. Graft tells you in Claude Code when /graft:update is due.](./docs/update.svg)
 
 ## Update notices
 
-When a session starts, Graft checks whether your clone at `~/.my-graft` lacks commits on its upstream's `main` (`pleb/graft`, or your interstock). It asks upstream at most once a day with a read-only `git ls-remote` and reuses that answer in between; after a failed look it retries in an hour, doubling up to a day. It never fetches or changes the clone. It skips the check in non-interactive runs and when `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` is set.
+When a session starts, Graft checks whether your clone at `~/.my-graft` has the latest `main` from its upstream (`pleb/graft`, or your [interstock](#interstocks)). It asks upstream with a read-only `git ls-remote`, at most once a day after a successful look, and never fetches or changes the clone. It skips the check in non-interactive runs and when `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` is set.
 
-When the clone is behind, a notice says so and suggests `/graft:update` at the prompt; in `persistent` mode a status line says so instead. `update.notify` sets how often:
-
-- `session` (default): at each session start.
-- `daily`: at most once a day.
-- `sha`: once per upstream commit.
-- `persistent`: a status line that stays until you update.
-- `off`: never, and upstream is not contacted.
-
-The notice changes nothing. `/graft:update` is how you bring the changes in.
+When the clone is behind, a notice says so and suggests `/graft:update` at the prompt. [`update.notify`](#settings) sets how often, or shows a status line instead.
 
 ## Settings
 

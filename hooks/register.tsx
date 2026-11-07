@@ -313,7 +313,7 @@ async function networkEnv($: EngineInterface, clone: string): Promise<Record<str
   return { GIT_TERMINAL_PROMPT: "0", GIT_SSH_COMMAND: sshCommand };
 }
 
-// The last `ls-remote`, with the SHA it last found for `url`.
+// `sha` is the last SHA found for `url`; a failed look keeps it.
 type StoredLook = Look & { sha?: string };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

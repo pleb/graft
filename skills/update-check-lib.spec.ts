@@ -107,7 +107,6 @@ describe("parseLsRemote", () => {
   });
 });
 
-// Answers each git call from `answers` by its first argument, recording the calls.
 function fakeGit(answers: Record<string, Probe | Probe[]>): { git: Git; calls: string[][] } {
   const calls: string[][] = [];
   const git: Git = async (args) => {

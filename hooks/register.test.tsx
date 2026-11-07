@@ -1397,7 +1397,6 @@ function sessions($: Engine, on: On, clock: { settle: () => Promise<void> }) {
   };
 }
 
-// $.store in memory, readable by the test.
 function memoryStore(on: On, entries: Record<string, unknown> = {}): Map<string, unknown> {
   const store = new Map(Object.entries(entries));
   on("store.get", (_, e) => ({ value: store.get(e.key) }));
