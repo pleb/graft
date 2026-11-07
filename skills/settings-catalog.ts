@@ -1,6 +1,7 @@
 // Parses the `## Settings` table in common.md, or in README.md with
 // `isDefaultListed`, where Values include the Default. An optional `Shown when`
-// column after Default names the setting a row depends on. A Values cell of the
+// column after Default, or a `<sub>(shown when ...)</sub>` note in the Key cell,
+// names the setting a row depends on. A Values cell of the
 // bare word `text` marks a free-text setting, which lists no values. Keep it
 // free of JSX and Node or claude-code imports: hooks/register.tsx and vitest
 // both load it.
@@ -25,6 +26,9 @@ export type Catalog =
 const HEADER = ["Key", "Values", "Default", "What it does"];
 const SHOWN_HEADER = ["Key", "Values", "Default", "Shown when", "What it does"];
 const KEY = /^`([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)`$/;
+// README.md names the condition under the key instead of in a `Shown when` column.
+const KEY_NOTE =
+  /^(`[^`]+`) <br><sub>\(shown when ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+ = [^\s<()]+)\)<\/sub>$/;
 const CONDITION = /^`([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+) = ([^`\s]+)`$/;
 const VALUE = /^`([^`]+)`$/;
 const TEXT = "text";
@@ -74,8 +78,13 @@ export function parseCatalog(markdown: string, { isDefaultListed = false } = {})
   const settings: CatalogSetting[] = [];
   for (const row of body) {
     const rowCells = cells(row);
-    const shownWhen = hasShownWhen ? rowCells.splice(3, 1)[0] : "";
-    const [key = "", values = "", defaultValue = "", description = "", ...rest] = rowCells;
+    let shownWhen = hasShownWhen ? rowCells.splice(3, 1)[0] : "";
+    let [key = "", values = "", defaultValue = "", description = "", ...rest] = rowCells;
+    const note = KEY_NOTE.exec(key);
+    if (note !== null && !hasShownWhen) {
+      key = note[1]!;
+      shownWhen = `\`${note[2]}\``;
+    }
     const keyMatch = KEY.exec(key);
     const conditionMatch = shownWhen ? CONDITION.exec(shownWhen) : undefined;
     if (rest.length > 0 || keyMatch === null || conditionMatch === null) {

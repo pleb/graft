@@ -24,6 +24,17 @@ import type {
   SettingsFile,
   SkillValues,
 } from "../skills/settings-lib.ts";
+import {
+  LOCAL_PROBE_ENV,
+  checkBehind,
+  isLookDue,
+  lsRemoteEnv,
+  noticeAction,
+  noticeText,
+  parseLsRemote,
+  readMode,
+} from "../features/update-check-lib.ts";
+import type { Behind, Git, Look, Mode, Notice } from "../features/update-check-lib.ts";
 import type { GraftSettingsPane } from "../types";
 
 const PANE = "graft-settings";
@@ -45,6 +56,8 @@ const view = atom({ plugin: "graft", key: "view" } as const, DEFAULTS_VIEW);
 const newScopes = atom({ plugin: "graft", key: "newScopes" } as const, [] as string[]);
 const notice = atom({ plugin: "graft", key: "notice" } as const, "");
 const effectivePath = atom({ plugin: "graft", key: "effectivePath" } as const, "");
+const LOOK_KEY = "updateLook";
+const NOTICE_KEY = "updateNotice";
 
 type Json = Record<string, unknown>;
 
@@ -298,6 +311,152 @@ async function networkEnv($: EngineInterface, clone: string): Promise<Record<str
           : "ssh -o BatchMode=yes";
 
   return { GIT_TERMINAL_PROMPT: "0", GIT_SSH_COMMAND: sshCommand };
+}
+
+// `sha` is the last SHA found for `url`; a failed look keeps it.
+type StoredLook = Look & { sha?: string };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+function storedLook(value: unknown): StoredLook | undefined {
+  return isRecord(value) &&
+    typeof value.url === "string" &&
+    typeof value.at === "number" &&
+    typeof value.isOk === "boolean" &&
+    typeof value.failures === "number" &&
+    (value.sha === undefined || typeof value.sha === "string")
+    ? (value as StoredLook)
+    : undefined;
+}
+
+function storedNotice(value: unknown): Notice | undefined {
+  return isRecord(value) && typeof value.at === "number" && typeof value.sha === "string"
+    ? { at: value.at, sha: value.sha }
+    : undefined;
+}
+
+function localGit($: EngineInterface, clone: string): Git {
+  return async (args) => {
+    try {
+      const ran = await $.process.run(["git", "-C", clone, ...args], {
+        timeoutMs: LOCAL_MS,
+        env: { ...LOCAL_PROBE_ENV },
+      });
+
+      return { exitCode: ran.exitCode, stdout: ran.stdout };
+    } catch {
+      return { exitCode: undefined, stdout: "" };
+    }
+  };
+}
+
+async function notifyMode($: EngineInterface, clone: string): Promise<Mode> {
+  const parsed = parseSettingsFile(await readText($, `${clone}/${FILE}`).catch(() => undefined));
+
+  return readMode(parsed.isParsed ? parsed.file.defaults.update?.notify : undefined);
+}
+
+async function setStatus($: EngineInterface, text: string | undefined) {
+  $.ui.status(text);
+  await $.state.set({ plugin: "graft", key: "isUpdateStatusShown" } as const, text !== undefined);
+}
+
+async function clearStatus($: EngineInterface) {
+  const shown = await $.state.get({ plugin: "graft", key: "isUpdateStatusShown" } as const);
+  if (shown.value === true) {
+    await setStatus($, undefined);
+  }
+}
+
+async function notify($: EngineInterface, mode: Mode, sha: string, result: Behind) {
+  const now = await $.clock.now();
+  const notified = await $.state.get({ plugin: "graft", key: "hasNotifiedUpdate" } as const);
+  const action = noticeAction({
+    mode,
+    result,
+    sha,
+    last: storedNotice(await $.store.get(NOTICE_KEY)),
+    hasSessionNotified: notified.value === true,
+    now,
+  });
+  const text = noticeText(result);
+  if (action === "toast" && text !== undefined) {
+    await $.state.set({ plugin: "graft", key: "hasNotifiedUpdate" } as const, true);
+    await $.store.set(NOTICE_KEY, { at: now, sha } satisfies Notice);
+    $.ui.toast(text);
+    await $.prompt.suggest({ text: "/graft:update" });
+  } else if (action === "status" && text !== undefined) {
+    await setStatus($, text);
+  } else if (mode === "persistent" && result.kind === "current") {
+    await clearStatus($);
+  }
+}
+
+// Tells the user when ~/.my-graft lacks upstream's main. Never writes to the clone.
+async function checkForUpdate($: EngineInterface) {
+  const quiet = await $.env.get("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC");
+  const clone = await clonePath($);
+  if ((quiet !== undefined && quiet !== "") || clone === undefined) {
+    return;
+  }
+  const mode = await notifyMode($, clone);
+  if (mode !== "persistent") {
+    await clearStatus($);
+  }
+  if (mode === "off") {
+    return;
+  }
+  const remote = await run($, ["git", "-C", clone, "remote", "get-url", "upstream"]);
+  const url = remote.isOk ? remote.stdout.trim() : "";
+  if (url === "") {
+    await $.store.delete(LOOK_KEY);
+    await $.store.delete(NOTICE_KEY);
+    await clearStatus($);
+
+    return;
+  }
+  const git = localGit($, clone);
+  const look = storedLook(await $.store.get(LOOK_KEY));
+  const known = look?.url === url ? look.sha : undefined;
+  let first: Behind | undefined;
+  if (known !== undefined) {
+    first = await checkBehind(known, git);
+    await notify($, mode, known, first);
+  }
+  const now = await $.clock.now();
+  if (!isLookDue(look, url, now)) {
+    return;
+  }
+  const listed = await run(
+    $,
+    ["git", "-C", clone, "ls-remote", "upstream", "refs/heads/main"],
+    lsRemoteEnv(await networkEnv($, clone)),
+  );
+  const sha = listed.isOk ? parseLsRemote(listed.stdout) : undefined;
+  const failures = sha !== undefined ? 0 : look?.url === url && !look.isOk ? look.failures + 1 : 1;
+  await $.store.set(LOOK_KEY, {
+    url,
+    at: now,
+    isOk: sha !== undefined,
+    failures,
+    sha: sha ?? known,
+  } satisfies StoredLook);
+  if (sha !== undefined && (sha !== known || first === undefined || first.kind === "unknown")) {
+    await notify($, mode, sha, await checkBehind(sha, git));
+  }
+}
+
+// Clears the persistent status line once the clone has the SHA it named.
+async function recheckStatus($: EngineInterface) {
+  const clone = await clonePath($);
+  const sha = storedLook(await $.store.get(LOOK_KEY))?.sha;
+  if (clone === undefined || sha === undefined) {
+    return;
+  }
+  if ((await checkBehind(sha, localGit($, clone))).kind === "current") {
+    await setStatus($, undefined);
+  }
 }
 
 async function refusal(
@@ -782,8 +941,33 @@ export const register: Register = (on) => {
     await $.state.set({ plugin: "graft", key: "isSaving" } as const, false);
     await update($, newScopes, () => []);
     await update($, notice, () => "");
+    if (e.isInteractive) {
+      try {
+        $.clock.after(0, () => void checkForUpdate($).catch(() => undefined));
+      } catch {
+        // A Claude Code without $.clock.after shows no update notices.
+      }
+    }
 
     return next(e);
+  });
+
+  on("prompt.submit", async ($, e, next) => {
+    const shown = await $.state.get({ plugin: "graft", key: "isUpdateStatusShown" } as const).then(
+      (held) => held.value === true,
+      () => false,
+    );
+    if (!shown) {
+      return next(e);
+    }
+    const entered = await next(e);
+    try {
+      $.clock.after(0, () => void recheckStatus($).catch(() => undefined));
+    } catch {
+      // A Claude Code without $.clock.after leaves the status line until the next session.
+    }
+
+    return entered;
   });
 
   on("command.run", { command: "graft-settings" }, async ($) => {

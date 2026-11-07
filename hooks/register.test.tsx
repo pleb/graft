@@ -48,6 +48,8 @@ type World = {
   inits: { argv: readonly string[]; timeoutMs?: number; env?: Record<string, string> }[];
   placed: { isPlaced: true } | { isPlaced: false; reason: string };
   toasts: string[];
+  statuses: (string | undefined)[];
+  suggestions: string[];
   head: string;
   parent: string;
   subject: string;
@@ -78,6 +80,8 @@ function world(
   const runs: string[][] = [];
   const inits: World["inits"] = [];
   const toasts: string[] = [];
+  const statuses: (string | undefined)[] = [];
+  const suggestions: string[] = [];
   const answers = new Map<string, (argv: readonly string[]) => Promise<Answer> | Answer>([
     [
       "rev-parse --show-toplevel",
@@ -170,6 +174,17 @@ function world(
 
     return { value: undefined };
   });
+  on("ui.status", (_, e) => {
+    statuses.push(e.text);
+
+    return { value: undefined };
+  });
+  on("prompt.suggest", (_, e) => {
+    suggestions.push(e.text);
+
+    return { isShown: true };
+  });
+  on("prompt.submit", (_, e) => ({ text: e.text }));
   on("ui.open", () => ({ value: w.placed }));
   on("ui.close", () => ({ value: undefined }));
   on("command.register", () => ({ value: { command: "graft-settings" } }));
@@ -182,6 +197,8 @@ function world(
     inits,
     placed: { isPlaced: true },
     toasts,
+    statuses,
+    suggestions,
     head: "c0",
     parent: "",
     subject: "init",
@@ -711,6 +728,7 @@ test("the selects give way to text while a save runs", async ($, on) => {
 
 test("a session start clears a lock that a reload left behind", async ($, on) => {
   const clock = mock.clock(on);
+  mock.store(on);
   const w = world(on);
   w.git("push", async () => {
     await clock.sleep(1000);
@@ -745,6 +763,8 @@ test("a save that loses the race for the lock says a save is running", async ($,
 });
 
 test("the command opens the pane where a surface draws it", async ($, on) => {
+  mock.clock(on);
+  mock.store(on);
   world(on);
   await $.session.start({ cwd: "/", surface: "terminal", isInteractive: true });
 
@@ -1301,4 +1321,481 @@ test("the text list gives a text setting's value without choices", async ($, on)
       "  Applies when codex.enabled is true.",
     ].join("\n"),
   );
+});
+
+const UPSTREAM = "https://github.com/pleb/graft.git";
+const SHA = "a".repeat(40);
+const NEXT_SHA = "b".repeat(40);
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
+const AVAILABLE = "Graft updates are available. Run /graft:update.";
+const THREE_BEHIND = "Graft is 3 commits behind upstream. Run /graft:update.";
+
+// The clone's upstream: `url` undefined is no upstream remote, `local` the
+// commits the clone has, `current` those reachable from HEAD or origin/main.
+type Remote = {
+  url: string | undefined;
+  tip: Answer;
+  local: Set<string>;
+  current: Set<string>;
+};
+
+const listing = (sha: string): Answer => ({ exitCode: 0, stdout: `${sha}\trefs/heads/main\n` });
+
+function remote(w: World, overrides: Partial<Remote> = {}): Remote {
+  const r: Remote = {
+    url: UPSTREAM,
+    tip: listing(SHA),
+    local: new Set(),
+    current: new Set(),
+    ...overrides,
+  };
+  w.git("remote get-url upstream", () =>
+    r.url === undefined
+      ? { exitCode: 2, stderr: "error: No such remote 'upstream'" }
+      : { exitCode: 0, stdout: `${r.url}\n` },
+  );
+  w.git("ls-remote", () => r.tip);
+  w.git("cat-file", (argv) => ({ exitCode: r.local.has(argv[5]!) ? 0 : 1 }));
+  w.git("merge-base", (argv) => ({ exitCode: r.current.has(argv[5]!) ? 0 : 1 }));
+  w.git("rev-list", (argv) => ({
+    exitCode: 0,
+    stdout: argv[5] === "origin/main..HEAD" ? "0\n" : "3\n",
+  }));
+
+  return r;
+}
+
+const notifyIn = (mode: string) => JSON.stringify({ update: { notify: mode } });
+
+// Session starts on the same engine. A reload keeps $.state; `next` begins a
+// new session, which forgets that this one notified.
+function sessions($: Engine, on: On, clock: { settle: () => Promise<void> }) {
+  let session = 0;
+  let notifiedIn = -1;
+  on("state.set", { plugin: "graft", key: "hasNotifiedUpdate" }, (_, e, next) => {
+    if (e.value === true) {
+      notifiedIn = session;
+    }
+
+    return next(e);
+  });
+  on("state.get", { plugin: "graft", key: "hasNotifiedUpdate" }, (_, e, next) =>
+    notifiedIn === session ? next(e) : { value: { value: false, version: 0 } },
+  );
+  const start = async () => {
+    await $.session.start({ cwd: "/", surface: "terminal", isInteractive: true });
+    await clock.settle();
+  };
+
+  return {
+    start,
+    next: async () => {
+      session += 1;
+      await start();
+    },
+  };
+}
+
+function memoryStore(on: On, entries: Record<string, unknown> = {}): Map<string, unknown> {
+  const store = new Map(Object.entries(entries));
+  on("store.get", (_, e) => ({ value: store.get(e.key) }));
+  on("store.set", (_, e) => {
+    store.set(e.key, JSON.parse(JSON.stringify(e.value)));
+
+    return { value: undefined };
+  });
+  on("store.delete", (_, e) => {
+    store.delete(e.key);
+
+    return { value: undefined };
+  });
+
+  return store;
+}
+
+test("session mode toasts and suggests each session while behind, but not on a reload", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on);
+  const w = world(on);
+  remote(w, { local: new Set([SHA]) });
+
+  await session.start();
+  expect(w.toasts).toEqual([THREE_BEHIND]);
+  expect(w.suggestions).toEqual(["/graft:update"]);
+  expect(w.statuses).toEqual([]);
+
+  await session.start();
+  expect(w.toasts).toHaveLength(1);
+
+  await clock.advance(HOUR);
+  await session.next();
+  expect(w.toasts).toEqual([THREE_BEHIND, THREE_BEHIND]);
+  expect(w.suggestions).toEqual(["/graft:update", "/graft:update"]);
+  expect(gitRuns(w, "ls-remote")).toHaveLength(1);
+});
+
+test("the ls-remote runs with the no-prompt env and local probes never lazily fetch", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on);
+  const w = world(on);
+  remote(w);
+  await session.start();
+
+  const listed = w.inits.find(({ argv }) => argv[3] === "ls-remote")!;
+  expect(listed.argv).toEqual(["git", "-C", CLONE, "ls-remote", "upstream", "refs/heads/main"]);
+  expect(listed.timeoutMs).toBe(60_000);
+  expect(listed.env).toEqual({
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_SSH_COMMAND: "ssh -o BatchMode=yes",
+    GCM_INTERACTIVE: "never",
+    GIT_ASKPASS: "",
+    SSH_ASKPASS: "",
+  });
+  const probe = w.inits.find(({ argv }) => argv[3] === "cat-file")!;
+  expect(probe.env).toEqual({ GIT_NO_LAZY_FETCH: "1" });
+  expect(w.runs.some((argv) => ["fetch", "pull", "merge"].includes(argv[3]!))).toBe(false);
+});
+
+test("daily mode tells once in 24 hours", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on);
+  const w = world(on, notifyIn("daily"));
+  remote(w);
+
+  await session.start();
+  expect(w.toasts).toEqual([AVAILABLE]);
+
+  await clock.advance(DAY - 1);
+  await session.next();
+  expect(w.toasts).toHaveLength(1);
+
+  await clock.advance(1);
+  await session.next();
+  expect(w.toasts).toEqual([AVAILABLE, AVAILABLE]);
+});
+
+test("sha mode tells once per upstream SHA", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on);
+  const w = world(on, notifyIn("sha"));
+  const r = remote(w);
+
+  await session.start();
+  expect(w.toasts).toEqual([AVAILABLE]);
+
+  await clock.advance(HOUR);
+  await session.next();
+  expect(w.toasts).toHaveLength(1);
+
+  r.tip = listing(NEXT_SHA);
+  await clock.advance(DAY);
+  await session.next();
+  expect(w.toasts).toEqual([AVAILABLE, AVAILABLE]);
+  expect(w.suggestions).toHaveLength(2);
+});
+
+test("persistent mode pins a status line that a prompt clears once the clone catches up", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on);
+  const w = world(on, notifyIn("persistent"));
+  const r = remote(w);
+
+  await session.start();
+  expect(w.statuses).toEqual([AVAILABLE]);
+  expect(w.toasts).toEqual([]);
+  expect(w.suggestions).toEqual([]);
+
+  await session.start();
+  expect(w.toasts).toEqual([]);
+
+  r.local.add(SHA);
+  r.current.add(SHA);
+  const before = w.runs.length;
+  const entered = await $.prompt.submit({ text: "hi", wait: false, origin: { kind: "composer" } });
+  expect(entered).toMatchObject({ text: "hi" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(w.runs).toHaveLength(before);
+  expect(w.statuses.at(-1)).toBe(AVAILABLE);
+
+  await clock.settle();
+  expect(w.statuses.at(-1)).toBeUndefined();
+  expect(w.runs.length).toBeGreaterThan(before);
+
+  const after = w.runs.length;
+  await $.prompt.submit({ text: "again", wait: false, origin: { kind: "composer" } });
+  await clock.settle();
+  expect(w.runs).toHaveLength(after);
+});
+
+test("a persistent status line stays when a recheck cannot tell", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on);
+  const w = world(on, notifyIn("persistent"));
+  remote(w);
+
+  await session.start();
+  expect(w.statuses).toEqual([AVAILABLE]);
+
+  w.git("cat-file", { exitCode: 128, stderr: "fatal" });
+  await clock.advance(HOUR);
+  await session.next();
+  expect(w.statuses.at(-1)).toBe(AVAILABLE);
+
+  const before = gitRuns(w, "cat-file").length;
+  await $.prompt.submit({ text: "hi", wait: false, origin: { kind: "composer" } });
+  await clock.settle();
+  expect(w.statuses.at(-1)).toBe(AVAILABLE);
+  expect(gitRuns(w, "cat-file")).toHaveLength(before + 1);
+});
+
+for (const mode of ["session", "off"]) {
+  test(`switching from persistent to ${mode} clears the status line and stops prompt rechecks`, async ($, on) => {
+    const clock = mock.clock(on, { now: DAY });
+    const session = sessions($, on, clock);
+    mock.store(on);
+    const w = world(on, notifyIn("persistent"));
+    remote(w);
+
+    await session.start();
+    expect(w.statuses).toEqual([AVAILABLE]);
+
+    w.files.set(SETTINGS, notifyIn(mode));
+    await session.start();
+    expect(w.statuses.at(-1)).toBeUndefined();
+
+    const before = w.runs.length;
+    await $.prompt.submit({ text: "hi", wait: false, origin: { kind: "composer" } });
+    await clock.settle();
+    expect(w.runs).toHaveLength(before);
+  });
+}
+
+test("a due look rechecks the same SHA when the stored SHA's check could not tell", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on, {
+    updateLook: { url: UPSTREAM, at: 0, isOk: true, failures: 0, sha: SHA },
+  });
+  const w = world(on);
+  remote(w);
+  let probes = 0;
+  w.git("cat-file", () => (probes++ === 0 ? { exitCode: 128, stderr: "fatal" } : { exitCode: 1 }));
+
+  await session.start();
+  expect(gitRuns(w, "ls-remote")).toHaveLength(1);
+  expect(gitRuns(w, "cat-file").map((argv) => argv[5])).toEqual([SHA, SHA]);
+  expect(w.toasts).toEqual([AVAILABLE]);
+});
+
+test("a due look with the same SHA does not recheck or tell twice", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on, {
+    updateLook: { url: UPSTREAM, at: 0, isOk: true, failures: 0, sha: SHA },
+  });
+  const w = world(on);
+  remote(w);
+
+  await session.start();
+  expect(gitRuns(w, "ls-remote")).toHaveLength(1);
+  expect(gitRuns(w, "cat-file")).toHaveLength(1);
+  expect(w.toasts).toEqual([AVAILABLE]);
+});
+
+test("a prompt runs no git while no status line is shown", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on);
+  const w = world(on);
+  remote(w);
+
+  await $.prompt.submit({ text: "hi", wait: false, origin: { kind: "composer" } });
+  await clock.settle();
+  expect(w.runs).toEqual([]);
+});
+
+test("a changed upstream URL makes the look due and ignores the stored SHA", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  const store = memoryStore(on, {
+    updateLook: { url: "https://example.com/old.git", at: DAY, isOk: true, failures: 0, sha: SHA },
+  });
+  const w = world(on);
+  remote(w, { tip: listing(NEXT_SHA) });
+
+  await session.start();
+  expect(gitRuns(w, "ls-remote")).toHaveLength(1);
+  expect(gitRuns(w, "cat-file").map((argv) => argv[5])).toEqual([NEXT_SHA]);
+  expect(w.toasts).toEqual([AVAILABLE]);
+  expect(store.get("updateLook")).toEqual({
+    url: UPSTREAM,
+    at: DAY,
+    isOk: true,
+    failures: 0,
+    sha: NEXT_SHA,
+  });
+});
+
+test("no upstream remote clears the stored state and stays silent", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  const store = memoryStore(on, {
+    updateLook: { url: UPSTREAM, at: 0, isOk: true, failures: 0, sha: SHA },
+    updateNotice: { at: 0, sha: SHA },
+  });
+  const w = world(on);
+  remote(w, { url: undefined });
+
+  await session.start();
+  expect(store.get("updateLook")).toBeUndefined();
+  expect(store.get("updateNotice")).toBeUndefined();
+  expect(gitRuns(w, "ls-remote")).toEqual([]);
+  expect(gitRuns(w, "cat-file")).toEqual([]);
+  expect(w.toasts).toEqual([]);
+});
+
+test("a git error or timeout on a local probe is silent, not behind", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on);
+  const w = world(on);
+  remote(w);
+  const answers: Answer[] = [{ exitCode: 128, stderr: "fatal" }, "reject"];
+
+  for (const answer of answers) {
+    w.git("cat-file", answer);
+    await session.next();
+  }
+  w.git("cat-file", { exitCode: 0 });
+  w.git("merge-base", { exitCode: 128, stderr: "fatal" });
+  await session.next();
+
+  expect(gitRuns(w, "cat-file")).toHaveLength(3);
+  expect(w.toasts).toEqual([]);
+  expect(w.suggestions).toEqual([]);
+});
+
+test("off runs no ls-remote and tells nothing", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on);
+  const w = world(on, notifyIn("off"));
+  remote(w);
+
+  await session.start();
+  expect(w.runs).toEqual([]);
+  expect(w.toasts).toEqual([]);
+});
+
+test("an up-to-date clone tells nothing", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on);
+  const w = world(on, notifyIn("persistent"));
+  remote(w, { local: new Set([SHA]), current: new Set([SHA]) });
+
+  await session.start();
+  expect(gitRuns(w, "ls-remote")).toHaveLength(1);
+  expect(w.toasts).toEqual([]);
+  expect(w.suggestions).toEqual([]);
+  expect(w.statuses).toEqual([]);
+});
+
+test("a failed ls-remote is silent and retries after 1 hour, doubling up to 24", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on);
+  const w = world(on);
+  remote(w, { tip: { exitCode: 128, stderr: "fatal: could not read from remote" } });
+
+  await session.start();
+  expect(gitRuns(w, "ls-remote")).toHaveLength(1);
+  let last = DAY;
+  for (const hours of [1, 2, 4, 8, 16, 24, 24]) {
+    const runs = gitRuns(w, "ls-remote").length;
+    await clock.set(last + hours * HOUR - 1);
+    await session.next();
+    expect(gitRuns(w, "ls-remote")).toHaveLength(runs);
+
+    last += hours * HOUR;
+    await clock.set(last);
+    await session.next();
+    expect(gitRuns(w, "ls-remote")).toHaveLength(runs + 1);
+  }
+  expect(w.toasts).toEqual([]);
+});
+
+test("a fresh stored look skips ls-remote but still checks the clone", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on, {
+    updateLook: { url: UPSTREAM, at: DAY - HOUR, isOk: true, failures: 0, sha: SHA },
+  });
+  const w = world(on);
+  remote(w);
+
+  await session.start();
+  expect(gitRuns(w, "ls-remote")).toEqual([]);
+  expect(gitRuns(w, "cat-file").map((argv) => argv[5])).toEqual([SHA]);
+  expect(w.toasts).toEqual([AVAILABLE]);
+});
+
+test("a non-interactive run skips the check", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  mock.store(on);
+  const w = world(on);
+  remote(w);
+
+  await $.session.start({ cwd: "/", surface: null, isInteractive: false });
+  await clock.settle();
+  expect(w.runs).toEqual([]);
+});
+
+test("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC skips the check", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on);
+  const w = world(on, undefined, COMMON, { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1" });
+  remote(w);
+
+  await session.start();
+  expect(w.runs).toEqual([]);
+  expect(w.toasts).toEqual([]);
+});
+
+test("a throwing $.store does not stop a session start's resets", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  const w = world(on);
+  remote(w);
+  for (const event of ["store.get", "store.set", "store.delete"] as const) {
+    on(event, () => {
+      throw new Error("store broken");
+    });
+  }
+  w.git("push", async () => {
+    await clock.sleep(1000);
+
+    return { exitCode: 0 };
+  });
+  const ui = await mountOn($, "terminal");
+  const first = ui.select({ key: "orchestrate.deletePlan", value: "never" });
+  await clock.settle();
+  expect(await settingSelects(ui)).toHaveLength(0);
+
+  await session.start();
+  expect(await settingSelects(ui)).toHaveLength(2);
+  expect(gitRuns(w, "remote")).toHaveLength(1);
+  expect(w.toasts).toEqual([]);
+
+  await clock.advance(1000);
+  await first;
+  await ui.unmount();
 });
