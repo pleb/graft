@@ -78,7 +78,7 @@ Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps 
 
 When a session starts, Graft checks whether your clone at `~/.my-graft` lacks commits on its upstream's `main` (`pleb/graft`, or your interstock). It asks upstream at most once a day with a read-only `git ls-remote` and reuses that answer in between; after a failed look it retries in an hour, doubling up to a day. It never fetches or changes the clone. It skips the check in non-interactive runs and when `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` is set.
 
-When the clone is behind, a notice says so and suggests `/graft:update` at the prompt. `update.notify` sets how often:
+When the clone is behind, a notice says so and suggests `/graft:update` at the prompt; in `persistent` mode a status line says so instead. `update.notify` sets how often:
 
 - `session` (default): at each session start.
 - `daily`: at most once a day.

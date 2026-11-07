@@ -81,7 +81,7 @@ export function readMode(value: unknown): Mode {
   return MODES.find((mode) => mode === value) ?? "session";
 }
 
-// In `persistent` mode, "none" while not behind means clear any status line.
+// In `persistent` mode, "none" when current means clear any status line.
 export function noticeAction(options: {
   mode: Mode;
   result: Behind;
