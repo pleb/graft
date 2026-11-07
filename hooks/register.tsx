@@ -33,8 +33,8 @@ import {
   noticeText,
   parseLsRemote,
   readMode,
-} from "../skills/update-check-lib.ts";
-import type { Behind, Git, Look, Mode, Notice } from "../skills/update-check-lib.ts";
+} from "../features/update-check-lib.ts";
+import type { Behind, Git, Look, Mode, Notice } from "../features/update-check-lib.ts";
 import type { GraftSettingsPane } from "../types";
 
 const PANE = "graft-settings";
