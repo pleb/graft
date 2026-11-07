@@ -20,6 +20,8 @@ declare module "claude-code" {
       newScopes: string[];
       notice: string;
       effectivePath: string;
+      hasNotifiedUpdate: boolean;
+      isUpdateStatusShown: boolean;
     };
   }
 }
