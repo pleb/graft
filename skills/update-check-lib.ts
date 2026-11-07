@@ -34,7 +34,7 @@ export function isLookDue(look: Look | undefined, url: string, now: number): boo
 
   const wait = look.isOk ? DAY_MS : Math.min(HOUR_MS * 2 ** Math.max(look.failures - 1, 0), DAY_MS);
 
-  return now - look.at >= wait;
+  return now < look.at || now - look.at >= wait;
 }
 
 // `base` is networkEnv's output; credential helpers stay so a stored token still works.

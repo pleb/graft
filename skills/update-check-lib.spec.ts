@@ -38,6 +38,11 @@ describe("isLookDue", () => {
     expect(isLookDue(look, URL, DAY)).toBe(true);
   });
 
+  it("is due when the stored look is later than now", () => {
+    expect(isLookDue({ url: URL, at: DAY, isOk: true, failures: 0 }, URL, DAY - 1)).toBe(true);
+    expect(isLookDue(failed(1, DAY), URL, DAY - 1)).toBe(true);
+  });
+
   it("waits 1 hour after one failure, doubling per failure", () => {
     expect(isLookDue(failed(1), URL, HOUR - 1)).toBe(false);
     expect(isLookDue(failed(1), URL, HOUR)).toBe(true);

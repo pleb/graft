@@ -1517,17 +1517,14 @@ test("persistent mode pins a status line that a prompt clears once the clone cat
 
   r.local.add(SHA);
   r.current.add(SHA);
-  w.git("cat-file", async () => {
-    await clock.sleep(1000);
-
-    return { exitCode: 0 };
-  });
   const before = w.runs.length;
   const entered = await $.prompt.submit({ text: "hi", wait: false, origin: { kind: "composer" } });
   expect(entered).toMatchObject({ text: "hi" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(w.runs).toHaveLength(before);
   expect(w.statuses.at(-1)).toBe(AVAILABLE);
 
-  await clock.advance(1000);
+  await clock.settle();
   expect(w.statuses.at(-1)).toBeUndefined();
   expect(w.runs.length).toBeGreaterThan(before);
 
@@ -1535,6 +1532,82 @@ test("persistent mode pins a status line that a prompt clears once the clone cat
   await $.prompt.submit({ text: "again", wait: false, origin: { kind: "composer" } });
   await clock.settle();
   expect(w.runs).toHaveLength(after);
+});
+
+test("a persistent status line stays when a recheck cannot tell", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on);
+  const w = world(on, notifyIn("persistent"));
+  remote(w);
+
+  await session.start();
+  expect(w.statuses).toEqual([AVAILABLE]);
+
+  w.git("cat-file", { exitCode: 128, stderr: "fatal" });
+  await clock.advance(HOUR);
+  await session.next();
+  expect(w.statuses.at(-1)).toBe(AVAILABLE);
+
+  const before = gitRuns(w, "cat-file").length;
+  await $.prompt.submit({ text: "hi", wait: false, origin: { kind: "composer" } });
+  await clock.settle();
+  expect(w.statuses.at(-1)).toBe(AVAILABLE);
+  expect(gitRuns(w, "cat-file")).toHaveLength(before + 1);
+});
+
+for (const mode of ["session", "off"]) {
+  test(`switching from persistent to ${mode} clears the status line and stops prompt rechecks`, async ($, on) => {
+    const clock = mock.clock(on, { now: DAY });
+    const session = sessions($, on, clock);
+    mock.store(on);
+    const w = world(on, notifyIn("persistent"));
+    remote(w);
+
+    await session.start();
+    expect(w.statuses).toEqual([AVAILABLE]);
+
+    w.files.set(SETTINGS, notifyIn(mode));
+    await session.start();
+    expect(w.statuses.at(-1)).toBeUndefined();
+
+    const before = w.runs.length;
+    await $.prompt.submit({ text: "hi", wait: false, origin: { kind: "composer" } });
+    await clock.settle();
+    expect(w.runs).toHaveLength(before);
+  });
+}
+
+test("a due look rechecks the same SHA when the stored SHA's check could not tell", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on, {
+    updateLook: { url: UPSTREAM, at: 0, isOk: true, failures: 0, sha: SHA },
+  });
+  const w = world(on);
+  remote(w);
+  let probes = 0;
+  w.git("cat-file", () => (probes++ === 0 ? { exitCode: 128, stderr: "fatal" } : { exitCode: 1 }));
+
+  await session.start();
+  expect(gitRuns(w, "ls-remote")).toHaveLength(1);
+  expect(gitRuns(w, "cat-file").map((argv) => argv[5])).toEqual([SHA, SHA]);
+  expect(w.toasts).toEqual([AVAILABLE]);
+});
+
+test("a due look with the same SHA does not recheck or tell twice", async ($, on) => {
+  const clock = mock.clock(on, { now: DAY });
+  const session = sessions($, on, clock);
+  mock.store(on, {
+    updateLook: { url: UPSTREAM, at: 0, isOk: true, failures: 0, sha: SHA },
+  });
+  const w = world(on);
+  remote(w);
+
+  await session.start();
+  expect(gitRuns(w, "ls-remote")).toHaveLength(1);
+  expect(gitRuns(w, "cat-file")).toHaveLength(1);
+  expect(w.toasts).toEqual([AVAILABLE]);
 });
 
 test("a prompt runs no git while no status line is shown", async ($, on) => {

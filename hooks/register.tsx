@@ -388,7 +388,7 @@ async function notify($: EngineInterface, mode: Mode, sha: string, result: Behin
     await $.prompt.suggest({ text: "/graft:update" });
   } else if (action === "status" && text !== undefined) {
     await setStatus($, text);
-  } else if (mode === "persistent") {
+  } else if (mode === "persistent" && result.kind === "current") {
     await clearStatus($);
   }
 }
@@ -401,6 +401,9 @@ async function checkForUpdate($: EngineInterface) {
     return;
   }
   const mode = await notifyMode($, clone);
+  if (mode !== "persistent") {
+    await clearStatus($);
+  }
   if (mode === "off") {
     return;
   }
@@ -416,8 +419,10 @@ async function checkForUpdate($: EngineInterface) {
   const git = localGit($, clone);
   const look = storedLook(await $.store.get(LOOK_KEY));
   const known = look?.url === url ? look.sha : undefined;
+  let first: Behind | undefined;
   if (known !== undefined) {
-    await notify($, mode, known, await checkBehind(known, git));
+    first = await checkBehind(known, git);
+    await notify($, mode, known, first);
   }
   const now = await $.clock.now();
   if (!isLookDue(look, url, now)) {
@@ -437,7 +442,7 @@ async function checkForUpdate($: EngineInterface) {
     failures,
     sha: sha ?? known,
   } satisfies StoredLook);
-  if (sha !== undefined && sha !== known) {
+  if (sha !== undefined && (sha !== known || first === undefined || first.kind === "unknown")) {
     await notify($, mode, sha, await checkBehind(sha, git));
   }
 }
@@ -956,7 +961,11 @@ export const register: Register = (on) => {
       return next(e);
     }
     const entered = await next(e);
-    void recheckStatus($).catch(() => undefined);
+    try {
+      $.clock.after(0, () => void recheckStatus($).catch(() => undefined));
+    } catch {
+      // A Claude Code without $.clock.after leaves the status line until the next session.
+    }
 
     return entered;
   });
