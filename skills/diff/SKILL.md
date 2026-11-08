@@ -53,7 +53,9 @@ The untracked files to include are `untracked` (include all or exclude some, les
 
 ## Build
 
-The input file is `<scratchpad>/diff/<name>.json`, with `name` from the files output. Keep this path for every run in the session. Each build writes a new output directory, `<scratchpad>/diff/<name>/<publish>/`.
+The diff directory is `<scratchpad>/diff/` when the session lists a scratchpad directory. Otherwise it is `<root>/.graft-diff/`, with `root` from the files output; before the first build, add `.graft-diff/` to the file `git -C <root> rev-parse --git-path info/exclude` names (relative to `<root>` when the path is relative) when it is not already there.
+
+The input file is `<diff directory>/<name>.json`, with `name` from the files output. Keep this path for every run in the session. Each build writes a new output directory, `<diff directory>/<name>/<publish>/`.
 
 Write the input file:
 
