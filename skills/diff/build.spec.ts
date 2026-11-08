@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -42,6 +43,7 @@ import {
   parseLineId,
   planPublish,
   renderBuild,
+  stripImage,
   threadId,
   toPageFile,
   unquoteGitPath,
@@ -1374,25 +1376,37 @@ function builtFiles(count: number, bytes = 1000, ext = "json"): BuiltFile[] {
 const PAGE_FILE: BuiltFile = { path: "index.html", source: null, bytes: 10 * 1024 };
 
 describe("planPublish", () => {
-  it("splits more than 255 paths into publishes, removals first and the page last", () => {
+  it("splits paths into publishes of at most 255, removals first and the page in each", () => {
     const built = [PAGE_FILE, ...builtFiles(300)];
     const stale = Array.from({ length: 20 }, (_, i) => `data/f-stale${i}.json`);
     const plan = planPublish(built, ["index.html", ...stale], OUT);
     expect(plan.publishes.length).toBe(2);
     for (const step of plan.publishes) {
       expect(step.send.length + step.remove.length).toBeLessThanOrEqual(MAX_PUBLISH_PATHS);
+      expect(step.send).toContain("index.html");
     }
     expect(plan.publishes[0].remove).toEqual(stale);
     expect(plan.publishes[1].remove).toEqual([]);
-    expect(plan.publishes.flatMap((step) => step.send)).toEqual([
-      ...built.slice(1).map((file) => file.path),
-      "index.html",
+    expect(plan.publishes[0].send.length).toBe(MAX_PUBLISH_PATHS - stale.length);
+    expect(
+      plan.publishes.flatMap((step) => step.send.filter((path) => path !== "index.html")),
+    ).toEqual(built.slice(1).map((file) => file.path));
+
+    const old = Array.from({ length: 260 }, (_, i) => `data/f-old${i}.json`);
+    const spanning = planPublish([PAGE_FILE, ...builtFiles(10)], old, OUT);
+    expect(spanning.publishes.map((step) => [step.remove.length, step.send.length])).toEqual([
+      [254, 1],
+      [6, 11],
     ]);
-    expect(plan.publishes.at(-1)!.send.at(-1)).toBe("index.html");
+
+    const pageOnly = planPublish([PAGE_FILE], ["index.html"], OUT);
+    expect(pageOnly.publishes).toEqual([{ send: ["index.html"], remove: [] }]);
 
     const one = planPublish([PAGE_FILE, ...builtFiles(254)], [], OUT);
-    expect(one.publishes.length).toBe(1);
-    expect(planPublish([PAGE_FILE, ...builtFiles(255)], [], OUT).publishes.length).toBe(2);
+    expect(one.publishes.map((step) => step.send.length)).toEqual([MAX_PUBLISH_PATHS]);
+    const two = planPublish([PAGE_FILE, ...builtFiles(255)], [], OUT);
+    expect(two.publishes.map((step) => step.send.length)).toEqual([MAX_PUBLISH_PATHS, 2]);
+    expect(two.send.filter((file) => file.path === "index.html").length).toBe(1);
   });
 
   it("batches text by about 300 KB and images by ten, covering every path sent", () => {
@@ -1429,6 +1443,15 @@ describe("planPublish", () => {
   });
 });
 
+function pngChunk(kind: string, data: Buffer | string): Buffer {
+  const body = Buffer.concat([Buffer.from(kind, "latin1"), Buffer.from(data)]);
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(body.length - 4);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([length, body, crc]);
+}
+
 // A PNG of one solid color, its pixel bytes preceded by the given bytes in a chunk of the given kind.
 function png(
   width: number,
@@ -1437,14 +1460,6 @@ function png(
   extra = Buffer.alloc(0),
   kind = "prVt",
 ): Buffer {
-  const chunk = (kind: string, data: Buffer) => {
-    const body = Buffer.concat([Buffer.from(kind, "latin1"), data]);
-    const length = Buffer.alloc(4);
-    length.writeUInt32BE(data.length);
-    const crc = Buffer.alloc(4);
-    crc.writeUInt32BE(crc32(body));
-    return Buffer.concat([length, body, crc]);
-  };
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
   header.writeUInt32BE(height, 4);
@@ -1453,10 +1468,10 @@ function png(
   const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(width * 3, fill)]);
   return Buffer.concat([
     Buffer.from("\x89PNG\r\n\x1a\n", "latin1"),
-    chunk("IHDR", header),
-    ...(extra.length ? [chunk(kind, extra)] : []),
-    chunk("IDAT", deflateSync(Buffer.concat(Array.from({ length: height }, () => row)))),
-    chunk("IEND", Buffer.alloc(0)),
+    pngChunk("IHDR", header),
+    ...(extra.length ? [pngChunk(kind, extra)] : []),
+    pngChunk("IDAT", deflateSync(Buffer.concat(Array.from({ length: height }, () => row)))),
+    pngChunk("IEND", Buffer.alloc(0)),
   ]);
 }
 
@@ -1472,13 +1487,22 @@ function gif(width: number, height: number, frames: number): Buffer {
   return Buffer.concat([head, ...Array.from({ length: frames }, () => frame), Buffer.from(";")]);
 }
 
+function riffChunk(fourcc: string, data: Buffer | string): Buffer {
+  const head = Buffer.alloc(8);
+  head.write(fourcc, 0, "latin1");
+  head.writeUInt32LE(data.length, 4);
+  return Buffer.concat([head, Buffer.from(data), Buffer.alloc(data.length % 2)]);
+}
+
+function riff(chunks: Buffer[]): Buffer {
+  const body = Buffer.concat([Buffer.from("WEBP"), ...chunks]);
+  const head = Buffer.alloc(8);
+  head.write("RIFF", 0, "latin1");
+  head.writeUInt32LE(body.length, 4);
+  return Buffer.concat([head, body]);
+}
+
 function webp(kind: "VP8 " | "VP8L" | "VP8X", width: number, height: number, anim = false) {
-  const chunk = (fourcc: string, data: Buffer) => {
-    const head = Buffer.alloc(8);
-    head.write(fourcc, 0, "latin1");
-    head.writeUInt32LE(data.length, 4);
-    return Buffer.concat([head, data, Buffer.alloc(data.length % 2)]);
-  };
   const data = Buffer.alloc(10);
   if (kind === "VP8 ") {
     data.set([0x9d, 0x01, 0x2a], 3);
@@ -1492,16 +1516,21 @@ function webp(kind: "VP8 " | "VP8L" | "VP8X", width: number, height: number, ani
     data.writeUIntLE(width - 1, 4, 3);
     data.writeUIntLE(height - 1, 7, 3);
   }
-  const chunks = [chunk(kind, data), ...(anim ? [chunk("ANIM", Buffer.alloc(6))] : [])];
-  const body = Buffer.concat([Buffer.from("WEBP"), ...chunks]);
-  const riff = Buffer.alloc(8);
-  riff.write("RIFF", 0, "latin1");
-  riff.writeUInt32LE(body.length, 4);
-  return Buffer.concat([riff, body]);
+  return riff([riffChunk(kind, data), ...(anim ? [riffChunk("ANIM", Buffer.alloc(6))] : [])]);
 }
 
-// A JPEG header: an APP0 segment, fill bytes, then a baseline SOF0 marker sized width by height.
-function jpeg(width: number, height: number): Buffer {
+const JPEG_TABLES = Buffer.from(
+  [
+    [0xff, 0xdb, 0, 67, 0, ...Array(64).fill(1)],
+    [0xff, 0xc4, 0, 20, 0, 1, ...Array(15).fill(0), 0],
+  ].flat(),
+);
+const JPEG_SCAN = Buffer.from([0xff, 0xda, 0, 8, 1, 1, 0, 0, 63, 0]);
+// Entropy-coded data with a stuffed FF and a restart marker.
+const JPEG_DATA = Buffer.from([0x12, 0xff, 0x00, 0x34, 0xff, 0xd0, 0x56]);
+
+// A baseline JPEG sized width by height, with an APP0 segment and fill bytes before its SOF0 marker unless bare.
+function jpeg(width: number, height: number, bare = false): Buffer {
   const sof = Buffer.from([0xff, 0xc0, 0, 11, 8, 0, 0, 0, 0, 1, 1, 0x11, 0]);
   sof.writeUInt16BE(height, 5);
   sof.writeUInt16BE(width, 7);
@@ -1523,11 +1552,179 @@ function jpeg(width: number, height: number): Buffer {
   ]);
   return Buffer.concat([
     Buffer.from([0xff, 0xd8]),
-    app0,
-    Buffer.from([0xff]),
+    ...(bare ? [] : [app0, Buffer.from([0xff])]),
     sof,
+    JPEG_TABLES,
+    JPEG_SCAN,
+    JPEG_DATA,
     Buffer.from([0xff, 0xd9]),
   ]);
+}
+
+const MARKER = "PRIVATE_TOKEN=x";
+const ORIENTATION_6 = Buffer.from(
+  "4D4D002A 00000008 0001 0112 0003 00000001 0006 0000 00000000".replaceAll(" ", ""),
+  "hex",
+);
+const NOT_STRIPPED = "Could not remove this image's metadata.";
+
+// A minimal ICC profile: a 128-byte header holding its size and the acsp signature, then a tag count of 0.
+const ICC = Buffer.alloc(132);
+ICC.writeUInt32BE(ICC.length, 0);
+ICC.write("acsp", 36, "latin1");
+
+function iccSegment(seq: number, count: number, data: Buffer): Buffer {
+  return jpegSegment(
+    0xe2,
+    Buffer.concat([Buffer.from("ICC_PROFILE\0"), Buffer.from([seq, count]), data]),
+  );
+}
+
+// A little-endian EXIF TIFF block whose IFD0 holds an ImageDescription of MARKER and the orientation.
+function tiff(orientation: number): Buffer {
+  const block = Buffer.alloc(38 + MARKER.length + 1);
+  block.write("II*\0", 0, "latin1");
+  block.writeUInt32LE(8, 4);
+  block.writeUInt16LE(2, 8);
+  block.writeUInt16LE(0x010e, 10);
+  block.writeUInt16LE(2, 12);
+  block.writeUInt32LE(MARKER.length + 1, 14);
+  block.writeUInt32LE(38, 18);
+  block.writeUInt16LE(0x0112, 22);
+  block.writeUInt16LE(3, 24);
+  block.writeUInt32LE(1, 26);
+  block.writeUInt16LE(orientation, 30);
+  block.write(MARKER, 38, "latin1");
+  return block;
+}
+
+function jpegSegment(marker: number, data: Buffer | string): Buffer {
+  const body = typeof data === "string" ? Buffer.from(data, "latin1") : data;
+  const head = Buffer.from([0xff, marker, 0, 0]);
+  head.writeUInt16BE(body.length + 2, 2);
+  return Buffer.concat([head, body]);
+}
+
+// Each format with MARKER in every metadata carrier it has, beside the bytes it should strip to.
+function pngWithMetadata(): { source: Buffer; stripped: Buffer } {
+  const plain = png(2, 2);
+  const head = plain.subarray(0, 33);
+  const colour = [
+    pngChunk("gAMA", Buffer.from([0, 0, 0xb1, 0x8f])),
+    pngChunk("cHRM", Buffer.alloc(32, 1)),
+    pngChunk("sRGB", Buffer.from([0])),
+    pngChunk("sBIT", Buffer.from([8, 8, 8])),
+    pngChunk("cICP", Buffer.from([1, 13, 0, 1])),
+    pngChunk("tRNS", Buffer.alloc(6)),
+  ];
+  const profile = deflateSync(ICC);
+  const source = Buffer.concat([
+    head,
+    ...colour,
+    pngChunk("iCCP", Buffer.concat([Buffer.from(`${MARKER}\0\0`), profile])),
+    pngChunk("tEXt", `Comment\0${MARKER}`),
+    pngChunk("zTXt", Buffer.concat([Buffer.from("Comment\0\0"), deflateSync(MARKER)])),
+    pngChunk("iTXt", `Comment\0\0\0\0\0${MARKER}`),
+    pngChunk("eXIf", tiff(6)),
+    pngChunk("prVt", MARKER),
+    pngChunk("pHYs", Buffer.alloc(9)),
+    plain.subarray(33),
+    Buffer.from(MARKER),
+  ]);
+  const stripped = Buffer.concat([
+    head,
+    ...colour,
+    pngChunk("iCCP", Buffer.concat([Buffer.from("ICC\0\0"), profile])),
+    pngChunk("eXIf", ORIENTATION_6),
+    plain.subarray(33),
+  ]);
+  return { source, stripped };
+}
+
+const ADOBE = Buffer.from("Adobe\0\x64\0\0\0\0\x01", "latin1");
+
+function jpegWithMetadata(): { source: Buffer; stripped: Buffer } {
+  const bare = jpeg(8, 8, true);
+  const frame = bare.subarray(2, -2);
+  const icc = iccSegment(1, 1, ICC);
+  const source = Buffer.concat([
+    bare.subarray(0, 2),
+    jpegSegment(0xe0, "JFIF\0\x01\x01\0\0\x01\0\x01\0\0"),
+    jpegSegment(0xe1, `http://ns.adobe.com/xap/1.0/\0${MARKER}`),
+    jpegSegment(0xe1, Buffer.concat([Buffer.from("Exif\0\0"), tiff(6)])),
+    icc,
+    jpegSegment(0xee, Buffer.concat([ADOBE, Buffer.from(MARKER)])),
+    jpegSegment(0xe2, `MPF\0${MARKER}`),
+    jpegSegment(0xfe, MARKER),
+    frame,
+    jpegSegment(0xfe, MARKER),
+    JPEG_SCAN,
+    Buffer.from([0x78, 0xff, 0xff, 0xff, 0xd9]),
+    Buffer.from(MARKER),
+  ]);
+  const stripped = Buffer.concat([
+    bare.subarray(0, 2),
+    Buffer.from([0xff, 0xe1, 0, 34]),
+    Buffer.from("Exif\0\0"),
+    ORIENTATION_6,
+    icc,
+    jpegSegment(0xee, ADOBE),
+    frame,
+    JPEG_SCAN,
+    Buffer.from([0x78, 0xff, 0xd9]),
+  ]);
+  return { source, stripped };
+}
+
+function gifWithMetadata(): { source: Buffer; stripped: Buffer } {
+  const plain = gif(2, 2, 1);
+  const head = plain.subarray(0, 19);
+  const image = plain.subarray(27, -1);
+  const marker = Buffer.from([MARKER.length, ...Buffer.from(MARKER), 0]);
+  const control = Buffer.from([0x21, 0xf9, 4, 0, 0x0a, 0, 0]);
+  const source = Buffer.concat([
+    head,
+    Buffer.from([0x21, 0xff, 11]),
+    Buffer.from("XMP DataXMP"),
+    marker,
+    Buffer.from([0x21, 0xfe]),
+    marker,
+    Buffer.from([0x21, 0x01, 12, ...Array(12).fill(0)]),
+    marker,
+    control,
+    marker,
+    image,
+    Buffer.from(";"),
+    Buffer.from(MARKER),
+  ]);
+  const stripped = Buffer.concat([head, control, Buffer.from([0]), image, Buffer.from(";")]);
+  return { source, stripped };
+}
+
+function webpWithMetadata(orientation = 6): { source: Buffer; stripped: Buffer } {
+  const image = webp("VP8 ", 6, 6).subarray(12);
+  const canvas = [5, 0, 0, 5, 0, 0];
+  const source = Buffer.concat([
+    riff([
+      riffChunk("VP8X", Buffer.from([0x3c, 1, 2, 3, ...canvas])),
+      riffChunk("ICCP", ICC),
+      riffChunk("EXIF", tiff(orientation)),
+      riffChunk("XMP ", MARKER),
+      riffChunk("PRIV", MARKER),
+      riffChunk("ALPH", "alpha"),
+      image,
+    ]),
+    Buffer.from(MARKER),
+  ]);
+  const exif = orientation === 6 ? [riffChunk("EXIF", ORIENTATION_6)] : [];
+  const stripped = riff([
+    riffChunk("VP8X", Buffer.from([exif.length ? 0x38 : 0x30, 0, 0, 0, ...canvas])),
+    riffChunk("ICCP", ICC),
+    ...exif,
+    riffChunk("ALPH", "alpha"),
+    image,
+  ]);
+  return { source, stripped };
 }
 
 // Bytes that a UTF-8 round trip would change.
@@ -1549,6 +1746,10 @@ function imageFile(
     del: 0,
     image,
   };
+}
+
+function imageHash(bytes: Buffer): string {
+  return createHash("sha256").update(bytes).digest("hex").slice(0, 16);
 }
 
 // A previewable side of the given bytes, distinct by fill.
@@ -1596,10 +1797,10 @@ describe("images", () => {
     const small = png(4, 4);
     expect(side(small)).toEqual({ bytes: small, ext: "png", width: 4, height: 4 });
     const edge = webp("VP8L", MAX_IMAGE_EDGE, 1);
-    expect(side(edge).bytes).toBe(edge);
+    expect(side(edge)).toEqual({ bytes: edge, ext: "webp", width: MAX_IMAGE_EDGE, height: 1 });
     const exact = png(1, 1, 0, Buffer.alloc(MAX_IMAGE_SIDE_BYTES - png(1, 1).length - 12));
     expect(exact.length).toBe(MAX_IMAGE_SIDE_BYTES);
-    expect(side(exact).bytes).toBe(exact);
+    expect(side(exact)).toEqual({ bytes: png(1, 1), ext: "png", width: 1, height: 1 });
     expect(side(Buffer.concat([exact, Buffer.from([0])]))).toEqual({
       stub: "Too large to preview: 2 MB, over 2 MB.",
     });
@@ -1634,7 +1835,7 @@ describe("images", () => {
     expect(side(RAW)).toEqual({ stub: "Not a PNG, JPEG, GIF or WebP image." });
   });
 
-  it("reads added, deleted and modified image sides byte for byte from git", () => {
+  it("reads added, deleted and modified image sides from git, stripped of metadata", () => {
     const before = png(2, 2, 10, RAW);
     const committed = png(3, 2, 20, RAW);
     const gone = jpeg(8, 8);
@@ -1668,14 +1869,14 @@ describe("images", () => {
 
     expect(files.get("mod.png")).toMatchObject({ source: "committed", status: "M" });
     expect(files.get("mod.png")!.image).toEqual({
-      old: { bytes: before, ext: "png", width: 2, height: 2 },
-      new: { bytes: committed, ext: "png", width: 3, height: 2 },
+      old: { bytes: png(2, 2, 10), ext: "png", width: 2, height: 2 },
+      new: { bytes: png(3, 2, 20), ext: "png", width: 3, height: 2 },
     });
     expect(files.get("work.PNG")).toMatchObject({ source: "uncommitted" });
-    expect(files.get("work.PNG")!.image!.old!.bytes!.equals(before)).toBe(true);
-    expect(files.get("work.PNG")!.image!.new!.bytes!.equals(working)).toBe(true);
+    expect(files.get("work.PNG")!.image!.old!.bytes!.equals(png(2, 2, 10))).toBe(true);
+    expect(files.get("work.PNG")!.image!.new!.bytes!.equals(png(2, 3, 30))).toBe(true);
     expect(files.get("gone.jpg")!.image).toEqual({
-      old: { bytes: gone, ext: "jpg", width: 8, height: 8 },
+      old: { bytes: jpeg(8, 8, true), ext: "jpg", width: 8, height: 8 },
     });
     expect(files.get("new.gif")!.image).toEqual({
       new: { bytes: added, ext: "gif", width: 9, height: 9 },
@@ -1685,7 +1886,7 @@ describe("images", () => {
       new: { width: 4, height: 4, stub: "Animated; previews show still images only." },
     });
     expect(files.get("to.webp")).toMatchObject({ status: "R", oldPath: "from.webp" });
-    expect(files.get("to.webp")!.image!.old!.bytes!.equals(moved)).toBe(true);
+    expect(files.get("to.webp")!.image!.old!.bytes!.equals(webp("VP8 ", 6, 6))).toBe(true);
     const pointer = files.get("pointer.png")!;
     expect(pointer.image).toBeUndefined();
     expect(pointer.binary).toBeUndefined();
@@ -1702,8 +1903,10 @@ describe("images", () => {
     const out = join(tempDir(), "out");
     writeBuild({ ...output, publish: { ...output.publish, out } });
     const data = dataOf(output, "work.PNG");
-    expect(readFileSync(join(out, data.imgOld!)).equals(before)).toBe(true);
-    expect(readFileSync(join(out, data.imgNew!)).equals(working)).toBe(true);
+    expect(data.imgOld).toBe(`img/${imageHash(png(2, 2, 10))}.png`);
+    expect(data.imgNew).toBe(`img/${imageHash(png(2, 3, 30))}.png`);
+    expect(readFileSync(join(out, data.imgOld!)).equals(png(2, 2, 10))).toBe(true);
+    expect(readFileSync(join(out, data.imgNew!)).equals(png(2, 3, 30))).toBe(true);
   });
 
   it("stubs a side over 2 MB from its size, from git and from the working tree", () => {
@@ -1758,24 +1961,23 @@ describe("images", () => {
         sizedFile("b.ts", 1000),
       ]),
     );
-    const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex").slice(0, 16);
     expect(dataOf(output, "a/added.png")).toEqual({
       path: "a/added.png",
       hunks: [],
       sizeNew: [4, 3],
-      imgNew: `img/${hash(next)}.png`,
+      imgNew: `img/${imageHash(next)}.png`,
     });
     expect(dataOf(output, "a/deleted.gif")).toEqual({
       path: "a/deleted.gif",
       hunks: [],
       sizeOld: [2, 2],
-      imgOld: `img/${hash(old)}.gif`,
+      imgOld: `img/${imageHash(old)}.gif`,
     });
     expect(dataOf(output, "a/mod.png")).toEqual({
       path: "a/mod.png",
       hunks: [],
       sizeOld: [2, 2],
-      imgOld: `img/${hash(old)}.png`,
+      imgOld: `img/${imageHash(old)}.png`,
       sizeNew: [9000, 3],
       stubNew: "Too many pixels.",
     });
@@ -1787,11 +1989,11 @@ describe("images", () => {
     expect(manifestEntry(output, "a/mod.png")).toMatchObject({ isImage: true, binary: true });
     expect(manifestEntry(output, "b.ts").isImage).toBeUndefined();
     expect([...output.images.keys()]).toEqual([
-      `img/${hash(next)}.png`,
-      `img/${hash(old)}.gif`,
-      `img/${hash(old)}.png`,
+      `img/${imageHash(next)}.png`,
+      `img/${imageHash(old)}.gif`,
+      `img/${imageHash(old)}.png`,
     ]);
-    expect(output.images.get(`img/${hash(next)}.png`)).toBe(next);
+    expect(output.images.get(`img/${imageHash(next)}.png`)).toBe(next);
     expect(longestLine(output)).toBeLessThan(1000);
   });
 
@@ -1866,6 +2068,209 @@ describe("images", () => {
     expect(second.publish.keep).toContain(images[0]);
     expect(second.publish.send.map(({ path }) => path)).not.toContain(images[0]);
     expect(second.publish.remove).toEqual(["img/0000000000000000.png"]);
+  });
+
+  it("strips metadata from each format, keeping image data, colour, ICC profiles and orientation", () => {
+    for (const [ext, { source, stripped }] of [
+      ["png", pngWithMetadata()],
+      ["jpg", jpegWithMetadata()],
+      ["gif", gifWithMetadata()],
+      ["webp", webpWithMetadata()],
+      ["webp", webpWithMetadata(1)],
+    ] as const) {
+      expect(source.includes(MARKER)).toBe(true);
+      const result = stripImage(source, ext)!;
+      expect(result).toEqual(stripped);
+      expect(result.includes(MARKER)).toBe(false);
+    }
+    expect(stripImage(jpegWithMetadata().source, "jpg")!.includes(JPEG_DATA)).toBe(true);
+    const plain = png(2, 2);
+    for (const exif of [tiff(1), tiff(9), tiff(6).subarray(0, 20)]) {
+      const source = Buffer.concat([
+        plain.subarray(0, 33),
+        pngChunk("eXIf", exif),
+        plain.subarray(33),
+      ]);
+      expect(stripImage(source, "png")).toEqual(plain);
+    }
+    const bare = jpeg(8, 8, true);
+    const upright = Buffer.concat([
+      bare.subarray(0, 2),
+      jpegSegment(0xe1, Buffer.concat([Buffer.from("Exif\0\0"), tiff(1)])),
+      bare.subarray(2),
+    ]);
+    expect(stripImage(upright, "jpg")).toEqual(bare);
+    expect(stripImage(gif(3, 3, 1), "gif")).toEqual(gif(3, 3, 1));
+  });
+
+  it("publishes only stripped image bytes, at paths that hash them", () => {
+    const fixtures = {
+      "p.png": pngWithMetadata(),
+      "j.jpg": jpegWithMetadata(),
+      "g.gif": gifWithMetadata(),
+      "w.webp": webpWithMetadata(),
+    };
+    const dir = newRepo({ "p.png": png(1, 1), "j.jpg": jpeg(4, 4), "g.gif": gif(1, 1, 1) });
+    git(dir, "checkout", "-q", "-b", "feature");
+    write(
+      dir,
+      Object.fromEntries(Object.entries(fixtures).map(([path, { source }]) => [path, source])),
+    );
+    commitAll(dir, "feature");
+    const output = build(collectPage(dir, input()));
+    for (const [path, { stripped }] of Object.entries(fixtures)) {
+      const img = `img/${imageHash(stripped)}.${path.split(".")[1]}`;
+      expect(dataOf(output, path).imgNew).toBe(img);
+      expect(output.images.get(img)).toEqual(stripped);
+    }
+    const out = join(tempDir(), "out");
+    writeBuild({ ...output, publish: { ...output.publish, out } });
+    const written = readdirSync(out, { recursive: true, withFileTypes: true }).filter((entry) =>
+      entry.isFile(),
+    );
+    expect(written.length).toBeGreaterThan(Object.keys(fixtures).length);
+    for (const entry of written) {
+      expect(readFileSync(join(entry.parentPath, entry.name)).includes(MARKER)).toBe(false);
+    }
+  });
+
+  it("stubs an image it cannot walk instead of publishing its bytes", () => {
+    const plain = png(2, 2);
+    const bare = jpeg(8, 8, true);
+    const still = gif(2, 2, 1);
+    const longRiff = Buffer.from(webp("VP8 ", 6, 6));
+    longRiff.writeUInt32LE(longRiff.length, 4);
+    const longControl = Buffer.from(still);
+    longControl[21] = 5;
+    const cases = [
+      png(2, 2, 0, Buffer.from(MARKER), "CgBI"),
+      plain.subarray(0, -12),
+      Buffer.concat([plain.subarray(0, 33), plain.subarray(-12)]),
+      Buffer.concat([plain.subarray(0, 33), pngChunk("gAMA", Buffer.alloc(5)), plain.subarray(33)]),
+      Buffer.concat([bare.subarray(0, -2), Buffer.from(MARKER)]),
+      Buffer.concat([bare.subarray(0, 15), Buffer.from([0xff, 0xd9])]),
+      Buffer.concat([bare.subarray(0, 15), jpegSegment(0xee, "Adobe\0\x64"), bare.subarray(15)]),
+      bare.subarray(0, 30),
+      still.subarray(0, -1),
+      longControl,
+      Buffer.concat([still.subarray(0, 19), Buffer.from(";")]),
+      longRiff,
+      riff([
+        riffChunk("VP8X", Buffer.from([0, 0, 0, 0, 5, 0, 0, 5, 0, 0])),
+        riffChunk("ICCP", "x"),
+      ]),
+    ];
+    for (const bytes of cases) {
+      expect(stripImage(bytes, imageInfo(bytes)!.ext)).toBeNull();
+      expect(imageSide(bytes.length, () => bytes)).toEqual({
+        width: expect.any(Number),
+        height: expect.any(Number),
+        stub: NOT_STRIPPED,
+      });
+    }
+  });
+});
+
+// A small image in `ext` with `carrier` placed where its profile belongs.
+function withProfile(ext: "png" | "jpg" | "webp", carrier: Buffer | Buffer[]): Buffer {
+  const parts = Array.isArray(carrier) ? carrier : [carrier];
+  if (ext === "png") {
+    const plain = png(2, 2);
+    return Buffer.concat([plain.subarray(0, 33), ...parts, plain.subarray(33)]);
+  }
+  if (ext === "jpg") {
+    const bare = jpeg(8, 8, true);
+    return Buffer.concat([bare.subarray(0, 2), ...parts, bare.subarray(2)]);
+  }
+  const vp8x = riffChunk("VP8X", Buffer.from([0x20, 0, 0, 0, 5, 0, 0, 5, 0, 0]));
+  return riff([vp8x, ...parts, webp("VP8 ", 6, 6).subarray(12)]);
+}
+
+describe("image structures", () => {
+  const marker = Buffer.from(MARKER);
+  const iccp = (data: Buffer, method = 0) =>
+    pngChunk(
+      "iCCP",
+      Buffer.concat([Buffer.from("Photoshop ICC profile\0"), Buffer.from([method]), data]),
+    );
+
+  it("keeps a valid ICC profile in each format", () => {
+    const png = stripImage(withProfile("png", iccp(deflateSync(ICC))), "png")!;
+    expect(png).toEqual(
+      withProfile(
+        "png",
+        pngChunk("iCCP", Buffer.concat([Buffer.from("ICC\0\0"), deflateSync(ICC)])),
+      ),
+    );
+    const jpg = withProfile("jpg", [
+      iccSegment(2, 2, ICC.subarray(100)),
+      jpegSegment(0xfe, MARKER),
+      iccSegment(1, 2, ICC.subarray(0, 100)),
+    ]);
+    expect(stripImage(jpg, "jpg")).toEqual(withProfile("jpg", iccSegment(1, 1, ICC)));
+    const webp = withProfile("webp", riffChunk("ICCP", ICC));
+    expect(stripImage(webp, "webp")).toEqual(webp);
+  });
+
+  it("refragments a JPEG profile into APP2 segments of at most 65519 profile bytes", () => {
+    const large = Buffer.alloc(70000);
+    ICC.copy(large);
+    large.writeUInt32BE(large.length, 0);
+    const source = withProfile("jpg", [
+      iccSegment(1, 3, large.subarray(0, 30000)),
+      iccSegment(2, 3, large.subarray(30000, 60000)),
+      iccSegment(3, 3, large.subarray(60000)),
+    ]);
+    const result = stripImage(source, "jpg")!;
+    expect(result).toEqual(
+      withProfile("jpg", [
+        iccSegment(1, 2, large.subarray(0, 65519)),
+        iccSegment(2, 2, large.subarray(65519)),
+      ]),
+    );
+  });
+
+  it("stubs an image whose kept structures hold bytes past their content", () => {
+    const bare = jpeg(8, 8, true);
+    const sofAt = 2;
+    const dqtAt = sofAt + 13;
+    const dhtAt = dqtAt + 69;
+    const scanAt = dhtAt + 22;
+    const padded = (at: number, length: number, extra: Buffer) => {
+      const segment = Buffer.concat([bare.subarray(at, at + length), extra]);
+      segment.writeUInt16BE(segment.length - 2, 2);
+      return Buffer.concat([bare.subarray(0, at), segment, bare.subarray(at + length)]);
+    };
+    const cases: Buffer[] = [
+      withProfile("png", iccp(Buffer.concat([deflateSync(ICC), marker]))),
+      withProfile("png", iccp(deflateSync(Buffer.concat([ICC, marker])))),
+      withProfile("png", iccp(deflateSync(ICC), 1)),
+      withProfile("png", iccp(deflateSync(ICC).subarray(0, -2))),
+      withProfile("png", iccp(deflateSync(marker))),
+      withProfile("jpg", iccSegment(1, 1, Buffer.concat([ICC, marker]))),
+      withProfile("jpg", iccSegment(1, 2, ICC)),
+      withProfile("jpg", [
+        iccSegment(1, 2, ICC.subarray(0, 100)),
+        iccSegment(1, 2, ICC.subarray(100)),
+      ]),
+      withProfile("jpg", [
+        iccSegment(1, 2, ICC.subarray(0, 100)),
+        iccSegment(2, 3, ICC.subarray(100)),
+      ]),
+      withProfile("jpg", [iccSegment(0, 1, ICC)]),
+      withProfile("webp", riffChunk("ICCP", Buffer.concat([ICC, marker]))),
+      padded(dqtAt, 69, marker),
+      padded(dhtAt, 22, marker),
+      padded(sofAt, 13, marker),
+      padded(scanAt, 10, marker),
+      withProfile("jpg", jpegSegment(0xcc, Buffer.from([0, 1, 2]))),
+      withProfile("jpg", jpegSegment(0xcc, Buffer.alloc(0))),
+    ];
+    expect(stripImage(bare, "jpg")).toEqual(bare);
+    for (const bytes of cases) expect(stripImage(bytes, imageInfo(bytes)!.ext)).toBeNull();
+    expect(
+      stripImage(withProfile("jpg", jpegSegment(0xcc, Buffer.from([0, 1]))), "jpg"),
+    ).not.toBeNull();
   });
 });
 
