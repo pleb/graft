@@ -1357,7 +1357,6 @@
     hunkRow(f, fi, h, table);
     for (const l of h.lines) unifiedLine(f, fi, l, table);
   }
-  // The file's new lines, when every hunk's context and added lines match them; else null.
   function alignedLines(f) {
     if (f.content == null) return null;
     const strip = (s) => s.replace(/\r$/, "");
@@ -1372,8 +1371,7 @@
     }
     return lines;
   }
-  // The unchanged lines before, between and after the hunks, as context lines; `at` is the index of
-  // the hunk a gap precedes. Null when the hunks do not align with the content.
+  // A gap's `at` is the index of the hunk it precedes, or hunks.length after the last.
   function contextGaps(f) {
     const lines = alignedLines(f);
     if (!lines) return null;
@@ -1422,8 +1420,7 @@
     if (!states.has(at)) states.set(at, { top: 0, bottom: 0 });
     return states.get(at);
   }
-  // The gap before hunk `at` (or after the last): its shown lines, and expand controls while any are
-  // hidden. A gap holding a line with an open thread shows whole.
+  // A gap holding a line with an open thread shows whole.
   function gapRows(f, fi, gaps, at, table, line) {
     const gap = gaps && gaps.find((g) => g.at === at);
     if (!gap) return;
@@ -1540,7 +1537,7 @@
     chunked: "Chunked",
     comparison: "Comparison",
   };
-  // An SVG's new side is kept once: in content when the file has content, else in svgNew.
+  // An SVG's new text is in content when the file has content, else in svgNew (fileData in build-lib.ts).
   const svgNew = (f) => f.svgNew ?? f.content;
   // Rendered needs each side the file's status has: the new one unless deleted, the old one unless added.
   const isSvg = (f) => {
@@ -1775,7 +1772,6 @@
     if (f.status !== "D") panes.push(["After", f.imgNew, f.stubNew, f.sizeNew]);
     return panes;
   }
-  // Each side as a figure: an image, a button that opens the overlay when one is given, or its stub.
   function imageFigures(f, box, open) {
     const panes = imagePanes(f);
     box.classList.toggle("one", panes.length === 1);
@@ -1808,7 +1804,6 @@
   let imgReturnId = null;
   // Images this small or smaller on both sides show pixelated when the overlay enlarges them.
   const PIXEL_EDGE = 256;
-  // Both sides large in a modal dialog, closed with Escape, its Close button or a click outside the images.
   function openImages(f, from) {
     if (!imgDialog) {
       imgDialog = el("dialog", "imgov");
@@ -1949,7 +1944,6 @@
     });
     reportPins();
   }
-  // Each file's hunks arrive from its data file; until then its section shows a placeholder.
   function loadFile(fi) {
     const f = DIFF.files[fi];
     fetch(f.data)
@@ -2062,7 +2056,6 @@
       return null;
     }
   }
-  // The section of the file an anchor points into while that file's data has not arrived or failed.
   function loadingSection(anchor) {
     const m = /#(f-[A-Za-z0-9_]*)/.exec(anchor || "");
     const fi = m ? DIFF.files.findIndex((f) => f.id === m[1]) : -1;
@@ -2070,9 +2063,8 @@
       ? sections[fi]
       : null;
   }
-  // Shows the whole collapsed gap that holds an anchor's line, re-rendering its file. A file shown
-  // Rendered or Chunked, which have no row for the line, switches to Side-by-side (Unified when that
-  // is not offered) for this page view; its pins otherwise stay missing in those views.
+  // Rendered and Chunked have no row for the line, so the file switches to Side-by-side (else
+  // Unified) for this page view; otherwise its pins stay missing.
   function expandTo(anchor) {
     const id = idOf(anchor);
     const m = id && /^(f-[A-Za-z0-9_]*)-(old|new)-(\d+)$/.exec(id);

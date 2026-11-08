@@ -1,6 +1,6 @@
 ---
 name: diff
-description: Publishes the current branch's changes against the default branch as a private claude.ai artifact to review and comment on. In batch mode, the default, discusses comments in their threads and changes code on your go-ahead or when you finish the review; auto mode, from the arguments or diff.comments, applies each comment as it arrives.
+description: Publishes the current branch's changes against the default branch as a private claude.ai artifact to review and comment on. Batch mode (the default) discusses comments in their threads and changes code on your go-ahead or when you finish the review; auto mode applies each comment as it arrives. The arguments or diff.comments set the mode.
 argument-hint: "[mode: batch (default) | auto]"
 disable-model-invocation: true
 allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/build.ts *), Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
@@ -118,7 +118,7 @@ The file is the path as the diff shows it, the new path for a renamed file. A `[
 
 ## Comments
 
-Handle comment notifications for the diff artifact one at a time. A notification that arrives while a build, reading or publish is in progress waits for it. Each starts by reading every thread as `## Threads` describes. A Finish review thread starts `## Batch`. Otherwise, act only on the threads sent to Claude whose latest message is not your own and is newer than your last reply in that thread, under the owner check below; read the others for context only. Locate each acted-on thread's code as `## Batch` step 2 describes and follow the mode.
+Handle comment notifications for the diff artifact one at a time. A notification that arrives while a build, reader check or publish is in progress waits for it. Each starts by reading every thread as `## Threads` describes. A Finish review thread starts `## Batch`. Otherwise, act only on the threads sent to Claude whose latest message is not your own and is newer than your last reply in that thread, under the owner check below; read the others for context only. Locate each acted-on thread's code as `## Batch` step 2 describes and follow the mode.
 
 A reply that follows up your own earlier reply in the same thread, such as the result after a go-ahead or a failed publish, passes `acknowledge_duplicate: true`.
 
@@ -136,7 +136,7 @@ Make the changes the acted-on threads ask for, then, when any code changed or a 
 
 ### Republish
 
-Every republish, in either mode and in `## Batch`:
+For every republish:
 
 1. Rerun `build.ts files` as `## Base` does.
 2. In the build input, keep the earlier untracked files and exclusions, drop files that are no longer untracked, and add untracked files you created. Drop the threads you are about to resolve and threads whose file left the diff.

@@ -50,7 +50,7 @@ export const MAX_IMAGE_FILES = 20;
 // The largest image side that gets a preview, in bytes and in pixels on its longest edge.
 export const MAX_IMAGE_SIDE_BYTES = 2 * 1024 * 1024;
 export const MAX_IMAGE_EDGE = 4096;
-// The largest total of previewed image bytes in one build.
+// A total across the build's distinct previewed image sides.
 export const MAX_IMAGE_BYTES = 40 * 1024 * 1024;
 const OVER_IMAGE_FILES = `Over the ${MAX_IMAGE_FILES} image previews a page shows.`;
 const OVER_IMAGE_BYTES = `Over the ${MAX_IMAGE_BYTES / 1024 / 1024} MB of image previews a page holds.`;
@@ -188,8 +188,7 @@ export interface ManifestFile {
   isImage?: true;
   stub?: string;
   note?: string;
-  // The data file's path in the build directory, when the file has hunks or is an image with a
-  // previewed side.
+  // Set when the file has hunks or is an image with a previewed side.
   data?: string;
   // An image file with no previewed side: each side's stub and size, in place of a data file.
   stubOld?: string;
@@ -728,7 +727,6 @@ function fileMode(file: ParsedFile): string | undefined {
   return file.newMode ?? file.index?.split(" ")[1];
 }
 
-// A blob's bytes, as git show prints them.
 function showBytes(root: string, rev: string): Buffer {
   const args = ["show", rev];
   const result = spawnSync("git", ["-C", root, ...args], { maxBuffer: MAX_GIT_OUTPUT });
@@ -750,8 +748,7 @@ export function blobSizeQuery(revs: string[]): { args: string[]; input: string }
   return { args: [...args, "-z"], input: revs.map((rev) => `${rev}\0`).join("") };
 }
 
-// Each blob's size in bytes by its rev, from one git cat-file call, or one per rev when a Git
-// without -z rejects the call.
+// Falls back to one call per rev when a Git older than 2.38 rejects -z.
 function blobSizes(root: string, revs: string[]): Map<string, number> {
   if (!revs.length) return new Map();
   const { args, input } = blobSizeQuery(revs);
@@ -770,7 +767,6 @@ function blobSizes(root: string, revs: string[]): Map<string, number> {
   );
 }
 
-// A file's new bytes, from HEAD when committed and the working tree otherwise.
 function newBytes(root: string, page: PageFile): Buffer {
   if (page.source !== "committed") return readFileSync(join(root, page.path));
   return showBytes(root, `HEAD:${page.path}`);
@@ -780,7 +776,6 @@ function newContent(root: string, page: PageFile): string[] {
   return newBytes(root, page).toString("utf8").split("\n");
 }
 
-// The paths whose filter attribute is Git LFS.
 function lfsPaths(root: string, paths: string[]): Set<string> {
   if (!paths.length) return new Set();
   const out = git(root, ["check-attr", "-z", "--stdin", "filter"], [0], `${paths.join("\0")}\0`);
@@ -790,9 +785,7 @@ function lfsPaths(root: string, paths: string[]): Set<string> {
   return lfs;
 }
 
-// A shown, non-deleted regular file's new content, when it is UTF-8 text and not a Git LFS pointer
-// or LFS-tracked working file. A working file's CRLF endings become LF when its hunks hold no CR,
-// as git's clean filter does.
+// A working file's CRLF endings become LF when its hunks hold no CR, as git's clean filter does.
 function textContent(
   root: string,
   file: ParsedFile,
@@ -838,7 +831,7 @@ function svgSides(
   return sides;
 }
 
-// A GIF's frame count up to two, walking its blocks; a truncated GIF counts the frames it has.
+// Counts frames up to two; a truncated GIF counts the frames it has.
 function gifFrames(bytes: Buffer): number {
   const table = (packed: number) => (packed & 0x80 ? 3 * 2 ** ((packed & 7) + 1) : 0);
   const skipBlocks = (at: number) => {
@@ -859,7 +852,6 @@ function gifFrames(bytes: Buffer): number {
   return frames;
 }
 
-// A JPEG's width and height from its first SOF marker.
 function jpegSize(bytes: Buffer): [number, number] | null {
   let at = 2;
   while (at + 4 <= bytes.length) {
@@ -885,7 +877,6 @@ function jpegSize(bytes: Buffer): [number, number] | null {
   return null;
 }
 
-// A WebP's width and height from its first chunk, and whether it holds an ANIM chunk.
 function webpInfo(bytes: Buffer): { size: [number, number] | null; animated: boolean } {
   let size: [number, number] | null = null;
   let animated = false;
@@ -909,7 +900,7 @@ function webpInfo(bytes: Buffer): { size: [number, number] | null; animated: boo
   return { size, animated };
 }
 
-// Whether a PNG is an APNG: an acTL chunk comes before its first IDAT chunk.
+// An APNG's acTL chunk comes before its first IDAT chunk.
 function pngAnimated(bytes: Buffer): boolean {
   for (let at = 8; at + 8 <= bytes.length; at += 12 + bytes.readUInt32BE(at)) {
     const kind = bytes.toString("latin1", at + 4, at + 8);
@@ -919,8 +910,6 @@ function pngAnimated(bytes: Buffer): boolean {
   return false;
 }
 
-// An image's format, width, height and whether it is animated, from its headers; null when the
-// bytes are not a PNG, JPEG, GIF or WebP image whose size can be read.
 export function imageInfo(bytes: Buffer): ImageInfo | null {
   const has = (at: number, text: string) => bytes.toString("latin1", at, at + text.length) === text;
   let ext: ImageInfo["ext"];
@@ -949,8 +938,6 @@ function mb(bytes: number): string {
   return `${Math.round((bytes / 1024 / 1024) * 10) / 10} MB`;
 }
 
-// One image side of the given size, keeping its bytes only when it is a readable still image within
-// the size caps; a side over MAX_IMAGE_SIDE_BYTES is not read.
 export function imageSide(size: number, read: () => Buffer): ImageSide {
   if (size > MAX_IMAGE_SIDE_BYTES) {
     return { stub: `Too large to preview: ${mb(size)}, over ${mb(MAX_IMAGE_SIDE_BYTES)}.` };
@@ -967,11 +954,8 @@ export function imageSide(size: number, read: () => Buffer): ImageSide {
   return side;
 }
 
-// Where one image side comes from: a git blob, a working file, or a stub when it is neither.
 type SideSource = { rev: string } | { file: string } | { stub: string };
 
-// A shown binary image file's old side from the merge base and new side from HEAD when committed
-// and the working tree otherwise; a side that is not a regular file gets a stub.
 function imageSources(
   base: string,
   file: ParsedFile,
@@ -993,7 +977,6 @@ function imageSources(
   return sources;
 }
 
-// One image side from its source, sized before it is read.
 function readSide(root: string, source: SideSource, sizes: Map<string, number>): ImageSide {
   if ("stub" in source) return { stub: source.stub };
   if ("rev" in source) return imageSide(sizes.get(source.rev)!, () => showBytes(root, source.rev));
@@ -1159,7 +1142,7 @@ function largest(sizes: { path: string; bytes: number }[]): string {
     .join(", ");
 }
 
-// A file's data, its new SVG text kept once: in content when content is kept, else in svgNew.
+// An SVG's new text is kept once, in content when kept and else in svgNew; template.html reads it so.
 function fileData(file: PageFile, content: boolean, svg: boolean): FileData {
   const data: FileData = { path: file.path, hunks: file.hunks! };
   const withContent = content && file.content !== undefined;
@@ -1186,12 +1169,8 @@ function dataBytes(item: Sized, content: boolean, svg: boolean): number {
   return bytes;
 }
 
-// Each shown file's data, failing when its hunks pass MAX_FILE_DATA_BYTES or all hunks pass
-// MAX_DATA_BYTES. SVG sides are kept, with the content that carries their new text, while the file
-// stays within MAX_FILE_DATA_BYTES; other content is kept while the file stays within
-// MAX_EXPAND_BYTES. Then, until the total fits MAX_DATA_BYTES, drops that save bytes are made from
-// the largest files first: content from files without kept SVG sides, then SVG sides, then the
-// content left.
+// Drops are made from the largest files first until the total fits MAX_DATA_BYTES: content without
+// kept SVG sides, then SVG sides, then the content left.
 function fitData(files: PageFile[]): Sized[] {
   const sized = files
     .filter((file) => file.hunks)
@@ -1275,10 +1254,7 @@ type ImageFields = Pick<
   "imgOld" | "imgNew" | "stubOld" | "stubNew" | "sizeOld" | "sizeNew"
 >;
 
-// Each image file's sides, in path order: a side keeps its preview while fewer than
-// MAX_IMAGE_FILES earlier files have one and the build's distinct image bytes stay within
-// MAX_IMAGE_BYTES; past that total, every further side gets a stub. Previewed sides are named by a
-// hash of their bytes.
+// Once MAX_IMAGE_BYTES is passed, every later side gets a stub, even one small enough to fit.
 function fitImages(files: PageFile[]): {
   data: Map<PageFile, ImageFields>;
   images: Map<string, { bytes: Buffer; source: string }>;
@@ -1328,8 +1304,6 @@ function fitImages(files: PageFile[]): {
   return { data, images };
 }
 
-// The paths to send, remove and keep against the server's, split into publishes of at most
-// MAX_PUBLISH_PATHS paths, and the reader batches covering every path sent.
 export function planPublish(built: BuiltFile[], server: string[], out: string): PublishPlan {
   if (built.length > MAX_VERSION_FILES) {
     throw new BuildError(
@@ -1394,9 +1368,7 @@ export function planPublish(built: BuiltFile[], server: string[], out: string): 
   };
 }
 
-// The page with its inline manifest, a data file per shown file and per image file with a previewed
-// side, named by a hash of its text, each previewed image side, and the publish plan against the
-// server's paths. An image file with no previewed side carries its stubs in its manifest entry.
+// An image file with no previewed side gets no data file; its stubs go in its manifest entry.
 export function renderBuild(
   template: string,
   data: PageData,
@@ -1433,7 +1405,6 @@ export function renderBuild(
   return { manifest, files: output, images, publish: planPublish(built, server, out) };
 }
 
-// Writes the build into its directory, which must be new or empty.
 export function writeBuild(output: BuildOutput): void {
   const out = output.publish.out;
   if (existsSync(out) && (!statSync(out).isDirectory() || readdirSync(out).length)) {

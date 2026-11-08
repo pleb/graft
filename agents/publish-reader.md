@@ -18,7 +18,7 @@ You read files before they are published and report anything in them that should
 
 ## What to flag
 
-Content that should not be published: secrets, credentials, tokens, private keys, and personal data.
+Flag secrets, credentials, tokens, private keys, and personal data.
 
 ## Final report
 

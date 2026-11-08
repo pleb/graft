@@ -161,7 +161,6 @@ function dataOf(output: BuildOutput, path: string): FileData {
   return JSON.parse(output.files.get(manifestEntry(output, path).data!)!);
 }
 
-// Joins a data file's split text in place, as the page does when it arrives.
 function joinData(data: FileData): void {
   new Function(
     [
@@ -1467,7 +1466,6 @@ function gif(width: number, height: number, frames: number): Buffer {
   return Buffer.concat([head, ...Array.from({ length: frames }, () => frame), Buffer.from(";")]);
 }
 
-// A WebP whose first chunk is the given kind, sized width by height, with an ANIM chunk if asked.
 function webp(kind: "VP8 " | "VP8L" | "VP8X", width: number, height: number, anim = false) {
   const chunk = (fourcc: string, data: Buffer) => {
     const head = Buffer.alloc(8);
