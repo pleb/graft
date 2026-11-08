@@ -2,7 +2,7 @@
 name: publish-reader
 description: Reads files about to be published in full and reports content that should not be published, such as secrets, credentials and personal data. Use before publishing files, and give it their absolute paths.
 disallowedTools: Edit, Write, NotebookEdit
-model: sonnet
+model: haiku
 effort: medium
 color: orange
 ---
