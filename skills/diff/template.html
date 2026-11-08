@@ -407,6 +407,25 @@
   tr.line {
     position: relative;
   }
+  tr.expand td {
+    background: var(--hunk-bg);
+    color: var(--muted);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    padding: 2px 10px;
+    white-space: normal;
+  }
+  tr.expand button {
+    font: inherit;
+    background: none;
+    border: 0;
+    color: var(--accent);
+    cursor: pointer;
+    padding: 2px 6px;
+  }
+  tr.expand button:hover {
+    text-decoration: underline;
+  }
   .proto {
     font-size: 12px;
     color: var(--muted);
@@ -1132,61 +1151,189 @@
     }
   }
   // Column widths for the wrapped, fixed layout: line number columns sized to the largest number.
-  function colgroup(f, table, kinds) {
+  function colgroup(f, table, kinds, gaps) {
     let max = 0;
     for (const h of f.hunks) for (const l of h.lines) max = Math.max(max, l[1] || 0, l[2] || 0);
+    for (const g of gaps || []) max = Math.max(max, g.lines.at(-1)[1], g.lines.at(-1)[2]);
     table.style.setProperty("--num-w", "calc(" + Math.max(2, String(max).length) + "ch + 34px)");
     const g = el("colgroup");
     for (const k of kinds) g.append(el("col", k));
     table.append(g);
   }
+  function unifiedLine(f, fi, l, table) {
+    const [t, o, n, s] = l;
+    const k = t === "+" ? "add" : t === "-" ? "del" : "";
+    const tr = el("tr", "line");
+    const cells = [
+      td("num " + k, o),
+      td("num " + k, n),
+      td("sign " + k, t === " " ? "" : t === "-" ? "−" : "+"),
+      codeTd("code " + k, l),
+    ];
+    tr.append(...cells);
+    table.append(tr);
+    if (t === "-") addTarget(f, fi, "old", o, [cells[0], cells[1], cells[2], cells[3]], tr, s);
+    else {
+      if (t === " ") tr.dataset.alt = lineId(f, "old", o);
+      addTarget(f, fi, "new", n, [cells[1], cells[0], cells[2], cells[3]], tr, s);
+    }
+  }
   function unifiedRows(f, fi, h, table) {
     hunkRow(f, fi, h, table);
-    for (const l of h.lines) {
-      const [t, o, n, s] = l;
-      const k = t === "+" ? "add" : t === "-" ? "del" : "";
-      const tr = el("tr", "line");
-      const cells = [
-        td("num " + k, o),
-        td("num " + k, n),
-        td("sign " + k, t === " " ? "" : t === "-" ? "−" : "+"),
-        codeTd("code " + k, l),
-      ];
-      tr.append(...cells);
-      table.append(tr);
-      if (t === "-") addTarget(f, fi, "old", o, [cells[0], cells[1], cells[2], cells[3]], tr, s);
-      else {
-        if (t === " ") tr.dataset.alt = lineId(f, "old", o);
-        addTarget(f, fi, "new", n, [cells[1], cells[0], cells[2], cells[3]], tr, s);
+    for (const l of h.lines) unifiedLine(f, fi, l, table);
+  }
+  // The file's new lines, when every hunk's context and added lines match them; else null.
+  function alignedLines(f) {
+    if (f.content == null) return null;
+    const strip = (s) => s.replace(/\r$/, "");
+    const lines = f.content.split("\n");
+    if (lines.at(-1) === "") lines.pop();
+    for (const h of f.hunks) {
+      for (const l of h.lines) {
+        if (l[0] !== "-" && (l[2] > lines.length || strip(lines[l[2] - 1]) !== strip(l[3]))) {
+          return null;
+        }
       }
     }
+    return lines;
+  }
+  // The unchanged lines before, between and after the hunks, as context lines; `at` is the index of
+  // the hunk a gap precedes. Null when the hunks do not align with the content.
+  function contextGaps(f) {
+    const lines = alignedLines(f);
+    if (!lines) return null;
+    const endsNl = f.content.endsWith("\n");
+    const gaps = [];
+    let next = 1,
+      shift = 0;
+    // New lines from next up to `to`, at old = new + d; unchanged lines keep one offset on both sides.
+    const add = (at, to, d) => {
+      if (to <= next) return true;
+      if (d !== shift) return false;
+      const gap = { at, lines: [] };
+      for (let n = next; n < to; n++) {
+        const l = [" ", n + d, n, lines[n - 1]];
+        if (n === lines.length && !endsNl) l.push(1);
+        gap.lines.push(l);
+      }
+      gaps.push(gap);
+      return true;
+    };
+    for (let i = 0; i < f.hunks.length; i++) {
+      const m = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(f.hunks[i].header);
+      if (!m) return null;
+      const oc = m[2] == null ? 1 : +m[2];
+      const nc = m[4] == null ? 1 : +m[4];
+      // In an n,0 range, n is the line before the change.
+      const os = oc === 0 ? +m[1] + 1 : +m[1];
+      const ns = nc === 0 ? +m[3] + 1 : +m[3];
+      if (ns < next || ns + nc - 1 > lines.length || !add(i, ns, os - ns)) return null;
+      next = ns + nc;
+      shift = os + oc - next;
+    }
+    return add(f.hunks.length, lines.length + 1, shift) ? gaps : null;
+  }
+  const gapCache = new Map();
+  const gapsOf = (f) => {
+    if (!gapCache.has(f)) gapCache.set(f, contextGaps(f));
+    return gapCache.get(f);
+  };
+  // Per file path and gap, how many lines show from the gap's top and bottom; kept across re-renders.
+  const expanded = new Map();
+  const EXPAND_STEP = 20;
+  function gapState(f, at) {
+    if (!expanded.has(f.path)) expanded.set(f.path, new Map());
+    const states = expanded.get(f.path);
+    if (!states.has(at)) states.set(at, { top: 0, bottom: 0 });
+    return states.get(at);
+  }
+  // The gap before hunk `at` (or after the last): its shown lines, and expand controls while any are
+  // hidden. A gap holding a line with an open thread shows whole.
+  function gapRows(f, fi, gaps, at, table, line) {
+    const gap = gaps && gaps.find((g) => g.at === at);
+    if (!gap) return;
+    const L = gap.lines;
+    const s = gapState(f, at);
+    const has = (l) => known.has(lineId(f, "new", l[2])) || known.has(lineId(f, "old", l[1]));
+    if (L.slice(s.top, L.length - s.bottom).some(has)) s.top = L.length - s.bottom;
+    for (const l of L.slice(0, s.top)) line(l);
+    const hidden = L.length - s.top - s.bottom;
+    if (hidden > 0) table.append(expandRow(f, fi, gap, s, hidden));
+    for (const l of L.slice(L.length - s.bottom)) line(l);
+  }
+  // Down reveals lines below the hunk above, up reveals lines above the hunk below.
+  function expandRow(f, fi, gap, s, hidden) {
+    const tr = el("tr", "expand");
+    tr.setAttribute("data-uncommentable", "");
+    tr.dataset.gap = gap.at;
+    const c = td(null, hidden + (hidden === 1 ? " hidden line" : " hidden lines"));
+    c.colSpan = 4;
+    const step = Math.min(EXPAND_STEP, hidden);
+    const control = (dir, text, label, apply) => {
+      const b = el("button", null, text);
+      b.type = "button";
+      b.dataset.dir = dir;
+      b.setAttribute("aria-label", label);
+      b.addEventListener("click", () => {
+        apply();
+        renderFile(sections[fi], fi);
+        reportPins();
+        const again = sections[fi].querySelector(
+          'tr.expand[data-gap="' + gap.at + '"] button[data-dir="' + dir + '"]',
+        );
+        if (again) again.focus();
+      });
+      c.append(" ", b);
+    };
+    if (hidden <= EXPAND_STEP) {
+      control("all", "Show all", "Show " + hidden + " hidden lines", () => (s.top += hidden));
+    } else {
+      if (gap.at > 0) {
+        control("down", "↓ " + step, "Show " + step + " more lines below", () => (s.top += step));
+      }
+      if (gap.at < f.hunks.length) {
+        control("up", "↑ " + step, "Show " + step + " more lines above", () => (s.bottom += step));
+      }
+      control("all", "Show all", "Show all " + hidden + " hidden lines", () => (s.top += hidden));
+    }
+    tr.append(c);
+    return tr;
   }
   function renderUnified(f, fi, table) {
     table.className = "unified";
-    colgroup(f, table, ["cn", "cn", "cs", ""]);
-    for (const h of f.hunks) unifiedRows(f, fi, h, table);
+    const gaps = gapsOf(f);
+    colgroup(f, table, ["cn", "cn", "cs", ""], gaps);
+    const line = (l) => unifiedLine(f, fi, l, table);
+    f.hunks.forEach((h, hi) => {
+      gapRows(f, fi, gaps, hi, table, line);
+      unifiedRows(f, fi, h, table);
+    });
+    gapRows(f, fi, gaps, f.hunks.length, table, line);
   }
   function renderSplit(f, fi, table) {
     table.className = "split";
-    colgroup(f, table, ["cn", "", "cn", ""]);
-    for (const h of f.hunks) {
+    const gaps = gapsOf(f);
+    colgroup(f, table, ["cn", "", "cn", ""], gaps);
+    const row = (d, a) => {
+      const tr = el("tr", "line");
+      const ctx = d && a && d[0] === " ";
+      const left = d
+        ? [td("num" + (ctx ? "" : " del"), d[1]), codeTd("code" + (ctx ? "" : " del"), d)]
+        : [td("num empty"), td("code empty")];
+      const right = a
+        ? [td("num split" + (ctx ? "" : " add"), a[2]), codeTd("code" + (ctx ? "" : " add"), a)]
+        : [td("num split empty"), td("code empty")];
+      tr.append(...left, ...right);
+      table.append(tr);
+      if (d) addTarget(f, fi, "old", d[1], left, left[1], d[3]);
+      if (a) addTarget(f, fi, "new", a[2], right, right[1], a[3], d && !ctx ? d[1] : null);
+    };
+    const line = (l) => row(l, l);
+    f.hunks.forEach((h, hi) => {
+      gapRows(f, fi, gaps, hi, table, line);
       hunkRow(f, fi, h, table);
       const L = h.lines;
       let i = 0;
-      const row = (d, a) => {
-        const tr = el("tr", "line");
-        const ctx = d && a && d[0] === " ";
-        const left = d
-          ? [td("num" + (ctx ? "" : " del"), d[1]), codeTd("code" + (ctx ? "" : " del"), d)]
-          : [td("num empty"), td("code empty")];
-        const right = a
-          ? [td("num split" + (ctx ? "" : " add"), a[2]), codeTd("code" + (ctx ? "" : " add"), a)]
-          : [td("num split empty"), td("code empty")];
-        tr.append(...left, ...right);
-        table.append(tr);
-        if (d) addTarget(f, fi, "old", d[1], left, left[1], d[3]);
-        if (a) addTarget(f, fi, "new", a[2], right, right[1], a[3], d && !ctx ? d[1] : null);
-      };
       while (i < L.length) {
         if (L[i][0] === " ") {
           row(L[i], L[i]);
@@ -1199,7 +1346,8 @@
         while (i < L.length && L[i][0] === "+") adds.push(L[i++]);
         for (let j = 0; j < Math.max(dels.length, adds.length); j++) row(dels[j], adds[j]);
       }
-    }
+    });
+    gapRows(f, fi, gaps, f.hunks.length, table, line);
   }
 
   const VIEWS = {
@@ -1629,6 +1777,22 @@
       ? sections[fi]
       : null;
   }
+  // Shows the whole collapsed gap that holds an anchor's line, re-rendering its file.
+  function expandTo(anchor) {
+    const id = idOf(anchor);
+    const m = id && /^(f-[A-Za-z0-9_]*)-(old|new)-(\d+)$/.exec(id);
+    const fi = m ? DIFF.files.findIndex((f) => f.id === m[1]) : -1;
+    if (fi < 0 || targetFor(anchor)) return;
+    const f = DIFF.files[fi];
+    const v = f.hunks && fileView(f);
+    if (v !== "unified" && v !== "split") return;
+    const col = m[2] === "old" ? 1 : 2;
+    const gap = (gapsOf(f) || []).find((g) => g.lines.some((l) => l[col] === +m[3]));
+    if (!gap) return;
+    const s = gapState(f, gap.at);
+    s.top = gap.lines.length - s.bottom;
+    renderFile(sections[fi], fi);
+  }
   function reportPins() {
     if (!anchors) return;
     const map = {};
@@ -1794,6 +1958,7 @@
         },
         reveal(id) {
           const t = threads.find((x) => x.id === id);
+          if (t) expandTo(t.anchor);
           const target = t && (targetFor(t.anchor) || loadingSection(t.anchor));
           if (!target) return;
           const sec = target.closest("section.file");

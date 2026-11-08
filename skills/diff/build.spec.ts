@@ -1417,31 +1417,57 @@ function templateSource(start: string): string {
   return TEMPLATE.slice(from, TEMPLATE.indexOf("\n  }", from) + 5);
 }
 
+// The template's unified rendering, with the given open thread ids.
+function unifiedRenderer(known: Set<string>) {
+  const source = [
+    templateSource("const el = "),
+    templateSource("const lineId = "),
+    templateSource("const td = "),
+    templateSource("const onComment = "),
+    templateSource("function commentIcon("),
+    templateSource("function hunkRow("),
+    templateSource("function colgroup("),
+    templateSource("function addTarget("),
+    templateSource("function codeTd("),
+    templateSource("function unifiedLine("),
+    templateSource("function unifiedRows("),
+    templateSource("function alignedLines("),
+    templateSource("function contextGaps("),
+    templateSource("const gapCache = "),
+    templateSource("const gapsOf = "),
+    templateSource("const expanded = "),
+    templateSource("const EXPAND_STEP = "),
+    templateSource("function gapState("),
+    templateSource("function gapRows("),
+    templateSource("function expandRow("),
+    templateSource("function renderUnified("),
+    "return { renderUnified, gapState };",
+  ].join("\n");
+  const document = { createElement: (tag: string) => new FakeElement(tag) };
+  return new Function("document", "known", "comments", "targets", "ICON", source)(
+    document,
+    known,
+    {},
+    [{ old: [], new: [] }],
+    "",
+  );
+}
+
+// A file's hunks from git's diff of two texts, with the default three lines of context.
+function hunksOf(base: string, next: string) {
+  const dir = tempDir();
+  write(dir, { a: base, b: next });
+  const out = spawnSync("git", ["diff", "--no-index", "--", "a", "b"], {
+    cwd: dir,
+    encoding: "utf8",
+  }).stdout;
+  return parseDiff(out)[0].hunks;
+}
+
 describe("template", () => {
   it("marks a hunk row by its new start line and a unified context row by its old-side id", () => {
-    const source = [
-      templateSource("const el = "),
-      templateSource("const lineId = "),
-      templateSource("const td = "),
-      templateSource("const onComment = "),
-      templateSource("function commentIcon("),
-      templateSource("function hunkRow("),
-      templateSource("function colgroup("),
-      templateSource("function addTarget("),
-      templateSource("function codeTd("),
-      templateSource("function unifiedRows("),
-      templateSource("function renderUnified("),
-      "return renderUnified;",
-    ].join("\n");
-    const document = { createElement: (tag: string) => new FakeElement(tag) };
     const known = new Set(["f-a-old-3", "f-a-hunk-5"]);
-    const renderUnified = new Function("document", "known", "comments", "targets", "ICON", source)(
-      document,
-      known,
-      {},
-      [{ old: [], new: [] }],
-      "",
-    );
+    const { renderUnified } = unifiedRenderer(known);
     const table = new FakeElement("table");
     const header = "@@ -3 +5 @@ context";
     const file = { id: "f-a", path: "a", hunks: [{ header, lines: [[" ", 3, 5, "x"]] }] };
@@ -1547,6 +1573,116 @@ describe("template", () => {
       "rendered",
     ]);
     expect(views({ path: "a.svg", status: "D", hunks })).toEqual(["unified"]);
+  });
+
+  describe("expandable context", () => {
+    const alignedLines = new Function(
+      `${templateSource("function alignedLines(")}\nreturn alignedLines;`,
+    )();
+    const contextGaps = new Function(
+      [
+        templateSource("function alignedLines("),
+        templateSource("function contextGaps("),
+        "return contextGaps;",
+      ].join("\n"),
+    )();
+    // Each gap as [hunk index it precedes, first old line, first new line, line count].
+    function gaps(content: string, hunks: unknown) {
+      const result = contextGaps({ content, hunks });
+      return (
+        result &&
+        result.map((g: { at: number; lines: unknown[][] }) => [
+          g.at,
+          g.lines[0][1],
+          g.lines[0][2],
+          g.lines.length,
+        ])
+      );
+    }
+
+    it("finds the gaps at the top, between hunks and at the end, with old lines from hunk offsets", () => {
+      const base = lines("line", 100);
+      const next = base.replace("line 10\n", "ten\n").replace("line 60\n", "sixty\nextra\n");
+      const hunks = hunksOf(base, next);
+      expect(gaps(next, hunks)).toEqual([
+        [0, 1, 1, 6],
+        [1, 14, 14, 43],
+        [2, 64, 65, 37],
+      ]);
+      const end = contextGaps({ content: next, hunks }).at(-1).lines;
+      expect(end[0]).toEqual([" ", 64, 65, "line 64"]);
+      expect(end.at(-1)).toEqual([" ", 100, 101, "line 100"]);
+    });
+
+    it("for a single hunk, marking the last line when the file has no final newline", () => {
+      const base = lines("line", 50);
+      for (const [content, last] of [
+        [base, [" ", 50, 50, "line 50"]],
+        [base.slice(0, -1), [" ", 50, 50, "line 50", 1]],
+      ] as const) {
+        const next = content.replace("line 20\n", "twenty\n");
+        const hunks = hunksOf(content, next);
+        expect(hunks).toHaveLength(1);
+        expect(gaps(next, hunks)).toEqual([
+          [0, 1, 1, 16],
+          [1, 24, 24, 27],
+        ]);
+        expect(contextGaps({ content: next, hunks }).at(-1).lines.at(-1)).toEqual(last);
+      }
+    });
+
+    it("finds no gaps when the hunks cover the file", () => {
+      const [added] = parseDiff(
+        "diff --git a/b b/b\nnew file mode 100644\n--- /dev/null\n+++ b/b\n@@ -0,0 +1,3 @@\n+a\n+b\n+c\n",
+      );
+      expect(gaps("a\nb\nc\n", added.hunks)).toEqual([]);
+      const base = lines("line", 5);
+      const next = base.replace("line 3\n", "three\n");
+      expect(gaps(next, hunksOf(base, next))).toEqual([]);
+      const noNl = lines("line", 4).slice(0, -1);
+      const four = noNl.replace("line 4", "four");
+      expect(gaps(four, hunksOf(noNl, four))).toEqual([]);
+    });
+
+    it("checks the hunks align with the content", () => {
+      const [file] = parseDiff(
+        "diff --git a/a b/a\nindex 1..2 100644\n--- a/a\n+++ b/a\n@@ -1,2 +1,2 @@\n a\n-b\n+c\n",
+      );
+      expect(alignedLines({ content: "a\nc\nd\n", hunks: file.hunks })).toEqual(["a", "c", "d"]);
+      expect(gaps("a\nc\nd\n", file.hunks)).toEqual([[1, 3, 3, 1]]);
+      for (const content of ["x\nc\nd\n", "a\nb\nd\n", "a\n", undefined]) {
+        expect(alignedLines({ content, hunks: file.hunks })).toBeNull();
+        expect(contextGaps({ content, hunks: file.hunks })).toBeNull();
+      }
+    });
+
+    it("renders expand rows and opens a gap that holds an open thread's line", () => {
+      const base = lines("line", 100);
+      const next = base.replace("line 50\n", "fifty\n");
+      const file = { id: "f-a", path: "a", hunks: hunksOf(base, next), content: next };
+      const rows = (known: Set<string>, state?: { top: number; bottom: number }) => {
+        const { renderUnified, gapState } = unifiedRenderer(known);
+        if (state) Object.assign(gapState(file, 0), state);
+        const table = new FakeElement("table");
+        renderUnified(file, 0, table);
+        return table.children
+          .slice(1)
+          .map((row) => (row.className === "expand" ? `expand ${row.dataset.gap}` : row.id));
+      };
+      const hunk = ["f-a-hunk-47", ...[47, 48, 49, 50, 50, 51, 52, 53].map((n) => `f-a-new-${n}`)];
+      hunk[4] = "f-a-old-50";
+      expect(rows(new Set())).toEqual(["expand 0", ...hunk, "expand 1"]);
+      const top = Array.from({ length: 46 }, (_, i) => `f-a-new-${i + 1}`);
+      expect(rows(new Set(["f-a-new-10"]))).toEqual([...top, ...hunk, "expand 1"]);
+      expect(rows(new Set(), { top: 0, bottom: 20 })).toEqual([
+        "expand 0",
+        ...top.slice(26),
+        ...hunk,
+        "expand 1",
+      ]);
+      const tail = Array.from({ length: 47 }, (_, i) => `f-a-new-${i + 54}`);
+      expect(rows(new Set(["f-a-old-99"]))).toEqual(["expand 0", ...hunk, ...tail]);
+    });
   });
 
   describe("rebuilds a Markdown file's old source", () => {
