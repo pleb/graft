@@ -71,9 +71,7 @@ Show the user the three lines from `Wrote` on.
 
 Read `<output directory>/publish.json`. Read no other file in the output directory.
 
-For each entry in `batches`, run a `general-purpose` agent, all in parallel, with this brief and the batch's paths, each as `<output directory>/<path>`:
-
-> Read every listed file in full with `Read`, in parts when it is long; view images with `Read`. Confirm each path you read in full. Report content that should not be published (secrets, credentials, personal data) with its path, location and why, or that there is nothing to flag.
+For each entry in `batches`, run a `graft:publish-reader` agent, all in parallel, with the batch's paths, each as `<output directory>/<path>`.
 
 On a finding, or a path a reader did not read in full, find its repo file in `send[].source` (null is `index.html`, the manifest; name the files it lists when relevant), ask the user whether to exclude that file, and rerun `## Build` with the exclusion and then this section.
 
