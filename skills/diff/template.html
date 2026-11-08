@@ -76,8 +76,6 @@
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
     padding-block: 16px 48px;
-    max-width: 1600px;
-    margin: 0 auto;
     display: grid;
     gap: 16px;
   }
@@ -91,6 +89,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 12px 24px;
+    container-type: inline-size;
   }
   .summary h1 {
     font-size: 17px;
@@ -283,6 +282,11 @@
     overflow: hidden;
     scroll-margin-top: 12px;
   }
+  /* Offscreen file bodies skip layout and paint; each body's size estimate is set in renderFile. */
+  .fbody {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 120px;
+  }
   .fhead {
     display: flex;
     flex-wrap: wrap;
@@ -328,7 +332,8 @@
     color: var(--muted);
     cursor: pointer;
   }
-  .fhead .fold {
+  .fhead .fold,
+  .imgov-head .fold {
     font: inherit;
     font-size: 13px;
     background: none;
@@ -406,6 +411,25 @@
   }
   tr.line {
     position: relative;
+  }
+  tr.expand td {
+    background: var(--hunk-bg);
+    color: var(--muted);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    padding: 2px 10px;
+    white-space: normal;
+  }
+  tr.expand button {
+    font: inherit;
+    background: none;
+    border: 0;
+    color: var(--accent);
+    cursor: pointer;
+    padding: 2px 6px;
+  }
+  tr.expand button:hover {
+    text-decoration: underline;
   }
   .proto {
     font-size: 12px;
@@ -636,11 +660,60 @@
   body.commenting .fhead .path:hover {
     text-decoration: underline dotted var(--accent);
   }
-  .wrapopt {
+  .settings {
+    position: relative;
+    margin-left: auto;
+  }
+  .gear {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .gear:hover,
+  .gear[aria-expanded="true"] {
+    background: var(--sunken);
+    color: var(--fg);
+  }
+  .menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 20;
+    box-sizing: border-box;
+    width: max-content;
+    /* The menu's right edge is the summary's content edge, which sits over 16px inside the viewport. */
+    max-width: 100cqw;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 8px 12px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+    padding: 12px;
+    display: grid;
+    gap: 12px;
+  }
+  .menu[hidden] {
+    display: none;
+  }
+  .menu .mlabel {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .menu .seg {
+    flex-wrap: wrap;
+  }
+  .menu .seg button {
+    padding: 6px 8px;
+  }
+  .menu .mcheck {
     display: flex;
     gap: 8px;
     align-items: center;
@@ -766,6 +839,79 @@
     color: #5d6778;
     font-size: 13px;
   }
+  .imgcmp.one,
+  .imgov-body.one {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .imgcmp.one figure {
+    max-width: 50%;
+  }
+  .imgdim {
+    margin-left: 8px;
+    font-weight: 400;
+  }
+  button.svgpane {
+    width: 100%;
+    font: inherit;
+    cursor: zoom-in;
+  }
+  .imgcmp .svgpane img {
+    max-height: 360px;
+    object-fit: contain;
+  }
+  .imgov {
+    width: min(1600px, calc(100vw - 32px));
+    max-width: none;
+    max-height: calc(100vh - 32px);
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--fg);
+  }
+  .imgov::backdrop {
+    background: rgba(0, 0, 0, 0.6);
+  }
+  .imgov-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .imgov-head h2 {
+    flex: 1;
+    margin: 0;
+    font-family: var(--font-code);
+    font-size: 14px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .imgov-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+  }
+  .imgov-body figure {
+    margin: 0;
+    min-width: 0;
+  }
+  .imgov-body figcaption {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .imgov-body .svgpane img {
+    width: 100%;
+    height: auto;
+    max-height: calc(100vh - 150px);
+    object-fit: contain;
+  }
+  .imgov-body.pixel .svgpane img {
+    image-rendering: pixelated;
+  }
   .chunk + .chunk {
     border-top: 1px solid var(--border);
   }
@@ -820,8 +966,12 @@
   }
   @media (max-width: 760px) {
     .svgcmp,
+    .imgov-body,
     .cpanes {
       grid-template-columns: 1fr;
+    }
+    .imgcmp.one figure {
+      max-width: none;
     }
   }
   @media (max-width: 860px) {
@@ -835,8 +985,53 @@
   <header class="summary">
     <h1 id="title"></h1>
     <div class="meta" id="meta"></div>
+    <div class="settings" id="settings" data-uncommentable>
+      <button
+        type="button"
+        class="gear"
+        id="settings-btn"
+        aria-label="Settings"
+        aria-expanded="false"
+        aria-controls="settings-menu"
+      >
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+          <g fill="none" stroke="currentColor">
+            <circle cx="8" cy="8" r="6" stroke-width="2.4" stroke-dasharray="2.356 2.356" />
+            <circle cx="8" cy="8" r="4.2" stroke-width="2" />
+          </g>
+        </svg>
+      </button>
+      <div class="menu" id="settings-menu" hidden>
+        <div>
+          <span class="mlabel" id="theme-label">Theme</span>
+          <div class="seg" role="group" aria-labelledby="theme-label" id="theme-seg">
+            <button type="button" data-value="system">System</button>
+            <button type="button" data-value="light">Light</button>
+            <button type="button" data-value="dark">Dark</button>
+          </div>
+        </div>
+        <div>
+          <span class="mlabel" id="md-label">Default view for Markdown files</span>
+          <div class="seg" role="group" aria-labelledby="md-label" id="md-seg">
+            <button type="button" data-value="unified">Unified</button>
+            <button type="button" data-value="split">Side-by-side</button>
+            <button type="button" data-value="rendered">Rendered</button>
+            <button type="button" data-value="chunked">Chunked</button>
+          </div>
+        </div>
+        <div>
+          <span class="mlabel" id="svg-label">Default view for SVG files</span>
+          <div class="seg" role="group" aria-labelledby="svg-label" id="svg-seg">
+            <button type="button" data-value="unified">Unified</button>
+            <button type="button" data-value="split">Side-by-side</button>
+            <button type="button" data-value="rendered">Rendered</button>
+          </div>
+        </div>
+        <label class="mcheck"><input type="checkbox" id="wrap" /> Wrap lines</label>
+      </div>
+    </div>
     <div class="proto" style="flex-basis: 100%">
-      Comments are collected; nothing changes until you press Finish review.
+      Send each comment to Claude; Claude replies in its thread.
       <span id="comment-hint" hidden
         >Turn on comment mode, then click a line, hunk header, file path or rendered block to
         comment on it.</span
@@ -848,13 +1043,8 @@
     <aside class="side">
       <div class="finish" id="finish-review">
         <button type="button" class="act" id="act" hidden>Finish review</button>
-        <span class="hint" id="act-hint"
-          >When you are done, tell Claude in the terminal to act on your comments.</span
-        >
+        <span class="hint" id="act-hint">When you are done, tell Claude in the terminal.</span>
       </div>
-      <label class="wrapopt" data-uncommentable
-        ><input type="checkbox" id="wrap" /> Wrap lines</label
-      >
       <details class="files" id="files" open data-uncommentable>
         <summary>
           <span
@@ -894,9 +1084,12 @@
   DIFF.threads = DIFF.threads.map(joined);
   for (const f of DIFF.files) {
     for (const k of ["id", "path", "oldPath", "stub", "note"]) if (k in f) f[k] = joined(f[k]);
-    for (const h of f.hunks || []) for (const l of h.lines) l[3] = joined(l[3]);
-    if (f.content) f.content = f.content.map(joined).join("\n");
-    for (const k of ["svgOld", "svgNew"]) if (f[k]) f[k] = f[k].map(joined).join("\n");
+  }
+  function joinData(d) {
+    for (const h of d.hunks) for (const l of h.lines) l[3] = joined(l[3]);
+    if (d.content) d.content = d.content.map(joined).join("\n");
+    for (const k of ["svgOld", "svgNew"]) if (d[k]) d[k] = d[k].map(joined).join("\n");
+    return d;
   }
 
   const $ = (id) => document.getElementById(id);
@@ -922,12 +1115,17 @@
   const sections = [];
 
   const counts = (f) => ({ add: f.add, del: f.del });
+  const noChanges = "No changes against " + DIFF.base;
+  // Values set in this page view, so settings hold when storage is unavailable.
+  const stored = new Map();
   function store(key, value) {
+    stored.set(key, value ?? null);
     try {
       value == null ? localStorage.removeItem(key) : localStorage.setItem(key, value);
     } catch {}
   }
   function load(key) {
+    if (stored.has(key)) return stored.get(key);
     try {
       return localStorage.getItem(key);
     } catch {
@@ -990,8 +1188,12 @@
     li.classList.toggle("cur", fi === current);
     const a = el("a");
     a.href = "#" + f.id;
-    a.addEventListener("click", () => setCurrent(fi, false));
-    const st = f.binary ? "B" : f.status;
+    a.addEventListener("click", (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      setCurrent(fi, true);
+    });
+    const st = f.binary && !f.isImage ? "B" : f.status;
     a.append(el("span", "st st-" + st, st), el("span", "p", label));
     a.title = f.path;
     const n = el("span", "n");
@@ -1001,10 +1203,14 @@
     return li;
   }
   function renderList() {
-    const tree = load("list-layout") === "tree";
+    const tree = (load("list-layout") ?? DIFF.fileList) === "tree";
     $("list-flat").setAttribute("aria-pressed", String(!tree));
     $("list-tree").setAttribute("aria-pressed", String(tree));
     $("files-total").textContent = DIFF.files.length;
+    if (!DIFF.files.length) {
+      $("file-list").replaceChildren(el("li", "note", noChanges));
+      return;
+    }
     const viewed = DIFF.files.filter(isViewed).length;
     $("files-viewed").textContent = "· " + viewed + " viewed";
     const ol = $("file-list");
@@ -1051,7 +1257,7 @@
     build(root, ol, "");
   }
   $("list-flat").addEventListener("click", () => {
-    store("list-layout", null);
+    store("list-layout", "flat");
     renderList();
   });
   $("list-tree").addEventListener("click", () => {
@@ -1129,61 +1335,194 @@
     }
   }
   // Column widths for the wrapped, fixed layout: line number columns sized to the largest number.
-  function colgroup(f, table, kinds) {
+  function colgroup(f, table, kinds, gaps) {
     let max = 0;
     for (const h of f.hunks) for (const l of h.lines) max = Math.max(max, l[1] || 0, l[2] || 0);
+    for (const g of gaps || []) max = Math.max(max, g.lines.at(-1)[1], g.lines.at(-1)[2]);
     table.style.setProperty("--num-w", "calc(" + Math.max(2, String(max).length) + "ch + 34px)");
     const g = el("colgroup");
     for (const k of kinds) g.append(el("col", k));
     table.append(g);
   }
+  function unifiedLine(f, fi, l, table) {
+    const [t, o, n, s] = l;
+    const k = t === "+" ? "add" : t === "-" ? "del" : "";
+    const tr = el("tr", "line");
+    const cells = [
+      td("num " + k, o),
+      td("num " + k, n),
+      td("sign " + k, t === " " ? "" : t === "-" ? "−" : "+"),
+      codeTd("code " + k, l),
+    ];
+    tr.append(...cells);
+    table.append(tr);
+    if (t === "-") addTarget(f, fi, "old", o, [cells[0], cells[1], cells[2], cells[3]], tr, s);
+    else {
+      if (t === " ") tr.dataset.alt = lineId(f, "old", o);
+      addTarget(f, fi, "new", n, [cells[1], cells[0], cells[2], cells[3]], tr, s);
+    }
+  }
   function unifiedRows(f, fi, h, table) {
     hunkRow(f, fi, h, table);
-    for (const l of h.lines) {
-      const [t, o, n, s] = l;
-      const k = t === "+" ? "add" : t === "-" ? "del" : "";
-      const tr = el("tr", "line");
-      const cells = [
-        td("num " + k, o),
-        td("num " + k, n),
-        td("sign " + k, t === " " ? "" : t === "-" ? "−" : "+"),
-        codeTd("code " + k, l),
-      ];
-      tr.append(...cells);
-      table.append(tr);
-      if (t === "-") addTarget(f, fi, "old", o, [cells[0], cells[1], cells[2], cells[3]], tr, s);
-      else {
-        if (t === " ") tr.dataset.alt = lineId(f, "old", o);
-        addTarget(f, fi, "new", n, [cells[1], cells[0], cells[2], cells[3]], tr, s);
+    for (const l of h.lines) unifiedLine(f, fi, l, table);
+  }
+  function alignedLines(f) {
+    if (f.content == null) return null;
+    const strip = (s) => s.replace(/\r$/, "");
+    const lines = f.content.split("\n");
+    if (lines.at(-1) === "") lines.pop();
+    for (const h of f.hunks) {
+      for (const l of h.lines) {
+        if (l[0] !== "-" && (l[2] > lines.length || strip(lines[l[2] - 1]) !== strip(l[3]))) {
+          return null;
+        }
       }
     }
+    return lines;
+  }
+  // A gap's `at` is the index of the hunk it precedes, or hunks.length after the last.
+  function contextGaps(f) {
+    const lines = alignedLines(f);
+    if (!lines) return null;
+    const endsNl = f.content.endsWith("\n");
+    const gaps = [];
+    let next = 1,
+      shift = 0;
+    // New lines from next up to `to`, at old = new + d; unchanged lines keep one offset on both sides.
+    const add = (at, to, d) => {
+      if (to <= next) return true;
+      if (d !== shift) return false;
+      const gap = { at, lines: [] };
+      for (let n = next; n < to; n++) {
+        const l = [" ", n + d, n, lines[n - 1]];
+        if (n === lines.length && !endsNl) l.push(1);
+        gap.lines.push(l);
+      }
+      gaps.push(gap);
+      return true;
+    };
+    for (let i = 0; i < f.hunks.length; i++) {
+      const m = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(f.hunks[i].header);
+      if (!m) return null;
+      const oc = m[2] == null ? 1 : +m[2];
+      const nc = m[4] == null ? 1 : +m[4];
+      // In an n,0 range, n is the line before the change.
+      const os = oc === 0 ? +m[1] + 1 : +m[1];
+      const ns = nc === 0 ? +m[3] + 1 : +m[3];
+      if (ns < next || ns + nc - 1 > lines.length || !add(i, ns, os - ns)) return null;
+      next = ns + nc;
+      shift = os + oc - next;
+    }
+    return add(f.hunks.length, lines.length + 1, shift) ? gaps : null;
+  }
+  const gapCache = new Map();
+  const gapsOf = (f) => {
+    if (!gapCache.has(f)) gapCache.set(f, contextGaps(f));
+    return gapCache.get(f);
+  };
+  // Per file path and gap, how many lines show from the gap's top and bottom; kept across re-renders.
+  const expanded = new Map();
+  const EXPAND_STEP = 20;
+  function gapState(f, at) {
+    if (!expanded.has(f.path)) expanded.set(f.path, new Map());
+    const states = expanded.get(f.path);
+    if (!states.has(at)) states.set(at, { top: 0, bottom: 0 });
+    return states.get(at);
+  }
+  // A gap holding a line with an open thread shows whole.
+  function gapRows(f, fi, gaps, at, table, line) {
+    const gap = gaps && gaps.find((g) => g.at === at);
+    if (!gap) return;
+    const L = gap.lines;
+    const s = gapState(f, at);
+    const has = (l) => known.has(lineId(f, "new", l[2])) || known.has(lineId(f, "old", l[1]));
+    if (L.slice(s.top, L.length - s.bottom).some(has)) s.top = L.length - s.bottom;
+    for (const l of L.slice(0, s.top)) line(l);
+    const hidden = L.length - s.top - s.bottom;
+    if (hidden > 0) table.append(expandRow(f, fi, gap, s, hidden));
+    for (const l of L.slice(L.length - s.bottom)) line(l);
+  }
+  // Down reveals lines below the hunk above, up reveals lines above the hunk below.
+  function expandRow(f, fi, gap, s, hidden) {
+    const tr = el("tr", "expand");
+    tr.setAttribute("data-uncommentable", "");
+    tr.dataset.gap = gap.at;
+    const c = td(null, hidden + (hidden === 1 ? " hidden line" : " hidden lines"));
+    c.colSpan = 4;
+    const step = Math.min(EXPAND_STEP, hidden);
+    const control = (dir, text, label, apply) => {
+      const b = el("button", null, text);
+      b.type = "button";
+      b.dataset.dir = dir;
+      b.setAttribute("aria-label", label);
+      b.addEventListener("click", () => {
+        const index = tr.rowIndex;
+        apply();
+        renderFile(sections[fi], fi);
+        reportPins();
+        const again = sections[fi].querySelector(
+          'tr.expand[data-gap="' + gap.at + '"] button[data-dir="' + dir + '"]',
+        );
+        if (again) return again.focus();
+        // The expand row is gone: focus the first line shown in its place, else the next hunk header.
+        const rows = [...(sections[fi].querySelector("table")?.rows || [])].slice(index);
+        const next =
+          rows.find((r) => r.matches("tr.line")) || rows.find((r) => r.matches("tr.hunk"));
+        if (!next) return;
+        next.tabIndex = -1;
+        next.focus();
+      });
+      c.append(" ", b);
+    };
+    if (hidden <= EXPAND_STEP) {
+      control("all", "Show all", "Show " + hidden + " hidden lines", () => (s.top += hidden));
+    } else {
+      if (gap.at > 0) {
+        control("down", "↓ " + step, "Show " + step + " more lines below", () => (s.top += step));
+      }
+      if (gap.at < f.hunks.length) {
+        control("up", "↑ " + step, "Show " + step + " more lines above", () => (s.bottom += step));
+      }
+      control("all", "Show all", "Show all " + hidden + " hidden lines", () => (s.top += hidden));
+    }
+    tr.append(c);
+    return tr;
   }
   function renderUnified(f, fi, table) {
     table.className = "unified";
-    colgroup(f, table, ["cn", "cn", "cs", ""]);
-    for (const h of f.hunks) unifiedRows(f, fi, h, table);
+    const gaps = gapsOf(f);
+    colgroup(f, table, ["cn", "cn", "cs", ""], gaps);
+    const line = (l) => unifiedLine(f, fi, l, table);
+    f.hunks.forEach((h, hi) => {
+      gapRows(f, fi, gaps, hi, table, line);
+      unifiedRows(f, fi, h, table);
+    });
+    gapRows(f, fi, gaps, f.hunks.length, table, line);
   }
   function renderSplit(f, fi, table) {
     table.className = "split";
-    colgroup(f, table, ["cn", "", "cn", ""]);
-    for (const h of f.hunks) {
+    const gaps = gapsOf(f);
+    colgroup(f, table, ["cn", "", "cn", ""], gaps);
+    const row = (d, a) => {
+      const tr = el("tr", "line");
+      const ctx = d && a && d[0] === " ";
+      const left = d
+        ? [td("num" + (ctx ? "" : " del"), d[1]), codeTd("code" + (ctx ? "" : " del"), d)]
+        : [td("num empty"), td("code empty")];
+      const right = a
+        ? [td("num split" + (ctx ? "" : " add"), a[2]), codeTd("code" + (ctx ? "" : " add"), a)]
+        : [td("num split empty"), td("code empty")];
+      tr.append(...left, ...right);
+      table.append(tr);
+      if (d) addTarget(f, fi, "old", d[1], left, left[1], d[3]);
+      if (a) addTarget(f, fi, "new", a[2], right, right[1], a[3], d && !ctx ? d[1] : null);
+    };
+    const line = (l) => row(l, l);
+    f.hunks.forEach((h, hi) => {
+      gapRows(f, fi, gaps, hi, table, line);
       hunkRow(f, fi, h, table);
       const L = h.lines;
       let i = 0;
-      const row = (d, a) => {
-        const tr = el("tr", "line");
-        const ctx = d && a && d[0] === " ";
-        const left = d
-          ? [td("num" + (ctx ? "" : " del"), d[1]), codeTd("code" + (ctx ? "" : " del"), d)]
-          : [td("num empty"), td("code empty")];
-        const right = a
-          ? [td("num split" + (ctx ? "" : " add"), a[2]), codeTd("code" + (ctx ? "" : " add"), a)]
-          : [td("num split empty"), td("code empty")];
-        tr.append(...left, ...right);
-        table.append(tr);
-        if (d) addTarget(f, fi, "old", d[1], left, left[1], d[3]);
-        if (a) addTarget(f, fi, "new", a[2], right, right[1], a[3], d && !ctx ? d[1] : null);
-      };
       while (i < L.length) {
         if (L[i][0] === " ") {
           row(L[i], L[i]);
@@ -1196,7 +1535,8 @@
         while (i < L.length && L[i][0] === "+") adds.push(L[i++]);
         for (let j = 0; j < Math.max(dels.length, adds.length); j++) row(dels[j], adds[j]);
       }
-    }
+    });
+    gapRows(f, fi, gaps, f.hunks.length, table, line);
   }
 
   const VIEWS = {
@@ -1204,31 +1544,56 @@
     split: "Side-by-side",
     rendered: "Rendered",
     chunked: "Chunked",
+    comparison: "Comparison",
   };
-  const isSvg = (f) => f.svgOld != null || f.svgNew != null;
+  // An SVG's new text is in content when the file has content, else in svgNew (fileData in build-lib.ts).
+  const svgNew = (f) => f.svgNew ?? f.content;
+  // Rendered needs each side the file's status has: the new one unless deleted, the old one unless added.
+  const isSvg = (f) => {
+    const old = f.status === "A" || f.svgOld != null;
+    return /\.svg$/i.test(f.path) && old && (f.status === "D" || svgNew(f) != null);
+  };
   const olds = new Map();
   const oldOf = (f) => {
     if (!olds.has(f)) olds.set(f, oldSource(f));
     return olds.get(f);
   };
   function views(f) {
+    if (f.isImage) return ["comparison"];
     const list = ["unified"];
     const both = f.status !== "A" && f.status !== "D";
     if (both && !narrowMq.matches) list.push("split");
-    if ((f.content != null && mdReady) || isSvg(f)) list.push("rendered");
-    if (both && f.content != null && mdReady && oldOf(f) != null) list.push("chunked");
+    const md = f.isMarkdown && f.content != null && mdReady;
+    if (md || isSvg(f)) list.push("rendered");
+    if (both && md && oldOf(f) != null) list.push("chunked");
     return list;
   }
+  // Markdown and SVG files open in the view chosen in Settings; other files open side by side.
+  const typeDefaults = {
+    markdown: { key: "default:markdown", fallback: "chunked" },
+    svg: { key: "default:svg", fallback: "split" },
+  };
+  function typeOf(f) {
+    if (f.isImage) return null;
+    return f.isMarkdown ? "markdown" : /\.svg$/i.test(f.path) ? "svg" : null;
+  }
+  const typeDefault = (type) => load(typeDefaults[type].key) || typeDefaults[type].fallback;
+  // Per file path, the view a reveal switched to for this page view; not saved.
+  const revealViews = new Map();
   function fileView(f) {
     const list = views(f);
+    if (list.includes(revealViews.get(f.path))) return revealViews.get(f.path);
     const saved = load(viewKey(f.path));
     if (list.includes(saved)) return saved;
-    return list.includes("split") ? "split" : "unified";
+    const type = typeOf(f);
+    if (type && list.includes(typeDefault(type))) return typeDefault(type);
+    return list.includes("split") ? "split" : list[0];
   }
   function setView(fi, v) {
     const f = DIFF.files[fi];
     if (!f.hunks || !views(f).includes(v)) return;
-    store(viewKey(f.path), v === "split" ? null : v);
+    revealViews.delete(f.path);
+    store(viewKey(f.path), v === "split" && !typeOf(f) ? null : v);
     renderFile(sections[fi], fi);
     reportPins();
   }
@@ -1393,7 +1758,7 @@
   function renderSvg(f, box) {
     for (const [label, svg] of [
       ["Before", f.svgOld],
-      ["After", f.svgNew],
+      ["After", svgNew(f)],
     ]) {
       const fig = el("figure");
       fig.append(el("figcaption", null, label));
@@ -1409,13 +1774,91 @@
       box.append(fig);
     }
   }
+  // An image file's sides as [label, image path, stub, [width, height]]: old unless added, new unless deleted.
+  function imagePanes(f) {
+    const panes = [];
+    if (f.status !== "A") panes.push(["Before", f.imgOld, f.stubOld, f.sizeOld]);
+    if (f.status !== "D") panes.push(["After", f.imgNew, f.stubNew, f.sizeNew]);
+    return panes;
+  }
+  function imageFigures(f, box, open) {
+    const panes = imagePanes(f);
+    box.classList.toggle("one", panes.length === 1);
+    for (const [label, src, stub, size] of panes) {
+      const fig = el("figure");
+      const cap = el("figcaption", null, label);
+      if (size) cap.append(el("span", "imgdim", size[0] + " × " + size[1]));
+      let pane;
+      if (src && open) {
+        pane = el("button", "svgpane");
+        pane.type = "button";
+        pane.setAttribute("aria-label", "Enlarge comparison: " + f.path);
+        pane.addEventListener("click", () => open(pane));
+      } else pane = el("div", "svgpane");
+      if (src) {
+        const img = el("img");
+        img.alt = label + ": " + f.path;
+        if (size) [img.width, img.height] = size;
+        img.addEventListener("load", reportPins);
+        img.addEventListener("error", reportPins);
+        img.src = src;
+        pane.append(img);
+      } else pane.append(el("span", "svgnone", stub || "No preview."));
+      fig.append(cap, pane);
+      box.append(fig);
+    }
+  }
+  let imgDialog = null;
+  let imgReturn = null;
+  let imgReturnId = null;
+  // Images this small or smaller on both sides show pixelated when the overlay enlarges them.
+  const PIXEL_EDGE = 256;
+  function openImages(f, from) {
+    if (!imgDialog) {
+      imgDialog = el("dialog", "imgov");
+      imgDialog.setAttribute("role", "dialog");
+      imgDialog.setAttribute("aria-modal", "true");
+      imgDialog.setAttribute("aria-labelledby", "imgov-title");
+      imgDialog.setAttribute("data-uncommentable", "");
+      imgDialog.addEventListener("click", (e) => {
+        if (!e.target.closest(".imgov-head, figure")) imgDialog.close();
+      });
+      imgDialog.addEventListener("close", () => {
+        imgDialog.replaceChildren();
+        // The page re-rendered the file while open: its first enlarge button stands in for the one used.
+        const back = imgReturn?.isConnected
+          ? imgReturn
+          : document.getElementById(imgReturnId)?.querySelector("button.svgpane");
+        if (back) back.focus();
+        imgReturn = imgReturnId = null;
+      });
+      document.body.append(imgDialog);
+    }
+    const head = el("div", "imgov-head");
+    const title = el("h2", null, f.path);
+    title.id = "imgov-title";
+    const close = el("button", "fold", "Close");
+    close.type = "button";
+    close.addEventListener("click", () => imgDialog.close());
+    head.append(title, close);
+    const body = el("div", "imgov-body");
+    imageFigures(f, body, null);
+    const small = ([, src, , size]) => !src || (size && Math.max(...size) <= PIXEL_EDGE);
+    body.classList.toggle("pixel", imagePanes(f).every(small));
+    imgDialog.replaceChildren(head, body);
+    imgReturn = from;
+    imgReturnId = f.id;
+    imgDialog.showModal();
+    close.focus();
+  }
   function renderFile(sec, fi) {
+    renderQueue.delete(fi);
     const f = DIFF.files[fi];
     sec.replaceChildren();
     targets[fi] = { old: [], new: [] };
     const head = el("div", "fhead");
-    const st = f.binary ? "B" : f.status;
-    head.append(el("span", "chip st-" + st, f.binary ? "Binary" : STATUS[f.status]));
+    const st = f.binary && !f.isImage ? "B" : f.status;
+    head.append(el("span", "chip st-" + st, st === "B" ? "Binary" : STATUS[f.status]));
     const p = el("h2", "path");
     if (f.oldPath) p.append(el("span", "from", f.oldPath + " → "));
     p.append(f.path);
@@ -1466,9 +1909,16 @@
     for (const c of head.children) if (c !== p) c.setAttribute("data-uncommentable", "");
     sec.append(head);
     if (f.note) body.append(el("div", "note", f.note));
-    if (f.binary) body.append(el("div", "note", "Binary file changed."));
+    if (f.binary && !f.isImage) body.append(el("div", "note", "Binary file changed."));
     else if (f.stub) body.append(el("div", "note", f.stub));
-    else if (fileView(f) === "rendered" && isSvg(f)) {
+    else if (!f.hunks) {
+      body.append(el("div", "note", f.failed ? "Could not load this file's diff." : "Loading…"));
+    } else if (f.isImage) {
+      const box = el("div", "svgcmp imgcmp");
+      box.setAttribute("data-uncommentable", "");
+      imageFigures(f, box, (from) => openImages(f, from));
+      body.append(box);
+    } else if (fileView(f) === "rendered" && isSvg(f)) {
       const box = el("div", "svgcmp");
       renderSvg(f, box);
       body.append(box);
@@ -1486,16 +1936,17 @@
       body.append(scroll);
       scroll.addEventListener("scroll", reportPins, { passive: true });
     }
+    const rows = body.querySelectorAll("tr").length;
+    if (rows) body.style.containIntrinsicSize = "auto " + (rows * 20 + 2) + "px";
     body.hidden = collapsed.has(f.path);
     if (f.hunks && body.hidden) head.querySelector(".fold").textContent = "Expand";
     sec.append(body);
   }
-  let rendered = false;
   function renderFiles() {
     const root = $("diffs");
     root.replaceChildren();
+    if (!DIFF.files.length) root.append(el("section", "file note", noChanges));
     DIFF.files.forEach((f, fi) => {
-      if (!rendered && isViewed(f) && f.hunks) collapsed.add(f.path);
       const sec = el("section", "file");
       sec.id = f.id;
       sec.classList.toggle("cur", fi === current);
@@ -1503,7 +1954,60 @@
       sections[fi] = sec;
       renderFile(sec, fi);
     });
-    rendered = true;
+    reportPins();
+  }
+  // Re-renders the files that hold any of these comment ids, so their comment icons update.
+  function renderMarked(ids) {
+    const list = [...ids];
+    DIFF.files.forEach((f, fi) => {
+      if (list.some((id) => id.startsWith(f.id + "-"))) renderFile(sections[fi], fi);
+    });
+    reportPins();
+  }
+  function loadFile(fi) {
+    const f = DIFF.files[fi];
+    fetch(f.data)
+      .then((r) => {
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
+      })
+      .then((d) => {
+        joinData(d);
+        Object.assign(f, {
+          hunks: d.hunks,
+          content: d.content,
+          svgOld: d.svgOld,
+          svgNew: d.svgNew,
+          imgOld: d.imgOld,
+          imgNew: d.imgNew,
+          stubOld: d.stubOld,
+          stubNew: d.stubNew,
+          sizeOld: d.sizeOld,
+          sizeNew: d.sizeNew,
+        });
+        if (isViewed(f)) collapsed.add(f.path);
+      })
+      .catch(() => {
+        f.failed = true;
+      })
+      .then(() => queueRender(fi));
+  }
+  // Queued files render in slices of about 40 ms per frame, so a large diff never blocks the page for long.
+  const renderQueue = new Set();
+  let renderTick = 0;
+  function queueRender(fi) {
+    renderQueue.add(fi);
+    if (!renderTick) renderTick = requestAnimationFrame(renderQueued);
+  }
+  function renderQueued() {
+    renderTick = 0;
+    const start = performance.now();
+    for (const fi of renderQueue) {
+      renderQueue.delete(fi);
+      renderFile(sections[fi], fi);
+      if (performance.now() - start > 40) break;
+    }
+    if (renderQueue.size) renderTick = requestAnimationFrame(renderQueued);
     reportPins();
   }
 
@@ -1518,10 +2022,21 @@
     if (!scroll) return;
     // The scroll this starts must not move the current file on to a short file below it.
     jumpUntil = Date.now() + 300;
-    sections[current].scrollIntoView({
-      block: "start",
-      behavior: reduced.matches ? "auto" : "smooth",
-    });
+    scrollToEl(sections[current], "start");
+  }
+  // Offscreen file bodies only have estimated heights, so a smooth scroll to a far target misses
+  // as the files it passes render. A far target is jumped to, then realigned once those files settle.
+  function scrollToEl(target, block) {
+    if (Math.abs(target.getBoundingClientRect().top) < 3 * window.innerHeight) {
+      target.scrollIntoView({ block, behavior: reduced.matches ? "auto" : "smooth" });
+      return;
+    }
+    let left = 3;
+    const jump = () => {
+      target.scrollIntoView({ block, behavior: "instant" });
+      if (--left) requestAnimationFrame(jump);
+    };
+    jump();
   }
   let scrollTick = 0;
   let jumpUntil = 0;
@@ -1547,8 +2062,9 @@
   );
 
   document.addEventListener("keydown", (e) => {
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.metaKey || e.ctrlKey || e.altKey || imgDialog?.open) return;
     if (e.target.closest && e.target.closest("input, textarea, select, [contenteditable]")) return;
+    if (!DIFF.files.length) return;
     const k = e.key;
     if (k === "j") setCurrent(current + 1, true);
     else if (k === "k") setCurrent(current - 1, true);
@@ -1586,7 +2102,42 @@
       return null;
     }
   }
+  function loadingSection(anchor) {
+    const m = /#(f-[A-Za-z0-9_]*)/.exec(anchor || "");
+    const fi = m ? DIFF.files.findIndex((f) => f.id === m[1]) : -1;
+    return fi >= 0 &&
+      DIFF.files[fi].data != null &&
+      (DIFF.files[fi].hunks == null || renderQueue.has(fi))
+      ? sections[fi]
+      : null;
+  }
+  // Rendered and Chunked have no row for the line, so the file switches to Side-by-side (else
+  // Unified) for this page view; otherwise its pins stay missing.
+  function expandTo(anchor) {
+    const id = idOf(anchor);
+    const m = id && /^(f-[A-Za-z0-9_]*)-(old|new)-(\d+)$/.exec(id);
+    const fi = m ? DIFF.files.findIndex((f) => f.id === m[1]) : -1;
+    if (fi < 0 || targetFor(anchor)) return;
+    const f = DIFF.files[fi];
+    const v = f.hunks && fileView(f);
+    if (!["unified", "split", "rendered", "chunked"].includes(v)) return;
+    const col = m[2] === "old" ? 1 : 2;
+    const gap = (gapsOf(f) || []).find((g) => g.lines.some((l) => l[col] === +m[3]));
+    if (v === "rendered" || v === "chunked") {
+      revealViews.set(f.path, views(f).includes("split") ? "split" : "unified");
+    } else if (!gap) return;
+    if (gap) {
+      const s = gapState(f, gap.at);
+      s.top = gap.lines.length - s.bottom;
+    }
+    renderFile(sections[fi], fi);
+  }
+  let pinsTick = 0;
   function reportPins() {
+    if (anchors && !pinsTick) pinsTick = requestAnimationFrame(placePins);
+  }
+  function placePins() {
+    pinsTick = 0;
     if (!anchors) return;
     const map = {};
     for (const t of threads) {
@@ -1658,6 +2209,59 @@
   $("wrap").addEventListener("change", () => setWrap($("wrap").checked));
   setWrap(wrap);
 
+  // System restores whatever data-theme the host page set.
+  const hostTheme = document.documentElement.getAttribute("data-theme");
+  function setTheme(theme) {
+    const value = theme === "light" || theme === "dark" ? theme : "system";
+    store("theme", value === "system" ? null : value);
+    if (value === "system") {
+      if (hostTheme == null) document.documentElement.removeAttribute("data-theme");
+      else document.documentElement.setAttribute("data-theme", hostTheme);
+    } else document.documentElement.setAttribute("data-theme", value);
+    pressed("theme-seg", value);
+  }
+  function pressed(id, value) {
+    for (const b of $(id).querySelectorAll("button"))
+      b.setAttribute("aria-pressed", String(b.dataset.value === value));
+  }
+  function setTypeDefault(type, v) {
+    const t = typeDefaults[type];
+    store(t.key, v === t.fallback ? null : v);
+    pressed(type === "markdown" ? "md-seg" : "svg-seg", v);
+    DIFF.files.forEach((f, fi) => {
+      if (f.hunks && typeOf(f) === type && !load(viewKey(f.path))) renderFile(sections[fi], fi);
+    });
+    reportPins();
+  }
+  const segValue = (e) => e.target.closest("button[data-value]")?.dataset.value;
+  $("theme-seg").addEventListener("click", (e) => segValue(e) && setTheme(segValue(e)));
+  $("md-seg").addEventListener("click", (e) => {
+    if (segValue(e)) setTypeDefault("markdown", segValue(e));
+  });
+  $("svg-seg").addEventListener("click", (e) => {
+    if (segValue(e)) setTypeDefault("svg", segValue(e));
+  });
+  setTheme(load("theme"));
+  pressed("md-seg", typeDefault("markdown"));
+  pressed("svg-seg", typeDefault("svg"));
+
+  function setMenu(open, focusButton) {
+    $("settings-menu").hidden = !open;
+    $("settings-btn").setAttribute("aria-expanded", String(open));
+    if (!open && focusButton) $("settings-btn").focus();
+  }
+  $("settings-btn").addEventListener("click", () => setMenu($("settings-menu").hidden));
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || $("settings-menu").hidden) return;
+    setMenu(false, $("settings").contains(document.activeElement));
+  });
+  $("settings").addEventListener("focusout", (e) => {
+    if (e.relatedTarget && !$("settings").contains(e.relatedTarget)) setMenu(false);
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (!$("settings-menu").hidden && !$("settings").contains(e.target)) setMenu(false);
+  });
+
   const LIBS = [
     [
       "https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js",
@@ -1680,7 +2284,7 @@
     });
   }
   // The Rendered view appears once both libraries load.
-  if (DIFF.files.some((f) => f.content != null)) {
+  if (DIFF.files.some((f) => f.isMarkdown)) {
     Promise.all(LIBS.map(loadScript))
       .then(() => {
         if (typeof window.marked?.lexer !== "function") return;
@@ -1697,17 +2301,25 @@
         });
         mdReady = true;
         DIFF.files.forEach((f, fi) => {
-          if (f.content != null && sections[fi]) renderFile(sections[fi], fi);
+          if (f.isMarkdown && f.hunks && sections[fi]) queueRender(fi);
         });
-        reportPins();
       })
       .catch(() => {});
   }
 
   if (window.matchMedia("(max-width: 860px)").matches) $("files").open = false;
+  // An image file with no previewed side carries its stubs in the manifest, so it is loaded already.
+  for (const f of DIFF.files) {
+    if (!f.isImage || f.data != null) continue;
+    f.hunks = [];
+    if (isViewed(f)) collapsed.add(f.path);
+  }
   renderSummary();
   renderList();
   renderFiles();
+  DIFF.files.forEach((f, fi) => {
+    if (f.data) loadFile(fi);
+  });
 
   async function setupComments() {
     if (typeof window.claude?.use !== "function") return;
@@ -1738,22 +2350,24 @@
               .map((t) => idOf(t.anchor))
               .filter(Boolean),
           );
-          const changed =
-            [...known].some((id) => !open.has(id)) || [...open].some((id) => !known.has(id));
+          const changed = [
+            ...[...known].filter((id) => !open.has(id)),
+            ...[...open].filter((id) => !known.has(id)),
+          ];
           known.clear();
           for (const id of open) known.add(id);
           store(knownKey, JSON.stringify([...known]));
-          if (changed) renderFiles();
-          else reportPins();
+          renderMarked(changed);
         },
         reveal(id) {
           const t = threads.find((x) => x.id === id);
-          const target = t && targetFor(t.anchor);
+          if (t) expandTo(t.anchor);
+          const target = t && (targetFor(t.anchor) || loadingSection(t.anchor));
           if (!target) return;
           const sec = target.closest("section.file");
           const fi = [...document.querySelectorAll("section.file")].indexOf(sec);
           if (fi >= 0 && collapsed.has(DIFF.files[fi].path)) setCollapsed(fi, false);
-          target.scrollIntoView({ block: "center", behavior: reduced.matches ? "auto" : "smooth" });
+          scrollToEl(target, "center");
           setTimeout(reportPins, 400);
         },
         composing(open) {
@@ -1771,7 +2385,7 @@
     } catch {
       anchors = null;
     }
-    renderFiles();
+    renderMarked(known);
     const act = $("act");
     async function refreshAct() {
       try {
@@ -1786,8 +2400,8 @@
       const ok = state === "available" && actAnchor;
       act.hidden = !ok;
       $("act-hint").textContent = ok
-        ? "Hands back to Claude to act on comments."
-        : "When you are done, tell Claude in the terminal to act on your comments.";
+        ? "When you are done, press Finish review or tell Claude in the terminal."
+        : "When you are done, tell Claude in the terminal.";
       reportPins();
     }
     await refreshAct();

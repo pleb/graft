@@ -1,7 +1,16 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, readlinkSync } from "node:fs";
-import { basename, extname, join, resolve } from "node:path";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, dirname, extname, join, resolve } from "node:path";
 
 const MIN_NODE_MAJOR = 24;
 const MAX_GIT_OUTPUT = 512 * 1024 * 1024;
@@ -14,10 +23,37 @@ const LISTED = new Set(["threads", "files", "hunks", "lines", "content", "svgOld
 const CHUNKED = new Set(["id", "path", "oldPath", "stub", "note"]);
 const MARKDOWN = new Set([".md", ".markdown", ".mdx"]);
 const SVG = ".svg";
+const IMAGES = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
 const REMOVED_FROM_INDEX = "Removed from the index; kept as an untracked file.";
+const NO_EXPAND = "Too large to expand past its hunks.";
+const NO_RENDER = "Too large to render; shows the diff only.";
+const NOT_IMAGE = "Not a PNG, JPEG, GIF or WebP image.";
+const NOT_REGULAR = "Not a regular file.";
+const ANIMATED = "Animated; previews show still images only.";
+const LFS_POINTER = "version https://git-lfs.github.com/spec/v1\n";
+const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+const PAGE = "index.html";
 
-// The largest page Claude reads in full before publishing it.
-export const MAX_PAGE_BYTES = 300 * 1024;
+// The largest total of data files, which readers read in full before each publish.
+export const MAX_DATA_BYTES = 5 * 1024 * 1024;
+// The largest data file of hunks alone, and the largest that keeps its SVG sides.
+export const MAX_FILE_DATA_BYTES = 500 * 1024;
+// The largest data file that keeps its expandable content.
+export const MAX_EXPAND_BYTES = 250 * 1024;
+export const MAX_SEND_BYTES = 60 * 1024 * 1024;
+export const MAX_VERSION_FILES = 511;
+export const MAX_PUBLISH_PATHS = 255;
+export const READER_TEXT_BYTES = 300 * 1024;
+export const READER_IMAGES = 10;
+// The most image files that get previews, in path order.
+export const MAX_IMAGE_FILES = 20;
+// The largest image side that gets a preview, in bytes and in pixels on its longest edge.
+export const MAX_IMAGE_SIDE_BYTES = 2 * 1024 * 1024;
+export const MAX_IMAGE_EDGE = 4096;
+// A total across the build's distinct previewed image sides.
+export const MAX_IMAGE_BYTES = 40 * 1024 * 1024;
+const OVER_IMAGE_FILES = `Over the ${MAX_IMAGE_FILES} image previews a page shows.`;
+const OVER_IMAGE_BYTES = `Over the ${MAX_IMAGE_BYTES / 1024 / 1024} MB of image previews a page holds.`;
 
 export const DIFF_ARGS = [
   "-c",
@@ -86,6 +122,22 @@ export interface ParsedFile {
   hunks: Hunk[];
 }
 
+// One side of an image file: its bytes when it gets a preview, else a stub saying why not.
+export interface ImageSide {
+  bytes?: Buffer;
+  ext?: ImageInfo["ext"];
+  width?: number;
+  height?: number;
+  stub?: string;
+}
+
+export interface ImageInfo {
+  ext: "png" | "jpg" | "gif" | "webp";
+  width: number;
+  height: number;
+  animated: boolean;
+}
+
 export interface PageFile {
   id: string;
   path: string;
@@ -99,11 +151,13 @@ export interface PageFile {
   add: number;
   del: number;
   hunks?: Hunk[];
-  // A Markdown file's full new content, one item per line, for the rendered view.
+  // A regular text file's full new content, one item per line.
   content?: string[];
   // An SVG file's old and new content, one item per line, for the rendered view.
   svgOld?: string[];
   svgNew?: string[];
+  // An image file's sides: old unless added, new unless deleted.
+  image?: { old?: ImageSide; new?: ImageSide };
 }
 
 export interface PageData {
@@ -116,7 +170,78 @@ export interface PageData {
   uncommitted: number;
   untracked: number;
   threads: string[];
+  fileList: "flat" | "tree";
   files: PageFile[];
+}
+
+export interface ManifestFile {
+  id: string;
+  path: string;
+  oldPath?: string;
+  status: Status;
+  source: Source;
+  add: number;
+  del: number;
+  binary?: true;
+  hash: string;
+  hasHunks: boolean;
+  isMarkdown: boolean;
+  isImage?: true;
+  stub?: string;
+  note?: string;
+  // Set when the file has hunks or is an image with a previewed side.
+  data?: string;
+  // An image file with no previewed side: each side's stub and size, in place of a data file.
+  stubOld?: string;
+  stubNew?: string;
+  sizeOld?: [number, number];
+  sizeNew?: [number, number];
+}
+
+export interface Manifest extends Omit<PageData, "files"> {
+  files: ManifestFile[];
+}
+
+export interface FileData {
+  path: string;
+  hunks: Hunk[];
+  content?: string[];
+  svgOld?: string[];
+  svgNew?: string[];
+  // An image file's previewed sides by their path in the build directory, or a stub saying why a
+  // side has none, and each side's width and height when known.
+  imgOld?: string;
+  imgNew?: string;
+  stubOld?: string;
+  stubNew?: string;
+  sizeOld?: [number, number];
+  sizeNew?: [number, number];
+}
+
+// A file of the build, by its path in the build directory, with the repo file it comes from.
+export interface BuiltFile {
+  path: string;
+  source: string | null;
+  bytes: number;
+}
+
+export interface PublishPlan {
+  out: string;
+  send: { path: string; source: string | null }[];
+  remove: string[];
+  keep: string[];
+  // In order; index.html is in the last one.
+  publishes: { send: string[]; remove: string[] }[];
+  batches: { kind: "text" | "image"; paths: string[]; bytes: number }[];
+}
+
+export interface BuildOutput {
+  manifest: Manifest;
+  // Each file's text by its path in the build directory, index.html first.
+  files: Map<string, string>;
+  // Each previewed image side's bytes by its path in the build directory.
+  images: Map<string, Buffer>;
+  publish: PublishPlan;
 }
 
 export type Thread =
@@ -131,6 +256,9 @@ export interface BuildInput {
   exclude: string[];
   threads: Thread[];
   publish: number;
+  // The artifact's published paths.
+  server: string[];
+  fileList: "flat" | "tree";
 }
 
 export interface Base {
@@ -377,10 +505,12 @@ function git(
   root: string | null,
   args: string[],
   ok: number[] = [0],
+  input?: string,
 ): { status: number; stdout: string; stderr: string } {
   const result = spawnSync("git", root === null ? args : ["-C", root, ...args], {
     encoding: "utf8",
     maxBuffer: MAX_GIT_OUTPUT,
+    input,
   });
   if (result.error) throw new BuildError(`git ${args.join(" ")} failed: ${result.error.message}`);
   const status = result.status ?? -1;
@@ -509,12 +639,18 @@ export function parseInput(value: unknown): BuildInput {
   if (typeof publish !== "number" || !Number.isInteger(publish) || publish < 0) {
     throw new BuildError('Input "publish" must be a non-negative integer');
   }
+  const fileList = input.fileList ?? "flat";
+  if (fileList !== "flat" && fileList !== "tree") {
+    throw new BuildError('Input "fileList" must be "flat" or "tree"');
+  }
   return {
     default: input.default,
     untracked: strings(input.untracked, "untracked"),
     exclude: strings(input.exclude, "exclude"),
     threads: threads(input.threads),
     publish,
+    server: strings(input.server, "server"),
+    fileList,
   };
 }
 
@@ -598,23 +734,91 @@ function fileMode(file: ParsedFile): string | undefined {
   return file.newMode ?? file.index?.split(" ")[1];
 }
 
-// A file's new content, from HEAD when committed and the working tree otherwise.
-function newContent(root: string, page: PageFile): string[] {
-  const text =
-    page.source === "committed"
-      ? git(root, ["show", `HEAD:${page.path}`]).stdout
-      : readFileSync(join(root, page.path), "utf8");
-  return text.split("\n");
+function showBytes(root: string, rev: string): Buffer {
+  const args = ["show", rev];
+  const result = spawnSync("git", ["-C", root, ...args], { maxBuffer: MAX_GIT_OUTPUT });
+  if (result.error) throw new BuildError(`git ${args.join(" ")} failed: ${result.error.message}`);
+  if (result.status !== 0) {
+    const reason = result.stderr.toString().trim() || `exit status ${result.status}`;
+    throw new BuildError(`git ${args.join(" ")} failed: ${reason}`);
+  }
+  return result.stdout;
 }
 
-// A shown, regular Markdown file's new content.
-function markdownContent(root: string, file: ParsedFile, page: PageFile): string[] | undefined {
-  if (!page.hunks || page.status === "D" || !MARKDOWN.has(extname(page.path).toLowerCase())) {
-    return undefined;
+// The git cat-file call that prints each rev's size on its own line. -z, which needs Git 2.38, is
+// used only when a rev holds a newline.
+export function blobSizeQuery(revs: string[]): { args: string[]; input: string } {
+  const args = ["cat-file", "--batch-check=%(objectsize)"];
+  if (!revs.some((rev) => rev.includes("\n"))) {
+    return { args, input: revs.map((rev) => `${rev}\n`).join("") };
   }
+  return { args: [...args, "-z"], input: revs.map((rev) => `${rev}\0`).join("") };
+}
+
+// Falls back to one call per rev when a Git older than 2.38 rejects -z.
+function blobSizes(root: string, revs: string[]): Map<string, number> {
+  if (!revs.length) return new Map();
+  const { args, input } = blobSizeQuery(revs);
+  let lines: string[];
+  try {
+    lines = git(root, args, [0], input).stdout.split("\n");
+  } catch (error) {
+    if (!args.includes("-z")) throw error;
+    lines = revs.map((rev) => git(root, ["cat-file", "-s", rev]).stdout.trim());
+  }
+  return new Map(
+    revs.map((rev, i) => {
+      if (!/^\d+$/.test(lines[i] ?? "")) throw new BuildError(`git cat-file found no blob ${rev}`);
+      return [rev, Number(lines[i])];
+    }),
+  );
+}
+
+function newBytes(root: string, page: PageFile): Buffer {
+  if (page.source !== "committed") return readFileSync(join(root, page.path));
+  return showBytes(root, `HEAD:${page.path}`);
+}
+
+function newContent(root: string, page: PageFile): string[] {
+  return newBytes(root, page).toString("utf8").split("\n");
+}
+
+function lfsPaths(root: string, paths: string[]): Set<string> {
+  if (!paths.length) return new Set();
+  const out = git(root, ["check-attr", "-z", "--stdin", "filter"], [0], `${paths.join("\0")}\0`);
+  const fields = splitZ(out.stdout);
+  const lfs = new Set<string>();
+  for (let i = 0; i + 2 < fields.length; i += 3) if (fields[i + 2] === "lfs") lfs.add(fields[i]);
+  return lfs;
+}
+
+// A working file's CRLF endings become LF when its hunks hold no CR, as git's clean filter does.
+function textContent(
+  root: string,
+  file: ParsedFile,
+  page: PageFile,
+  lfs: Set<string>,
+): string[] | undefined {
+  if (!page.hunks || page.status === "D") return undefined;
+  if (page.source !== "committed" && lfs.has(page.path)) return undefined;
   const mode = fileMode(file);
   if (mode !== undefined && modeType(mode) !== "10") return undefined;
-  return newContent(root, page);
+  const bytes = newBytes(root, page);
+  let text: string;
+  try {
+    text = UTF8.decode(bytes);
+  } catch {
+    return undefined;
+  }
+  if (text.startsWith(LFS_POINTER)) return undefined;
+  if (
+    page.source !== "committed" &&
+    text.includes("\r") &&
+    !page.hunks.some((hunk) => hunk.lines.some((line) => line[3].includes("\r")))
+  ) {
+    text = text.replace(/\r\n/g, "\n");
+  }
+  return text.split("\n");
 }
 
 // A shown SVG file's old content from the merge base and new content, each side kept only when it is a regular file.
@@ -632,6 +836,159 @@ function svgSides(
   }
   if (page.status !== "D" && regular(fileMode(file))) sides.svgNew = newContent(root, page);
   return sides;
+}
+
+// Counts frames up to two; a truncated GIF counts the frames it has.
+function gifFrames(bytes: Buffer): number {
+  const table = (packed: number) => (packed & 0x80 ? 3 * 2 ** ((packed & 7) + 1) : 0);
+  const skipBlocks = (at: number) => {
+    while (at < bytes.length && bytes[at] !== 0) at += bytes[at] + 1;
+    return at + 1;
+  };
+  let at = 13 + table(bytes[10]);
+  let frames = 0;
+  while (at < bytes.length && frames < 2) {
+    const block = bytes[at];
+    if (block === 0x21) at = skipBlocks(at + 2);
+    else if (block === 0x2c) {
+      frames++;
+      if (at + 10 > bytes.length) break;
+      at = skipBlocks(at + 11 + table(bytes[at + 9]));
+    } else break;
+  }
+  return frames;
+}
+
+function jpegSize(bytes: Buffer): [number, number] | null {
+  let at = 2;
+  while (at + 4 <= bytes.length) {
+    if (bytes[at] !== 0xff) return null;
+    const marker = bytes[at + 1];
+    if (marker === 0xff) {
+      at++;
+      continue;
+    }
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+      at += 2;
+      continue;
+    }
+    if (marker === 0xd9 || marker === 0xda) return null;
+    const length = bytes.readUInt16BE(at + 2);
+    const sof = marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker);
+    if (sof) {
+      if (at + 9 > bytes.length) return null;
+      return [bytes.readUInt16BE(at + 7), bytes.readUInt16BE(at + 5)];
+    }
+    at += 2 + length;
+  }
+  return null;
+}
+
+function webpInfo(bytes: Buffer): { size: [number, number] | null; animated: boolean } {
+  let size: [number, number] | null = null;
+  let animated = false;
+  for (let at = 12; at + 8 <= bytes.length;) {
+    const kind = bytes.toString("latin1", at, at + 4);
+    const length = bytes.readUInt32LE(at + 4);
+    const data = at + 8;
+    if (kind === "ANIM") animated = true;
+    if (at === 12 && kind === "VP8 " && data + 10 <= bytes.length) {
+      if (bytes[data + 3] === 0x9d && bytes[data + 4] === 0x01 && bytes[data + 5] === 0x2a) {
+        size = [bytes.readUInt16LE(data + 6) & 0x3fff, bytes.readUInt16LE(data + 8) & 0x3fff];
+      }
+    } else if (at === 12 && kind === "VP8L" && data + 5 <= bytes.length && bytes[data] === 0x2f) {
+      const bits = bytes.readUInt32LE(data + 1);
+      size = [(bits & 0x3fff) + 1, ((bits >>> 14) & 0x3fff) + 1];
+    } else if (at === 12 && kind === "VP8X" && data + 10 <= bytes.length) {
+      size = [bytes.readUIntLE(data + 4, 3) + 1, bytes.readUIntLE(data + 7, 3) + 1];
+    }
+    at = data + length + (length % 2);
+  }
+  return { size, animated };
+}
+
+// An APNG's acTL chunk comes before its first IDAT chunk.
+function pngAnimated(bytes: Buffer): boolean {
+  for (let at = 8; at + 8 <= bytes.length; at += 12 + bytes.readUInt32BE(at)) {
+    const kind = bytes.toString("latin1", at + 4, at + 8);
+    if (kind === "acTL") return true;
+    if (kind === "IDAT") return false;
+  }
+  return false;
+}
+
+export function imageInfo(bytes: Buffer): ImageInfo | null {
+  const has = (at: number, text: string) => bytes.toString("latin1", at, at + text.length) === text;
+  let ext: ImageInfo["ext"];
+  let size: [number, number] | null = null;
+  let animated = false;
+  if (has(0, "\x89PNG\r\n\x1a\n") && has(12, "IHDR") && bytes.length >= 24) {
+    ext = "png";
+    size = [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
+    animated = pngAnimated(bytes);
+  } else if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+    ext = "jpg";
+    size = jpegSize(bytes);
+  } else if ((has(0, "GIF87a") || has(0, "GIF89a")) && bytes.length >= 13) {
+    ext = "gif";
+    size = [bytes.readUInt16LE(6), bytes.readUInt16LE(8)];
+    animated = gifFrames(bytes) > 1;
+  } else if (has(0, "RIFF") && has(8, "WEBP")) {
+    ext = "webp";
+    ({ size, animated } = webpInfo(bytes));
+  } else return null;
+  if (!size || !size[0] || !size[1]) return null;
+  return { ext, width: size[0], height: size[1], animated };
+}
+
+function mb(bytes: number): string {
+  return `${Math.round((bytes / 1024 / 1024) * 10) / 10} MB`;
+}
+
+export function imageSide(size: number, read: () => Buffer): ImageSide {
+  if (size > MAX_IMAGE_SIDE_BYTES) {
+    return { stub: `Too large to preview: ${mb(size)}, over ${mb(MAX_IMAGE_SIDE_BYTES)}.` };
+  }
+  const bytes = read();
+  const info = imageInfo(bytes);
+  if (!info) return { stub: NOT_IMAGE };
+  const side: ImageSide = { width: info.width, height: info.height };
+  const { width, height } = info;
+  if (Math.max(width, height) > MAX_IMAGE_EDGE) {
+    side.stub = `Too many pixels to preview: ${width} × ${height}, over ${MAX_IMAGE_EDGE} on its longest side.`;
+  } else if (info.animated) side.stub = ANIMATED;
+  else Object.assign(side, { bytes, ext: info.ext });
+  return side;
+}
+
+type SideSource = { rev: string } | { file: string } | { stub: string };
+
+function imageSources(
+  base: string,
+  file: ParsedFile,
+  page: PageFile,
+): { old?: SideSource; new?: SideSource } | undefined {
+  if (!page.binary || !isImage(page.path)) return undefined;
+  const regular = (mode: string | undefined) => mode === undefined || modeType(mode) === "10";
+  const sources: { old?: SideSource; new?: SideSource } = {};
+  if (page.status !== "A") {
+    sources.old = regular(file.oldMode ?? file.index?.split(" ")[1])
+      ? { rev: `${base}:${page.oldPath ?? page.path}` }
+      : { stub: NOT_REGULAR };
+  }
+  if (page.status !== "D") {
+    if (!regular(fileMode(file))) sources.new = { stub: NOT_REGULAR };
+    else if (page.source === "committed") sources.new = { rev: `HEAD:${page.path}` };
+    else sources.new = { file: page.path };
+  }
+  return sources;
+}
+
+function readSide(root: string, source: SideSource, sizes: Map<string, number>): ImageSide {
+  if ("stub" in source) return { stub: source.stub };
+  if ("rev" in source) return imageSide(sizes.get(source.rev)!, () => showBytes(root, source.rev));
+  const full = join(root, source.file);
+  return imageSide(statSync(full).size, () => readFileSync(full));
 }
 
 export function collectPage(cwd: string, input: BuildInput): PageData {
@@ -657,14 +1014,37 @@ export function collectPage(cwd: string, input: BuildInput): PageData {
     if (exclude.has(path)) continue;
     for (const file of untrackedFile(root, path)) entries.push({ file, source: "untracked" });
   }
-  const files = mergeByPath(entries).map(({ file, source }) => {
-    const page = toPageFile(file, source);
-    const content = markdownContent(root, file, page);
+  const pages = mergeByPath(entries).map(({ file, source }) => ({
+    file,
+    page: toPageFile(file, source),
+  }));
+  const lfs = lfsPaths(
+    root,
+    pages
+      .filter(({ page }) => page.hunks && page.source !== "committed")
+      .map(({ page }) => page.path),
+  );
+  const sources = pages.map(({ file, page }) => imageSources(base, file, page));
+  const sizes = blobSizes(
+    root,
+    sources.flatMap((image) =>
+      [image?.old, image?.new].flatMap((source) => (source && "rev" in source ? source.rev : [])),
+    ),
+  );
+  const files = pages.map(({ file, page }, i) => {
+    const content = textContent(root, file, page, lfs);
     if (content) page.content = content;
     Object.assign(page, svgSides(root, base, file, page));
+    const image = sources[i];
+    if (image) {
+      page.image = {};
+      if (image.old) page.image.old = readSide(root, image.old, sizes);
+      if (image.new) page.image.new = readSide(root, image.new, sizes);
+    }
     return page;
   });
-  if (!files.length) throw new BuildError(`No changes against ${baseRef}`);
+  // A republish with no changes left shows an empty page, so the published one stops showing them.
+  if (!files.length && !input.server.length) throw new BuildError(`No changes against ${baseRef}`);
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const paths = new Set(files.map((file) => file.path));
   const missing = input.threads.filter((thread) => !paths.has(thread.path));
@@ -689,6 +1069,7 @@ export function collectPage(cwd: string, input: BuildInput): PageData {
     uncommitted: files.filter((file) => file.source === "uncommitted").length,
     untracked: files.filter((file) => file.source === "untracked").length,
     threads: input.threads.map(threadId),
+    fileList: input.fileList,
     files,
   };
 }
@@ -753,23 +1134,294 @@ function kb(bytes: number): string {
   return `${Math.ceil(bytes / 1024)} KB`;
 }
 
-export function renderPage(template: string, data: PageData): string {
-  const json = layout(data);
+export function renderPage(template: string, manifest: Manifest): string {
   const [before, after, extra] = template.split("__DIFF_DATA__");
   if (after === undefined || extra !== undefined)
     throw new BuildError("The template must hold __DIFF_DATA__ once");
-  const title = escapeHtml(`${data.repo} / ${data.branch} diff`);
-  const html = before.split("__DIFF_TITLE__").join(title) + json + after;
-  const size = Buffer.byteLength(html);
-  if (size > MAX_PAGE_BYTES) {
-    const largest = data.files
-      .map((file) => ({ path: file.path, size: Buffer.byteLength(layout(file)) }))
-      .sort((a, b) => b.size - a.size)
-      .slice(0, LARGEST_SHOWN)
-      .map((file) => `${file.path} (${kb(file.size)})`);
+  const title = escapeHtml(`${manifest.repo} / ${manifest.branch} diff`);
+  return before.split("__DIFF_TITLE__").join(title) + layout(manifest) + after;
+}
+
+function largest(sizes: { path: string; bytes: number }[]): string {
+  return [...sizes]
+    .sort((a, b) => b.bytes - a.bytes)
+    .slice(0, LARGEST_SHOWN)
+    .map((file) => `${file.path} (${kb(file.bytes)})`)
+    .join(", ");
+}
+
+// An SVG's new text is kept once, in content when kept and else in svgNew; template.html reads it so.
+function fileData(file: PageFile, content: boolean, svg: boolean): FileData {
+  const data: FileData = { path: file.path, hunks: file.hunks! };
+  const withContent = content && file.content !== undefined;
+  if (withContent) data.content = file.content;
+  if (svg && file.svgOld) data.svgOld = file.svgOld;
+  if (svg && file.svgNew && !withContent) data.svgNew = file.svgNew;
+  return data;
+}
+
+interface Sized {
+  file: PageFile;
+  content: boolean;
+  svg: boolean;
+  sizes: Map<string, number>;
+}
+
+function dataBytes(item: Sized, content: boolean, svg: boolean): number {
+  const key = `${content} ${svg}`;
+  let bytes = item.sizes.get(key);
+  if (bytes === undefined) {
+    bytes = Buffer.byteLength(layout(fileData(item.file, content, svg)));
+    item.sizes.set(key, bytes);
+  }
+  return bytes;
+}
+
+// Drops are made from the largest files first until the total fits MAX_DATA_BYTES: content without
+// kept SVG sides, then SVG sides, then the content left.
+function fitData(files: PageFile[]): Sized[] {
+  const sized = files
+    .filter((file) => file.hunks)
+    .map((file): Sized => ({
+      file,
+      content: file.content !== undefined,
+      svg: file.svgOld !== undefined || file.svgNew !== undefined,
+      sizes: new Map(),
+    }));
+  const bare = sized.map((item) => ({
+    path: item.file.path,
+    bytes: dataBytes(item, false, false),
+  }));
+  const over = bare.filter((item) => item.bytes > MAX_FILE_DATA_BYTES);
+  if (over.length) {
     throw new BuildError(
-      `The page is ${kb(size)}, over the ${kb(MAX_PAGE_BYTES)} Claude can read. Largest files: ${largest.join(", ")}`,
+      `${over.length} file diff${over.length === 1 ? " is" : "s are"} over the ${kb(MAX_FILE_DATA_BYTES)} one file can hold. Largest files: ${largest(bare)}`,
     );
   }
-  return html;
+  const bareTotal = bare.reduce((sum, item) => sum + item.bytes, 0);
+  if (bareTotal > MAX_DATA_BYTES) {
+    throw new BuildError(
+      `The diff data is ${kb(bareTotal)}, over the ${kb(MAX_DATA_BYTES)} readers can read. Largest files: ${largest(bare)}`,
+    );
+  }
+  for (const item of sized) {
+    if (item.svg && dataBytes(item, item.content, true) <= MAX_FILE_DATA_BYTES) continue;
+    item.svg = false;
+    if (item.content && dataBytes(item, true, false) > MAX_EXPAND_BYTES) item.content = false;
+  }
+  let total = sized.reduce((sum, item) => sum + dataBytes(item, item.content, item.svg), 0);
+  const drop = (next: (item: Sized) => { content: boolean; svg: boolean } | undefined) => {
+    const drops = sized
+      .map((item) => ({ item, bytes: dataBytes(item, item.content, item.svg), to: next(item) }))
+      .filter(({ item, bytes, to }) => to && dataBytes(item, to.content, to.svg) < bytes)
+      .sort((a, b) => b.bytes - a.bytes);
+    for (const { item, bytes, to } of drops) {
+      if (total <= MAX_DATA_BYTES) return;
+      Object.assign(item, to);
+      total += dataBytes(item, item.content, item.svg) - bytes;
+    }
+  };
+  drop((item) => (item.content && !item.svg ? { content: false, svg: false } : undefined));
+  drop((item) => (item.svg ? { content: item.content, svg: false } : undefined));
+  // Content left with kept sides carries an SVG's only new text, so both go together.
+  drop((item) => (item.content ? { content: false, svg: false } : undefined));
+  return sized;
+}
+
+function manifestFile(file: PageFile, data?: string, item?: Sized): ManifestFile {
+  const entry: ManifestFile = {
+    id: file.id,
+    path: file.path,
+    ...(file.oldPath !== undefined && { oldPath: file.oldPath }),
+    status: file.status,
+    source: file.source,
+    add: file.add,
+    del: file.del,
+    hash: file.hash,
+    hasHunks: file.hunks !== undefined,
+    isMarkdown: file.hunks !== undefined && MARKDOWN.has(extname(file.path).toLowerCase()),
+  };
+  if (file.binary) entry.binary = true;
+  if (file.image) entry.isImage = true;
+  if (file.stub !== undefined) entry.stub = file.stub;
+  const notes = [file.note];
+  if (item && file.content && !item.content) notes.push(NO_EXPAND);
+  if (item && (file.svgOld || file.svgNew) && !item.svg) notes.push(NO_RENDER);
+  const note = notes.filter((text) => text !== undefined).join(" ");
+  if (note) entry.note = note;
+  if (data !== undefined) entry.data = data;
+  return entry;
+}
+
+function isImage(path: string): boolean {
+  return IMAGES.has(extname(path).toLowerCase());
+}
+
+type ImageFields = Pick<
+  FileData,
+  "imgOld" | "imgNew" | "stubOld" | "stubNew" | "sizeOld" | "sizeNew"
+>;
+
+// Once MAX_IMAGE_BYTES is passed, every later side gets a stub, even one small enough to fit.
+function fitImages(files: PageFile[]): {
+  data: Map<PageFile, ImageFields>;
+  images: Map<string, { bytes: Buffer; source: string }>;
+} {
+  const data = new Map<PageFile, ImageFields>();
+  const images = new Map<string, { bytes: Buffer; source: string }>();
+  let shown = 0;
+  let total = 0;
+  let full = false;
+  for (const file of files) {
+    if (!file.image) continue;
+    const entry: ImageFields = {};
+    let previewed = false;
+    for (const [side, key] of [
+      [file.image.old, "Old"],
+      [file.image.new, "New"],
+    ] as const) {
+      if (!side) continue;
+      if (side.width !== undefined && side.height !== undefined) {
+        entry[`size${key}`] = [side.width, side.height];
+      }
+      let stub = side.stub;
+      let path: string | undefined;
+      if (stub === undefined && shown >= MAX_IMAGE_FILES) stub = OVER_IMAGE_FILES;
+      if (stub === undefined && side.bytes && side.ext) {
+        const hash = createHash("sha256").update(side.bytes).digest("hex").slice(0, 16);
+        path = `img/${hash}.${side.ext}`;
+        if (!images.has(path)) {
+          if (full || total + side.bytes.length > MAX_IMAGE_BYTES) {
+            full = true;
+            stub = OVER_IMAGE_BYTES;
+          } else {
+            total += side.bytes.length;
+            images.set(path, { bytes: side.bytes, source: file.path });
+          }
+        }
+      }
+      if (stub !== undefined || path === undefined) entry[`stub${key}`] = stub ?? NOT_IMAGE;
+      else {
+        entry[`img${key}`] = path;
+        previewed = true;
+      }
+    }
+    if (previewed) shown++;
+    data.set(file, entry);
+  }
+  return { data, images };
+}
+
+export function planPublish(built: BuiltFile[], server: string[], out: string): PublishPlan {
+  if (built.length > MAX_VERSION_FILES) {
+    throw new BuildError(
+      `The build has ${built.length} files, over the ${MAX_VERSION_FILES} an artifact version can hold`,
+    );
+  }
+  const onServer = new Set(server);
+  const paths = new Set(built.map((file) => file.path));
+  const send = built.filter((file) => file.path === PAGE || !onServer.has(file.path));
+  const keep = built.filter((file) => file.path !== PAGE && onServer.has(file.path));
+  const remove = [...onServer].filter((path) => !paths.has(path));
+  const sent = send.reduce((sum, file) => sum + file.bytes, 0);
+  if (sent > MAX_SEND_BYTES) {
+    throw new BuildError(
+      `The publish sends ${kb(sent)}, over the ${kb(MAX_SEND_BYTES)} cap. Largest files: ${largest(send)}`,
+    );
+  }
+
+  const steps: ({ send: string } | { remove: string })[] = [
+    ...remove.map((path) => ({ remove: path })),
+    ...send.filter((file) => file.path !== PAGE).map((file) => ({ send: file.path })),
+    ...send.filter((file) => file.path === PAGE).map((file) => ({ send: file.path })),
+  ];
+  const publishes: PublishPlan["publishes"] = [];
+  for (let i = 0; i < steps.length; i += MAX_PUBLISH_PATHS) {
+    const group = { send: [] as string[], remove: [] as string[] };
+    for (const step of steps.slice(i, i + MAX_PUBLISH_PATHS)) {
+      if ("send" in step) group.send.push(step.send);
+      else group.remove.push(step.remove);
+    }
+    publishes.push(group);
+  }
+
+  const batches: PublishPlan["batches"] = [];
+  let text: PublishPlan["batches"][number] | undefined;
+  let images: PublishPlan["batches"][number] | undefined;
+  for (const file of send) {
+    if (isImage(file.path)) {
+      if (!images || images.paths.length >= READER_IMAGES) {
+        images = { kind: "image", paths: [], bytes: 0 };
+        batches.push(images);
+      }
+      images.paths.push(file.path);
+      images.bytes += file.bytes;
+    } else {
+      if (!text || (text.paths.length && text.bytes + file.bytes > READER_TEXT_BYTES)) {
+        text = { kind: "text", paths: [], bytes: 0 };
+        batches.push(text);
+      }
+      text.paths.push(file.path);
+      text.bytes += file.bytes;
+    }
+  }
+
+  return {
+    out,
+    send: send.map((file) => ({ path: file.path, source: file.source })),
+    remove,
+    keep: keep.map((file) => file.path),
+    publishes,
+    batches,
+  };
+}
+
+// An image file with no previewed side gets no data file; its stubs go in its manifest entry.
+export function renderBuild(
+  template: string,
+  data: PageData,
+  server: string[],
+  out: string,
+): BuildOutput {
+  const sized = new Map(fitData(data.files).map((item) => [item.file, item]));
+  const fitted = fitImages(data.files);
+  const dataFiles = new Map<string, { text: string; source: string }>();
+  const files = data.files.map((file) => {
+    const item = sized.get(file);
+    const image = fitted.data.get(file);
+    if (image && !image.imgOld && !image.imgNew) return Object.assign(manifestFile(file), image);
+    if (!item && !image) return manifestFile(file);
+    const data = image ? { path: file.path, hunks: [], ...image } : undefined;
+    const text = `${layout(data ?? fileData(file, item!.content, item!.svg))}\n`;
+    const path = `data/f-${createHash("sha256").update(text).digest("hex").slice(0, 16)}.json`;
+    dataFiles.set(path, { text, source: file.path });
+    return manifestFile(file, path, item);
+  });
+  const manifest: Manifest = { ...data, files };
+  const html = renderPage(template, manifest);
+  const output = new Map([[PAGE, html]]);
+  const built: BuiltFile[] = [{ path: PAGE, source: null, bytes: Buffer.byteLength(html) }];
+  for (const [path, { text, source }] of dataFiles) {
+    output.set(path, text);
+    built.push({ path, source, bytes: Buffer.byteLength(text) });
+  }
+  const images = new Map<string, Buffer>();
+  for (const [path, { bytes, source }] of fitted.images) {
+    images.set(path, bytes);
+    built.push({ path, source, bytes: bytes.length });
+  }
+  return { manifest, files: output, images, publish: planPublish(built, server, out) };
+}
+
+export function writeBuild(output: BuildOutput): void {
+  const out = output.publish.out;
+  if (existsSync(out) && (!statSync(out).isDirectory() || readdirSync(out).length)) {
+    throw new BuildError(`${out} already exists and is not an empty directory`);
+  }
+  for (const [path, text] of [...output.files, ...output.images]) {
+    const full = join(out, path);
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, text);
+  }
+  writeFileSync(join(out, "publish.json"), `${JSON.stringify(output.publish, null, 2)}\n`);
 }

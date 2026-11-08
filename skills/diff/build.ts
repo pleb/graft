@@ -1,5 +1,5 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import {
@@ -8,7 +8,8 @@ import {
   isSupportedNode,
   listChanges,
   parseInput,
-  renderPage,
+  renderBuild,
+  writeBuild,
 } from "./build-lib.ts";
 import type { BuildInput } from "./build-lib.ts";
 
@@ -20,7 +21,7 @@ class UsageError extends Error {}
 
 function usage(): never {
   throw new UsageError(
-    "Usage: node build.ts files --default <branch> | build --input <file> --out <file>",
+    "Usage: node build.ts files --default <branch> | build --input <file> --out <dir>",
   );
 }
 
@@ -87,16 +88,20 @@ function main(): void {
       console.log(JSON.stringify(listChanges(process.cwd(), cli.branch)));
       return;
     }
-    const data = collectPage(process.cwd(), readInput(cli.input));
-    const html = renderPage(readFileSync(TEMPLATE, "utf8"), data);
+    const input = readInput(cli.input);
+    const data = collectPage(process.cwd(), input);
     const out = resolve(cli.out);
-    mkdirSync(dirname(out), { recursive: true });
-    writeFileSync(out, html);
+    const output = renderBuild(readFileSync(TEMPLATE, "utf8"), data, input.server, out);
+    writeBuild(output);
+    const { publishes, batches } = output.publish;
     const add = data.files.reduce((sum, file) => sum + file.add, 0);
     const del = data.files.reduce((sum, file) => sum + file.del, 0);
     console.log(`Wrote ${out}`);
     console.log(
       `${data.files.length} files (${data.uncommitted} uncommitted, ${data.untracked} untracked), +${add} -${del} against ${data.base}`,
+    );
+    console.log(
+      `${publishes.length} publish${publishes.length === 1 ? "" : "es"}, ${batches.length} reader batch${batches.length === 1 ? "" : "es"}`,
     );
   } catch (error) {
     if (error instanceof BuildError) fail(error.message);

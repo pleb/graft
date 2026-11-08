@@ -36,6 +36,8 @@ describe("parseCatalog", () => {
       "plan.manualChecksQuestion",
       "orchestrate.finishedPlan",
       "orchestrate.manualChecks",
+      "diff.comments",
+      "diff.fileList",
       "pr.state",
       "update.mode",
       "update.notify",
@@ -62,6 +64,8 @@ describe("parseCatalog", () => {
         values: ["pause", "defer"],
         defaultValue: "ask",
       },
+      { skill: "diff", name: "comments", values: ["auto"], defaultValue: "batch" },
+      { skill: "diff", name: "fileList", values: ["tree"], defaultValue: "flat" },
       { skill: "pr", name: "state", values: ["ready"], defaultValue: "draft" },
       { skill: "update", name: "mode", values: ["auto"], defaultValue: "ask" },
       {
