@@ -894,9 +894,12 @@
   DIFF.threads = DIFF.threads.map(joined);
   for (const f of DIFF.files) {
     for (const k of ["id", "path", "oldPath", "stub", "note"]) if (k in f) f[k] = joined(f[k]);
-    for (const h of f.hunks || []) for (const l of h.lines) l[3] = joined(l[3]);
-    if (f.content) f.content = f.content.map(joined).join("\n");
-    for (const k of ["svgOld", "svgNew"]) if (f[k]) f[k] = f[k].map(joined).join("\n");
+  }
+  function joinData(d) {
+    for (const h of d.hunks) for (const l of h.lines) l[3] = joined(l[3]);
+    if (d.content) d.content = d.content.map(joined).join("\n");
+    for (const k of ["svgOld", "svgNew"]) if (d[k]) d[k] = d[k].map(joined).join("\n");
+    return d;
   }
 
   const $ = (id) => document.getElementById(id);
@@ -1205,7 +1208,9 @@
     rendered: "Rendered",
     chunked: "Chunked",
   };
-  const isSvg = (f) => f.svgOld != null || f.svgNew != null;
+  // An SVG's new side is kept once: in content when the file has content, else in svgNew.
+  const svgNew = (f) => f.svgNew ?? f.content;
+  const isSvg = (f) => /\.svg$/i.test(f.path) && (f.svgOld != null || svgNew(f) != null);
   const olds = new Map();
   const oldOf = (f) => {
     if (!olds.has(f)) olds.set(f, oldSource(f));
@@ -1215,8 +1220,9 @@
     const list = ["unified"];
     const both = f.status !== "A" && f.status !== "D";
     if (both && !narrowMq.matches) list.push("split");
-    if ((f.content != null && mdReady) || isSvg(f)) list.push("rendered");
-    if (both && f.content != null && mdReady && oldOf(f) != null) list.push("chunked");
+    const md = f.isMarkdown && f.content != null && mdReady;
+    if (md || isSvg(f)) list.push("rendered");
+    if (both && md && oldOf(f) != null) list.push("chunked");
     return list;
   }
   function fileView(f) {
@@ -1393,7 +1399,7 @@
   function renderSvg(f, box) {
     for (const [label, svg] of [
       ["Before", f.svgOld],
-      ["After", f.svgNew],
+      ["After", svgNew(f)],
     ]) {
       const fig = el("figure");
       fig.append(el("figcaption", null, label));
@@ -1468,7 +1474,9 @@
     if (f.note) body.append(el("div", "note", f.note));
     if (f.binary) body.append(el("div", "note", "Binary file changed."));
     else if (f.stub) body.append(el("div", "note", f.stub));
-    else if (fileView(f) === "rendered" && isSvg(f)) {
+    else if (!f.hunks) {
+      body.append(el("div", "note", f.failed ? "Could not load this file's diff." : "Loading…"));
+    } else if (fileView(f) === "rendered" && isSvg(f)) {
       const box = el("div", "svgcmp");
       renderSvg(f, box);
       body.append(box);
@@ -1490,12 +1498,10 @@
     if (f.hunks && body.hidden) head.querySelector(".fold").textContent = "Expand";
     sec.append(body);
   }
-  let rendered = false;
   function renderFiles() {
     const root = $("diffs");
     root.replaceChildren();
     DIFF.files.forEach((f, fi) => {
-      if (!rendered && isViewed(f) && f.hunks) collapsed.add(f.path);
       const sec = el("section", "file");
       sec.id = f.id;
       sec.classList.toggle("cur", fi === current);
@@ -1503,8 +1509,33 @@
       sections[fi] = sec;
       renderFile(sec, fi);
     });
-    rendered = true;
     reportPins();
+  }
+  // Each file's hunks arrive from its data file; until then its section shows a placeholder.
+  function loadFile(fi) {
+    const f = DIFF.files[fi];
+    fetch(f.data)
+      .then((r) => {
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
+      })
+      .then((d) => {
+        joinData(d);
+        Object.assign(f, {
+          hunks: d.hunks,
+          content: d.content,
+          svgOld: d.svgOld,
+          svgNew: d.svgNew,
+        });
+        if (isViewed(f)) collapsed.add(f.path);
+      })
+      .catch(() => {
+        f.failed = true;
+      })
+      .then(() => {
+        renderFile(sections[fi], fi);
+        reportPins();
+      });
   }
 
   function setCurrent(fi, scroll) {
@@ -1680,7 +1711,7 @@
     });
   }
   // The Rendered view appears once both libraries load.
-  if (DIFF.files.some((f) => f.content != null)) {
+  if (DIFF.files.some((f) => f.isMarkdown)) {
     Promise.all(LIBS.map(loadScript))
       .then(() => {
         if (typeof window.marked?.lexer !== "function") return;
@@ -1697,7 +1728,7 @@
         });
         mdReady = true;
         DIFF.files.forEach((f, fi) => {
-          if (f.content != null && sections[fi]) renderFile(sections[fi], fi);
+          if (f.isMarkdown && f.hunks && sections[fi]) renderFile(sections[fi], fi);
         });
         reportPins();
       })
@@ -1708,6 +1739,9 @@
   renderSummary();
   renderList();
   renderFiles();
+  DIFF.files.forEach((f, fi) => {
+    if (f.data) loadFile(fi);
+  });
 
   async function setupComments() {
     if (typeof window.claude?.use !== "function") return;

@@ -42,7 +42,7 @@ The untracked files to include are `untracked` (include all or exclude some, les
 
 ## Build
 
-The page is `<scratchpad>/diff/<name>.html` and its input `<scratchpad>/diff/<name>.json`, with `name` from the files output. Keep these paths for every run in the session.
+The input file is `<scratchpad>/diff/<name>.json`, with `name` from the files output. Keep this path for every run in the session. Each build writes a new output directory, `<scratchpad>/diff/<name>/<publish>/`.
 
 Write the input file:
 
@@ -52,28 +52,44 @@ Write the input file:
   "untracked": ["<untracked files to include>"],
   "exclude": ["<exclusions>"],
   "threads": [{ "path": "<file path>", "side": "old or new", "line": 1 }],
-  "publish": 1
+  "publish": 1,
+  "server": ["<published paths>"]
 }
 ```
 
-- `publish` is 1, or the existing input file's `publish` plus 1.
+- `publish` is 1, or the existing input file's `publish` plus 1, for every build, including a rebuild after a reader finding.
 - `threads` is empty on the first publish in the session. Otherwise, it holds an item for each open thread, read as `## Threads` describes.
+- `server` is empty on the first publish in the session. Otherwise, it holds the paths `Artifact` lists with `action: "list"`, `scope: "files"` and `url` the artifact link.
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/build.ts build --input <input file> --out <page>
+node ${CLAUDE_SKILL_DIR}/build.ts build --input <input file> --out <output directory>
 ```
 
-Show the user the line after `Wrote`.
+Show the user the `Wrote` line and the publishes and reader batches line.
 
 ## Publish
 
+Read `<output directory>/publish.json`. Read no other file in the output directory.
+
+For each entry in `batches`, run a `general-purpose` agent, all in parallel, with this brief and the batch's paths, each as `<output directory>/<path>`:
+
+> Read every listed file in full with `Read`, in parts when it is long; view images with `Read`. Confirm each path you read in full. Report content that should not be published (secrets, credentials, personal data) with its path, location and why, or that there is nothing to flag.
+
+On a finding, or a path a reader did not read in full, find its repo file in `send[].source` (null is `index.html`, the manifest; name the files it lists when relevant), ask the user whether to exclude that file, and rerun `## Build` with the exclusion and then this section.
+
 On the first publish in the session, call `Artifact` with `action: "quickstart"` and `intent: "other"`, and load the `artifact-capabilities` skill.
 
-Read the page in full with the `Read` tool, in parts of about 800 lines with `offset` and `limit` when it is long.
+For each entry in `publishes`, in order, call `Artifact` with:
 
-Publish the page with `Artifact`: `file_path` the page, `capabilities: {comments: {customAnchors: true}}`, and `icon: "code"` on the first publish only. A republish uses the same `file_path`.
+- `file_path`: `<output directory>/index.html`.
+- `files`: each path in the entry's `send` other than `index.html` mapped to `<output directory>/<path>`, and each path in its `remove` mapped to `null`.
+- `capabilities: {comments: {customAnchors: true}}`.
+- `icon: "code"` on the session's first publish only.
+- `url`: the artifact link, on every publish after the session's first.
 
-If the publish is refused with `capabilities.comments: unavailable`, publish again with `capabilities: {comments: {}}`, and tell the user comments then anchor to text selections, without line labels or comment icons.
+Keep the link from the session's first publish for the rest of the session. When `publishes` has more than one entry, tell the user the page may show load errors until the last one lands.
+
+If a publish is refused with `capabilities.comments: unavailable`, publish again with `capabilities: {comments: {}}`, and tell the user comments then anchor to text selections, without line labels or comment icons.
 
 Report the link. On a republish, say the link keeps its sharing settings, so anyone it is shared with sees the new version. Tell the user to comment on lines, hunks or files, send each comment to Claude, and press Finish review (or tell you in the terminal) when done.
 

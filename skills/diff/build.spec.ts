@@ -149,6 +149,17 @@ function dataOf(output: BuildOutput, path: string): FileData {
   return JSON.parse(output.files.get(manifestEntry(output, path).data!)!);
 }
 
+// Joins a data file's split text in place, as the page does when it arrives.
+function joinData(data: FileData): void {
+  new Function(
+    [
+      templateSource("const joined = "),
+      templateSource("function joinData("),
+      "return joinData;",
+    ].join("\n"),
+  )()(data);
+}
+
 function longestLine(output: BuildOutput): number {
   return Math.max(
     ...[...output.files.values()].flatMap((file) => file.split("\n").map((line) => line.length)),
@@ -1071,15 +1082,8 @@ describe("renderBuild", () => {
     const content = data.content as unknown[];
     expect(Array.isArray(content[0])).toBe(true);
     expect(content[1]).toBe("short");
-    const join = new Function(
-      "DIFF",
-      [templateSource("const joined = "), templateSource("for (const f of DIFF.files) {")].join(
-        "\n",
-      ),
-    );
-    const page = { threads: [], files: [data] };
-    join(page);
-    expect(page.files[0].content).toBe(`${long}\nshort\n`);
+    joinData(data);
+    expect(data.content).toBe(`${long}\nshort\n`);
   });
 
   it("chunks long SVG content lines, which the page joins back", () => {
@@ -1092,16 +1096,9 @@ describe("renderBuild", () => {
     expect(Array.isArray((data.svgOld as unknown[])[0])).toBe(true);
     expect(data.svgNew).toBeUndefined();
     expect((data.content as unknown[])[1]).toBe("<!-- x -->");
-    const join = new Function(
-      "DIFF",
-      [templateSource("const joined = "), templateSource("for (const f of DIFF.files) {")].join(
-        "\n",
-      ),
-    );
-    const page = { threads: [], files: [data] };
-    join(page);
-    expect(page.files[0].svgOld).toBe(`${old}\n`);
-    expect(page.files[0].content).toBe(`${old}\n<!-- x -->\n`);
+    joinData(data);
+    expect(data.svgOld).toBe(`${old}\n`);
+    expect(data.content).toBe(`${old}\n<!-- x -->\n`);
   });
 
   it("builds a one-line change to a large SVG, storing its new text once", () => {
@@ -1440,6 +1437,48 @@ describe("template", () => {
     expect(commentCell(loose)).toBeNull();
     expect(commentCell(proto)).toBeNull();
     expect(commentCell(inPane)).toBeNull();
+  });
+
+  it("offers Markdown views by isMarkdown and renders an SVG from svgNew or content", () => {
+    const views = new Function(
+      "narrowMq",
+      "mdReady",
+      [
+        templateSource("const svgNew = "),
+        templateSource("const isSvg = "),
+        templateSource("const olds = "),
+        templateSource("const oldOf = "),
+        templateSource("function oldSource("),
+        templateSource("function views("),
+        "return views;",
+      ].join("\n"),
+    )({ matches: false }, true);
+    const hunks = [
+      {
+        header: "@@ -1 +1 @@",
+        lines: [
+          ["-", 1, null, "a"],
+          ["+", null, 1, "b"],
+        ],
+      },
+    ];
+    const file = (path: string, more: object) => ({ path, status: "M", hunks, ...more });
+    expect(views(file("a.ts", { content: "b\n" }))).toEqual(["unified", "split"]);
+    expect(views(file("a.md", { isMarkdown: true, content: "b\n" }))).toEqual([
+      "unified",
+      "split",
+      "rendered",
+      "chunked",
+    ]);
+    expect(views(file("a.md", { isMarkdown: true }))).toEqual(["unified", "split"]);
+    for (const more of [{ svgOld: "<svg/>", content: "b\n" }, { svgNew: "<svg/>" }]) {
+      expect(views(file("a.svg", more))).toEqual(["unified", "split", "rendered"]);
+    }
+    expect(views(file("a.svg", {}))).toEqual(["unified", "split"]);
+    expect(views({ path: "a.svg", status: "A", hunks, content: "b\n" })).toEqual([
+      "unified",
+      "rendered",
+    ]);
   });
 
   describe("rebuilds a Markdown file's old source", () => {
