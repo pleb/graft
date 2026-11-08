@@ -26,13 +26,14 @@ const SVG = ".svg";
 const IMAGES = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
 const REMOVED_FROM_INDEX = "Removed from the index; kept as an untracked file.";
 const NO_EXPAND = "Too large to expand past its hunks.";
+const NO_RENDER = "Too large to render; shows the diff only.";
 const LFS_POINTER = "version https://git-lfs.github.com/spec/v1\n";
 const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const PAGE = "index.html";
 
 // The largest total of data files, which readers read in full before each publish.
 export const MAX_DATA_BYTES = 5 * 1024 * 1024;
-// The largest data file without its expandable content.
+// The largest data file of hunks alone, and the largest that keeps its SVG sides.
 export const MAX_FILE_DATA_BYTES = 500 * 1024;
 // The largest data file that keeps its expandable content.
 export const MAX_EXPAND_BYTES = 250 * 1024;
@@ -456,10 +457,12 @@ function git(
   root: string | null,
   args: string[],
   ok: number[] = [0],
+  input?: string,
 ): { status: number; stdout: string; stderr: string } {
   const result = spawnSync("git", root === null ? args : ["-C", root, ...args], {
     encoding: "utf8",
     maxBuffer: MAX_GIT_OUTPUT,
+    input,
   });
   if (result.error) throw new BuildError(`git ${args.join(" ")} failed: ${result.error.message}`);
   const status = result.status ?? -1;
@@ -695,9 +698,27 @@ function newContent(root: string, page: PageFile): string[] {
   return newBytes(root, page).toString("utf8").split("\n");
 }
 
-// A shown, non-deleted regular file's new content, when it is UTF-8 text and not a Git LFS pointer.
-function textContent(root: string, file: ParsedFile, page: PageFile): string[] | undefined {
+// The paths whose filter attribute is Git LFS.
+function lfsPaths(root: string, paths: string[]): Set<string> {
+  if (!paths.length) return new Set();
+  const out = git(root, ["check-attr", "-z", "--stdin", "filter"], [0], `${paths.join("\0")}\0`);
+  const fields = splitZ(out.stdout);
+  const lfs = new Set<string>();
+  for (let i = 0; i + 2 < fields.length; i += 3) if (fields[i + 2] === "lfs") lfs.add(fields[i]);
+  return lfs;
+}
+
+// A shown, non-deleted regular file's new content, when it is UTF-8 text and not a Git LFS pointer
+// or LFS-tracked working file. A working file's CRLF endings become LF when its hunks hold no CR,
+// as git's clean filter does.
+function textContent(
+  root: string,
+  file: ParsedFile,
+  page: PageFile,
+  lfs: Set<string>,
+): string[] | undefined {
   if (!page.hunks || page.status === "D") return undefined;
+  if (page.source !== "committed" && lfs.has(page.path)) return undefined;
   const mode = fileMode(file);
   if (mode !== undefined && modeType(mode) !== "10") return undefined;
   const bytes = newBytes(root, page);
@@ -708,6 +729,13 @@ function textContent(root: string, file: ParsedFile, page: PageFile): string[] |
     return undefined;
   }
   if (text.startsWith(LFS_POINTER)) return undefined;
+  if (
+    page.source !== "committed" &&
+    text.includes("\r") &&
+    !page.hunks.some((hunk) => hunk.lines.some((line) => line[3].includes("\r")))
+  ) {
+    text = text.replace(/\r\n/g, "\n");
+  }
   return text.split("\n");
 }
 
@@ -751,9 +779,18 @@ export function collectPage(cwd: string, input: BuildInput): PageData {
     if (exclude.has(path)) continue;
     for (const file of untrackedFile(root, path)) entries.push({ file, source: "untracked" });
   }
-  const files = mergeByPath(entries).map(({ file, source }) => {
-    const page = toPageFile(file, source);
-    const content = textContent(root, file, page);
+  const pages = mergeByPath(entries).map(({ file, source }) => ({
+    file,
+    page: toPageFile(file, source),
+  }));
+  const lfs = lfsPaths(
+    root,
+    pages
+      .filter(({ page }) => page.hunks && page.source !== "committed")
+      .map(({ page }) => page.path),
+  );
+  const files = pages.map(({ file, page }) => {
+    const content = textContent(root, file, page, lfs);
     if (content) page.content = content;
     Object.assign(page, svgSides(root, base, file, page));
     return page;
@@ -863,45 +900,51 @@ function largest(sizes: { path: string; bytes: number }[]): string {
     .join(", ");
 }
 
-function fileData(file: PageFile, content: boolean): FileData {
+// A file's data, its new SVG text kept once: in content when content is kept, else in svgNew.
+function fileData(file: PageFile, content: boolean, svg: boolean): FileData {
   const data: FileData = { path: file.path, hunks: file.hunks! };
-  if (content && file.content) data.content = file.content;
-  if (file.svgOld) data.svgOld = file.svgOld;
-  if (file.svgNew) data.svgNew = file.svgNew;
+  const withContent = content && file.content !== undefined;
+  if (withContent) data.content = file.content;
+  if (svg && file.svgOld) data.svgOld = file.svgOld;
+  if (svg && file.svgNew && !withContent) data.svgNew = file.svgNew;
   return data;
 }
 
 interface Sized {
   file: PageFile;
-  bare: FileData;
-  bareBytes: number;
-  full: FileData;
-  fullBytes: number;
-  expand: boolean;
+  content: boolean;
+  svg: boolean;
+  sizes: Map<string, number>;
 }
 
-// Each shown file's data, keeping its content while the file stays within MAX_EXPAND_BYTES and
-// the total within MAX_DATA_BYTES, dropping it from the largest files first.
+function dataBytes(item: Sized, content: boolean, svg: boolean): number {
+  const key = `${content} ${svg}`;
+  let bytes = item.sizes.get(key);
+  if (bytes === undefined) {
+    bytes = Buffer.byteLength(layout(fileData(item.file, content, svg)));
+    item.sizes.set(key, bytes);
+  }
+  return bytes;
+}
+
+// Each shown file's data, failing when its hunks pass MAX_FILE_DATA_BYTES or all hunks pass
+// MAX_DATA_BYTES. Content is kept while the file stays within MAX_EXPAND_BYTES and SVG sides while
+// it stays within MAX_FILE_DATA_BYTES; then, until the total fits MAX_DATA_BYTES, content and then
+// SVG sides are dropped from the largest files first.
 function fitData(files: PageFile[]): Sized[] {
   const sized = files
     .filter((file) => file.hunks)
-    .map((file): Sized => {
-      const bare = fileData(file, false);
-      const bareBytes = Buffer.byteLength(layout(bare));
-      if (!file.content)
-        return { file, bare, bareBytes, full: bare, fullBytes: bareBytes, expand: false };
-      const full = fileData(file, true);
-      return {
-        file,
-        bare,
-        bareBytes,
-        full,
-        fullBytes: Buffer.byteLength(layout(full)),
-        expand: true,
-      };
-    });
-  const bare = sized.map((item) => ({ path: item.file.path, bytes: item.bareBytes }));
-  const over = sized.filter((item) => item.bareBytes > MAX_FILE_DATA_BYTES);
+    .map((file): Sized => ({
+      file,
+      content: file.content !== undefined,
+      svg: file.svgOld !== undefined || file.svgNew !== undefined,
+      sizes: new Map(),
+    }));
+  const bare = sized.map((item) => ({
+    path: item.file.path,
+    bytes: dataBytes(item, false, false),
+  }));
+  const over = bare.filter((item) => item.bytes > MAX_FILE_DATA_BYTES);
   if (over.length) {
     throw new BuildError(
       `${over.length} file diff${over.length === 1 ? " is" : "s are"} over the ${kb(MAX_FILE_DATA_BYTES)} one file can hold. Largest files: ${largest(bare)}`,
@@ -913,18 +956,28 @@ function fitData(files: PageFile[]): Sized[] {
       `The diff data is ${kb(bareTotal)}, over the ${kb(MAX_DATA_BYTES)} readers can read. Largest files: ${largest(bare)}`,
     );
   }
-  for (const item of sized) if (item.fullBytes > MAX_EXPAND_BYTES) item.expand = false;
-  let total = sized.reduce((sum, item) => sum + (item.expand ? item.fullBytes : item.bareBytes), 0);
-  const expanding = sized.filter((item) => item.expand).sort((a, b) => b.fullBytes - a.fullBytes);
-  for (const item of expanding) {
-    if (total <= MAX_DATA_BYTES) break;
-    item.expand = false;
-    total -= item.fullBytes - item.bareBytes;
+  for (const item of sized) {
+    if (item.content && dataBytes(item, true, item.svg) > MAX_EXPAND_BYTES) item.content = false;
+    if (item.svg && dataBytes(item, item.content, true) > MAX_FILE_DATA_BYTES) item.svg = false;
   }
+  let total = sized.reduce((sum, item) => sum + dataBytes(item, item.content, item.svg), 0);
+  const drop = (field: "content" | "svg") => {
+    const kept = sized
+      .filter((item) => item[field])
+      .map((item) => ({ item, bytes: dataBytes(item, item.content, item.svg) }))
+      .sort((a, b) => b.bytes - a.bytes);
+    for (const { item, bytes } of kept) {
+      if (total <= MAX_DATA_BYTES) return;
+      item[field] = false;
+      total += dataBytes(item, item.content, item.svg) - bytes;
+    }
+  };
+  drop("content");
+  drop("svg");
   return sized;
 }
 
-function manifestFile(file: PageFile, data: string | undefined, dropped: boolean): ManifestFile {
+function manifestFile(file: PageFile, data?: string, item?: Sized): ManifestFile {
   const entry: ManifestFile = {
     id: file.id,
     path: file.path,
@@ -939,12 +992,11 @@ function manifestFile(file: PageFile, data: string | undefined, dropped: boolean
   };
   if (file.binary) entry.binary = true;
   if (file.stub !== undefined) entry.stub = file.stub;
-  const note = dropped
-    ? file.note === undefined
-      ? NO_EXPAND
-      : `${file.note} ${NO_EXPAND}`
-    : file.note;
-  if (note !== undefined) entry.note = note;
+  const notes = [file.note];
+  if (item && file.content && !item.content) notes.push(NO_EXPAND);
+  if (item && (file.svgOld || file.svgNew) && !item.svg) notes.push(NO_RENDER);
+  const note = notes.filter((text) => text !== undefined).join(" ");
+  if (note) entry.note = note;
   if (data !== undefined) entry.data = data;
   return entry;
 }
@@ -1031,11 +1083,11 @@ export function renderBuild(
   const dataFiles = new Map<string, { text: string; source: string }>();
   const files = data.files.map((file) => {
     const item = sized.get(file);
-    if (!item) return manifestFile(file, undefined, false);
-    const text = `${layout(item.expand ? item.full : item.bare)}\n`;
+    if (!item) return manifestFile(file);
+    const text = `${layout(fileData(file, item.content, item.svg))}\n`;
     const path = `data/f-${createHash("sha256").update(text).digest("hex").slice(0, 16)}.json`;
     dataFiles.set(path, { text, source: file.path });
-    return manifestFile(file, path, item.full !== item.bare && !item.expand);
+    return manifestFile(file, path, item);
   });
   const manifest: Manifest = { ...data, files };
   const html = renderPage(template, manifest);

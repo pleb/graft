@@ -550,6 +550,29 @@ describe("collectPage", () => {
     }
   });
 
+  it("normalises a working file's CRLF content to match its clean-filtered hunks", () => {
+    const dir = newRepo({ "a.txt": "a\nb\n" });
+    git(dir, "config", "core.autocrlf", "true");
+    write(dir, { "a.txt": "a\r\nc\r\n", "new.txt": "x\r\ny\r\n" });
+    const files = byPath(collectPage(dir, input({ untracked: ["new.txt"] })));
+    const a = files.get("a.txt")!;
+    expect(a.hunks!.flatMap((hunk) => hunk.lines.map((line) => line[3]))).toEqual(["a", "b", "c"]);
+    expect(a.content).toEqual(["a", "c", ""]);
+    const added = files.get("new.txt")!;
+    const hunkText = added.hunks!.flatMap((hunk) => hunk.lines.map((line) => line[3]));
+    expect(added.content!.slice(0, -1)).toEqual(hunkText);
+  });
+
+  it("leaves out the content of LFS-tracked working files", () => {
+    const dir = newRepo({ ".gitattributes": "*.bin filter=lfs\n", "a.bin": "a\n", "a.txt": "a\n" });
+    write(dir, { "a.bin": "real\n", "a.txt": "b\n", "new.bin": "new\n" });
+    const files = byPath(collectPage(dir, input({ untracked: ["new.bin"] })));
+    expect(files.get("a.bin")!.hunks).toBeDefined();
+    expect(files.get("a.bin")!.content).toBeUndefined();
+    expect(files.get("new.bin")!.content).toBeUndefined();
+    expect(files.get("a.txt")!.content).toEqual(["b", ""]);
+  });
+
   it("embeds the old and new content of shown SVG files only", () => {
     const dir = newRepo({
       "mod.svg": "<svg>old</svg>\n",
@@ -1067,7 +1090,8 @@ describe("renderBuild", () => {
     expect(longestLine(output)).toBeLessThanOrEqual(1000);
     const data = dataOf(output, "a.svg");
     expect(Array.isArray((data.svgOld as unknown[])[0])).toBe(true);
-    expect((data.svgNew as unknown[])[1]).toBe("<!-- x -->");
+    expect(data.svgNew).toBeUndefined();
+    expect((data.content as unknown[])[1]).toBe("<!-- x -->");
     const join = new Function(
       "DIFF",
       [templateSource("const joined = "), templateSource("for (const f of DIFF.files) {")].join(
@@ -1077,7 +1101,46 @@ describe("renderBuild", () => {
     const page = { threads: [], files: [data] };
     join(page);
     expect(page.files[0].svgOld).toBe(`${old}\n`);
-    expect(page.files[0].svgNew).toBe(`${old}\n<!-- x -->\n`);
+    expect(page.files[0].content).toBe(`${old}\n<!-- x -->\n`);
+  });
+
+  it("builds a one-line change to a large SVG, storing its new text once", () => {
+    const svg = `<svg>\n${lines("<path/>", 30 * 1024)}</svg>\n`;
+    expect(Buffer.byteLength(svg)).toBeGreaterThan(300 * 1024);
+    const dir = newRepo({ "a.svg": svg, "b.svg": "<svg>\n</svg>\n" });
+    git(dir, "checkout", "-q", "-b", "feature");
+    write(dir, {
+      "a.svg": svg.replace("<path/> 7\n", "<path/> seven\n"),
+      "b.svg": "<svg>\n<g/>\n</svg>\n",
+    });
+    commitAll(dir, "feature");
+    const output = build(collectPage(dir, input()));
+    const big = dataOf(output, "a.svg");
+    expect(big.hunks).toBeDefined();
+    expect(big.content).toBeUndefined();
+    expect(big.svgOld).toBeUndefined();
+    expect(big.svgNew).toBeUndefined();
+    expect(manifestEntry(output, "a.svg").note).toBe(
+      "Too large to expand past its hunks. Too large to render; shows the diff only.",
+    );
+    const small = dataOf(output, "b.svg");
+    expect(small.svgOld).toEqual(["<svg>", "</svg>", ""]);
+    expect(small.content).toEqual(["<svg>", "<g/>", "</svg>", ""]);
+    expect(small.svgNew).toBeUndefined();
+    expect(manifestEntry(output, "b.svg").note).toBeUndefined();
+  });
+
+  it("keeps SVG sides in svgNew when only the content is dropped", () => {
+    const file = sizedFile("a.svg", 1000);
+    file.svgOld = Array.from({ length: 1500 }, () => "o".repeat(100));
+    file.svgNew = Array.from({ length: 1500 }, () => "n".repeat(100));
+    file.content = file.svgNew;
+    const output = build(syntheticPage([file]));
+    const data = dataOf(output, "a.svg");
+    expect(data.content).toBeUndefined();
+    expect(data.svgOld).toEqual(file.svgOld);
+    expect(data.svgNew).toEqual(file.svgNew);
+    expect(manifestEntry(output, "a.svg").note).toBe("Too large to expand past its hunks.");
   });
 
   it("names data files by a hash of their data, stable across builds", () => {
@@ -1178,6 +1241,33 @@ describe("renderBuild", () => {
     for (const file of output.manifest.files) {
       expect(dataOf(output, file.path).content === undefined).toBe(dropped.includes(file.path));
       if (file.note) expect(file.note).toBe("Too large to expand past its hunks.");
+    }
+  });
+
+  it("drops content from every file before SVG sides, largest first, to fit the data cap", () => {
+    // Each file keeps its SVG sides alone, and all of them together pass the total cap.
+    const files = Array.from({ length: 14 }, (_, i) => {
+      const file = sizedFile(`f${String(i).padStart(2, "0")}.svg`, 1000, 0, 90 + i);
+      const side = Array.from({ length: 1900 }, () => "s".repeat(90 + i));
+      file.svgOld = side;
+      file.svgNew = side;
+      return file;
+    });
+    files.push(sizedFile("text.txt", 1000, 200 * 1024));
+    const output = build(syntheticPage(files));
+    expect(dataBytes(output)).toBeLessThanOrEqual(MAX_DATA_BYTES);
+    expect(dataOf(output, "text.txt").content).toBeUndefined();
+    expect(manifestEntry(output, "text.txt").note).toBe("Too large to expand past its hunks.");
+    const svgs = output.manifest.files.filter((file) => file.path.endsWith(".svg"));
+    const dropped = svgs.filter((file) => file.note).map((file) => file.path);
+    expect(dropped.length).toBeGreaterThan(0);
+    expect(dropped.length).toBeLessThan(svgs.length);
+    expect(dropped).toEqual(svgs.slice(svgs.length - dropped.length).map((file) => file.path));
+    for (const file of svgs) {
+      const data = dataOf(output, file.path);
+      expect(data.svgOld === undefined).toBe(dropped.includes(file.path));
+      expect(data.svgNew === undefined).toBe(dropped.includes(file.path));
+      if (file.note) expect(file.note).toBe("Too large to render; shows the diff only.");
     }
   });
 });
