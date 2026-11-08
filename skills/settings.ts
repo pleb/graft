@@ -5,7 +5,13 @@ import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
 import { parseCatalog } from "./settings-catalog.ts";
-import { driveForm, effectiveValues, isWindowsPath, resolveSettings } from "./settings-lib.ts";
+import {
+  driveForm,
+  effectiveValues,
+  isWindowsPath,
+  projectFilePaths,
+  resolveSettings,
+} from "./settings-lib.ts";
 
 const USAGE = "Usage: node settings.ts <root> [--explain]";
 
@@ -72,25 +78,32 @@ async function main(): Promise<void> {
     common === undefined
       ? { isParsed: false as const, error: "common.md cannot be read" }
       : parseCatalog(common);
+  const isHomeRelative =
+    root === "~" ||
+    root.startsWith("~/") ||
+    (process.platform === "win32" && root.startsWith("~\\"));
+  // A relative root is joined without collapsing `..`, which git and realpath resolve after symlinks.
+  const rootPath =
+    isAbsolute(root) || isWindowsPath(root) || isHomeRelative ? root : `${process.cwd()}/${root}`;
+  const hostnames = [hostname(), process.env.COMPUTERNAME, process.env.HOSTNAME].filter(
+    (name): name is string => !!name,
+  );
+  const rootDir = isHomeRelative ? join(home, root.slice(1)) : driveForm(rootPath, { hostnames });
+  const top = (await git(rootDir, "rev-parse", "--show-toplevel"))?.trim() || rootDir;
+  const projectFiles = await Promise.all(
+    projectFilePaths(top).map(async (source) => ({ source, text: await readText(source) })),
+  );
   const result = await resolveSettings(
     await readText(join(home, ".my-graft", "graft-settings.json")),
     catalog,
-    // A relative root is joined without collapsing `..`, which git and realpath resolve after symlinks.
-    isAbsolute(root) ||
-      isWindowsPath(root) ||
-      root === "~" ||
-      root.startsWith("~/") ||
-      (process.platform === "win32" && root.startsWith("~\\"))
-      ? root
-      : `${process.cwd()}/${root}`,
+    rootPath,
     {
       home,
       resolve: (path) => realpath(path).catch(() => undefined),
       normaliseRoot,
-      hostnames: [hostname(), process.env.COMPUTERNAME, process.env.HOSTNAME].filter(
-        (name): name is string => !!name,
-      ),
+      hostnames,
     },
+    projectFiles,
   );
   if (!result.isResolved) {
     fail(result.error);
