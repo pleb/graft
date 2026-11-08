@@ -804,6 +804,7 @@
   }
   .imgcmp .svgpane img {
     max-height: 360px;
+    object-fit: contain;
   }
   .imgov {
     width: min(1600px, calc(100vw - 32px));
@@ -850,7 +851,13 @@
     margin-bottom: 6px;
   }
   .imgov-body .svgpane img {
+    width: 100%;
+    height: auto;
     max-height: calc(100vh - 150px);
+    object-fit: contain;
+  }
+  .imgov-body.pixel .svgpane img {
+    image-rendering: pixelated;
   }
   .chunk + .chunk {
     border-top: 1px solid var(--border);
@@ -1346,13 +1353,21 @@
       b.dataset.dir = dir;
       b.setAttribute("aria-label", label);
       b.addEventListener("click", () => {
+        const index = tr.rowIndex;
         apply();
         renderFile(sections[fi], fi);
         reportPins();
         const again = sections[fi].querySelector(
           'tr.expand[data-gap="' + gap.at + '"] button[data-dir="' + dir + '"]',
         );
-        if (again) again.focus();
+        if (again) return again.focus();
+        // The expand row is gone: focus the first line shown in its place, else the next hunk header.
+        const rows = [...(sections[fi].querySelector("table")?.rows || [])].slice(index);
+        const next =
+          rows.find((r) => r.matches("tr.line")) || rows.find((r) => r.matches("tr.hunk"));
+        if (!next) return;
+        next.tabIndex = -1;
+        next.focus();
       });
       c.append(" ", b);
     };
@@ -1665,6 +1680,9 @@
       if (src) {
         const img = el("img");
         img.alt = label + ": " + f.path;
+        if (size) [img.width, img.height] = size;
+        img.addEventListener("load", reportPins);
+        img.addEventListener("error", reportPins);
         img.src = src;
         pane.append(img);
       } else pane.append(el("span", "svgnone", stub || "No preview."));
@@ -1674,6 +1692,9 @@
   }
   let imgDialog = null;
   let imgReturn = null;
+  let imgReturnId = null;
+  // Images this small or smaller on both sides show pixelated when the overlay enlarges them.
+  const PIXEL_EDGE = 256;
   // Both sides large in a modal dialog, closed with Escape, its Close button or a click outside the images.
   function openImages(f, from) {
     if (!imgDialog) {
@@ -1687,8 +1708,12 @@
       });
       imgDialog.addEventListener("close", () => {
         imgDialog.replaceChildren();
-        if (imgReturn && imgReturn.isConnected) imgReturn.focus();
-        imgReturn = null;
+        // The page re-rendered the file while open: its first enlarge button stands in for the one used.
+        const back = imgReturn?.isConnected
+          ? imgReturn
+          : document.getElementById(imgReturnId)?.querySelector("button.svgpane");
+        if (back) back.focus();
+        imgReturn = imgReturnId = null;
       });
       document.body.append(imgDialog);
     }
@@ -1701,8 +1726,11 @@
     head.append(title, close);
     const body = el("div", "imgov-body");
     imageFigures(f, body, null);
+    const small = ([, src, , size]) => !src || (size && Math.max(...size) <= PIXEL_EDGE);
+    body.classList.toggle("pixel", imagePanes(f).every(small));
     imgDialog.replaceChildren(head, body);
     imgReturn = from;
+    imgReturnId = f.id;
     imgDialog.showModal();
     close.focus();
   }
@@ -2062,6 +2090,12 @@
   }
 
   if (window.matchMedia("(max-width: 860px)").matches) $("files").open = false;
+  // An image file with no previewed side carries its stubs in the manifest, so it is loaded already.
+  for (const f of DIFF.files) {
+    if (!f.isImage || f.data != null) continue;
+    f.hunks = [];
+    if (isViewed(f)) collapsed.add(f.path);
+  }
   renderSummary();
   renderList();
   renderFiles();

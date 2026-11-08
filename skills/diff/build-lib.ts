@@ -188,8 +188,14 @@ export interface ManifestFile {
   isImage?: true;
   stub?: string;
   note?: string;
-  // The data file's path in the build directory, when the file has hunks or is an image.
+  // The data file's path in the build directory, when the file has hunks or is an image with a
+  // previewed side.
   data?: string;
+  // An image file with no previewed side: each side's stub and size, in place of a data file.
+  stubOld?: string;
+  stubNew?: string;
+  sizeOld?: [number, number];
+  sizeNew?: [number, number];
 }
 
 export interface Manifest extends Omit<PageData, "files"> {
@@ -734,6 +740,19 @@ function showBytes(root: string, rev: string): Buffer {
   return result.stdout;
 }
 
+// Each blob's size in bytes by its rev, from one git cat-file call.
+function blobSizes(root: string, revs: string[]): Map<string, number> {
+  if (!revs.length) return new Map();
+  const args = ["cat-file", "--batch-check=%(objectsize)", "-z"];
+  const lines = git(root, args, [0], revs.map((rev) => `${rev}\0`).join("")).stdout.split("\n");
+  return new Map(
+    revs.map((rev, i) => {
+      if (!/^\d+$/.test(lines[i] ?? "")) throw new BuildError(`git cat-file found no blob ${rev}`);
+      return [rev, Number(lines[i])];
+    }),
+  );
+}
+
 // A file's new bytes, from HEAD when committed and the working tree otherwise.
 function newBytes(root: string, page: PageFile): Buffer {
   if (page.source !== "committed") return readFileSync(join(root, page.path));
@@ -873,6 +892,16 @@ function webpInfo(bytes: Buffer): { size: [number, number] | null; animated: boo
   return { size, animated };
 }
 
+// Whether a PNG is an APNG: an acTL chunk comes before its first IDAT chunk.
+function pngAnimated(bytes: Buffer): boolean {
+  for (let at = 8; at + 8 <= bytes.length; at += 12 + bytes.readUInt32BE(at)) {
+    const kind = bytes.toString("latin1", at + 4, at + 8);
+    if (kind === "acTL") return true;
+    if (kind === "IDAT") return false;
+  }
+  return false;
+}
+
 // An image's format, width, height and whether it is animated, from its headers; null when the
 // bytes are not a PNG, JPEG, GIF or WebP image whose size can be read.
 export function imageInfo(bytes: Buffer): ImageInfo | null {
@@ -883,6 +912,7 @@ export function imageInfo(bytes: Buffer): ImageInfo | null {
   if (has(0, "\x89PNG\r\n\x1a\n") && has(12, "IHDR") && bytes.length >= 24) {
     ext = "png";
     size = [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
+    animated = pngAnimated(bytes);
   } else if (bytes[0] === 0xff && bytes[1] === 0xd8) {
     ext = "jpg";
     size = jpegSize(bytes);
@@ -902,41 +932,56 @@ function mb(bytes: number): string {
   return `${Math.round((bytes / 1024 / 1024) * 10) / 10} MB`;
 }
 
-// One image side, keeping its bytes only when it is a readable still image within the size caps.
-export function imageSide(bytes: Buffer): ImageSide {
+// One image side of the given size, keeping its bytes only when it is a readable still image within
+// the size caps; a side over MAX_IMAGE_SIDE_BYTES is not read.
+export function imageSide(size: number, read: () => Buffer): ImageSide {
+  if (size > MAX_IMAGE_SIDE_BYTES) {
+    return { stub: `Too large to preview: ${mb(size)}, over ${mb(MAX_IMAGE_SIDE_BYTES)}.` };
+  }
+  const bytes = read();
   const info = imageInfo(bytes);
   if (!info) return { stub: NOT_IMAGE };
   const side: ImageSide = { width: info.width, height: info.height };
   const { width, height } = info;
-  if (bytes.length > MAX_IMAGE_SIDE_BYTES) {
-    side.stub = `Too large to preview: ${mb(bytes.length)}, over ${mb(MAX_IMAGE_SIDE_BYTES)}.`;
-  } else if (Math.max(width, height) > MAX_IMAGE_EDGE) {
+  if (Math.max(width, height) > MAX_IMAGE_EDGE) {
     side.stub = `Too many pixels to preview: ${width} × ${height}, over ${MAX_IMAGE_EDGE} on its longest side.`;
   } else if (info.animated) side.stub = ANIMATED;
   else Object.assign(side, { bytes, ext: info.ext });
   return side;
 }
 
-// A shown binary image file's old side from the merge base and new side, each read as bytes; a
-// side that is not a regular file gets a stub.
-function imageSides(
-  root: string,
+// Where one image side comes from: a git blob, a working file, or a stub when it is neither.
+type SideSource = { rev: string } | { file: string } | { stub: string };
+
+// A shown binary image file's old side from the merge base and new side from HEAD when committed
+// and the working tree otherwise; a side that is not a regular file gets a stub.
+function imageSources(
   base: string,
   file: ParsedFile,
   page: PageFile,
-): PageFile["image"] {
+): { old?: SideSource; new?: SideSource } | undefined {
   if (!page.binary || !isImage(page.path)) return undefined;
   const regular = (mode: string | undefined) => mode === undefined || modeType(mode) === "10";
-  const sides: NonNullable<PageFile["image"]> = {};
+  const sources: { old?: SideSource; new?: SideSource } = {};
   if (page.status !== "A") {
-    sides.old = regular(file.oldMode ?? file.index?.split(" ")[1])
-      ? imageSide(showBytes(root, `${base}:${page.oldPath ?? page.path}`))
+    sources.old = regular(file.oldMode ?? file.index?.split(" ")[1])
+      ? { rev: `${base}:${page.oldPath ?? page.path}` }
       : { stub: NOT_REGULAR };
   }
   if (page.status !== "D") {
-    sides.new = regular(fileMode(file)) ? imageSide(newBytes(root, page)) : { stub: NOT_REGULAR };
+    if (!regular(fileMode(file))) sources.new = { stub: NOT_REGULAR };
+    else if (page.source === "committed") sources.new = { rev: `HEAD:${page.path}` };
+    else sources.new = { file: page.path };
   }
-  return sides;
+  return sources;
+}
+
+// One image side from its source, sized before it is read.
+function readSide(root: string, source: SideSource, sizes: Map<string, number>): ImageSide {
+  if ("stub" in source) return { stub: source.stub };
+  if ("rev" in source) return imageSide(sizes.get(source.rev)!, () => showBytes(root, source.rev));
+  const full = join(root, source.file);
+  return imageSide(statSync(full).size, () => readFileSync(full));
 }
 
 export function collectPage(cwd: string, input: BuildInput): PageData {
@@ -972,12 +1017,23 @@ export function collectPage(cwd: string, input: BuildInput): PageData {
       .filter(({ page }) => page.hunks && page.source !== "committed")
       .map(({ page }) => page.path),
   );
-  const files = pages.map(({ file, page }) => {
+  const sources = pages.map(({ file, page }) => imageSources(base, file, page));
+  const sizes = blobSizes(
+    root,
+    sources.flatMap((image) =>
+      [image?.old, image?.new].flatMap((source) => (source && "rev" in source ? source.rev : [])),
+    ),
+  );
+  const files = pages.map(({ file, page }, i) => {
     const content = textContent(root, file, page, lfs);
     if (content) page.content = content;
     Object.assign(page, svgSides(root, base, file, page));
-    const image = imageSides(root, base, file, page);
-    if (image) page.image = image;
+    const image = sources[i];
+    if (image) {
+      page.image = {};
+      if (image.old) page.image.old = readSide(root, image.old, sizes);
+      if (image.new) page.image.new = readSide(root, image.new, sizes);
+    }
     return page;
   });
   if (!files.length) throw new BuildError(`No changes against ${baseRef}`);
@@ -1196,22 +1252,27 @@ function isImage(path: string): boolean {
   return IMAGES.has(extname(path).toLowerCase());
 }
 
-// Each image file's data, in path order: a side keeps its preview while fewer than
+type ImageFields = Pick<
+  FileData,
+  "imgOld" | "imgNew" | "stubOld" | "stubNew" | "sizeOld" | "sizeNew"
+>;
+
+// Each image file's sides, in path order: a side keeps its preview while fewer than
 // MAX_IMAGE_FILES earlier files have one and the build's distinct image bytes stay within
 // MAX_IMAGE_BYTES; past that total, every further side gets a stub. Previewed sides are named by a
 // hash of their bytes.
 function fitImages(files: PageFile[]): {
-  data: Map<PageFile, FileData>;
+  data: Map<PageFile, ImageFields>;
   images: Map<string, { bytes: Buffer; source: string }>;
 } {
-  const data = new Map<PageFile, FileData>();
+  const data = new Map<PageFile, ImageFields>();
   const images = new Map<string, { bytes: Buffer; source: string }>();
   let shown = 0;
   let total = 0;
   let full = false;
   for (const file of files) {
     if (!file.image) continue;
-    const entry: FileData = { path: file.path, hunks: [] };
+    const entry: ImageFields = {};
     let previewed = false;
     for (const [side, key] of [
       [file.image.old, "Old"],
@@ -1315,8 +1376,9 @@ export function planPublish(built: BuiltFile[], server: string[], out: string): 
   };
 }
 
-// The page with its inline manifest, a data file per shown file named by a hash of its text, each
-// previewed image side, and the publish plan against the server's paths.
+// The page with its inline manifest, a data file per shown file and per image file with a previewed
+// side, named by a hash of its text, each previewed image side, and the publish plan against the
+// server's paths. An image file with no previewed side carries its stubs in its manifest entry.
 export function renderBuild(
   template: string,
   data: PageData,
@@ -1329,8 +1391,10 @@ export function renderBuild(
   const files = data.files.map((file) => {
     const item = sized.get(file);
     const image = fitted.data.get(file);
+    if (image && !image.imgOld && !image.imgNew) return Object.assign(manifestFile(file), image);
     if (!item && !image) return manifestFile(file);
-    const text = `${layout(image ?? fileData(file, item!.content, item!.svg))}\n`;
+    const data = image ? { path: file.path, hunks: [], ...image } : undefined;
+    const text = `${layout(data ?? fileData(file, item!.content, item!.svg))}\n`;
     const path = `data/f-${createHash("sha256").update(text).digest("hex").slice(0, 16)}.json`;
     dataFiles.set(path, { text, source: file.path });
     return manifestFile(file, path, item);

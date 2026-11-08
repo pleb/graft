@@ -33,6 +33,7 @@ import {
   MAX_IMAGE_FILES,
   MAX_IMAGE_SIDE_BYTES,
   MAX_PUBLISH_PATHS,
+  MAX_VERSION_FILES,
   mergeSides,
   pageName,
   parseDiff,
@@ -1005,7 +1006,8 @@ describe("renderBuild", () => {
       hash: expect.stringMatching(/^[0-9a-f]{16}$/),
       hasHunks: false,
       isMarkdown: false,
-      data: expect.stringMatching(/^data\/f-[0-9a-f]{16}\.json$/),
+      stubOld: "Not a PNG, JPEG, GIF or WebP image.",
+      stubNew: "Not a PNG, JPEG, GIF or WebP image.",
     });
     expect(manifestEntry(output, "package-lock.json")).toMatchObject({
       stub: "Lockfile changed (+2 −1). Content hidden.",
@@ -1395,8 +1397,14 @@ describe("planPublish", () => {
   });
 });
 
-// A PNG of one solid color, its pixel bytes followed by the given bytes in a private chunk.
-function png(width: number, height: number, fill = 0, extra = Buffer.alloc(0)): Buffer {
+// A PNG of one solid color, its pixel bytes preceded by the given bytes in a chunk of the given kind.
+function png(
+  width: number,
+  height: number,
+  fill = 0,
+  extra = Buffer.alloc(0),
+  kind = "prVt",
+): Buffer {
   const chunk = (kind: string, data: Buffer) => {
     const body = Buffer.concat([Buffer.from(kind, "latin1"), data]);
     const length = Buffer.alloc(4);
@@ -1414,7 +1422,7 @@ function png(width: number, height: number, fill = 0, extra = Buffer.alloc(0)): 
   return Buffer.concat([
     Buffer.from("\x89PNG\r\n\x1a\n", "latin1"),
     chunk("IHDR", header),
-    ...(extra.length ? [chunk("prVt", extra)] : []),
+    ...(extra.length ? [chunk(kind, extra)] : []),
     chunk("IDAT", deflateSync(Buffer.concat(Array.from({ length: height }, () => row)))),
     chunk("IEND", Buffer.alloc(0)),
   ]);
@@ -1537,41 +1545,62 @@ describe("images", () => {
     expect(imageInfo(webp("VP8L", 9000, 16))).toMatchObject({ width: 9000, height: 16 });
     expect(imageInfo(webp("VP8X", 70000, 3))).toMatchObject({ width: 70000, height: 3 });
     expect(imageInfo(webp("VP8X", 4, 4, true))).toMatchObject({ animated: true });
+    expect(imageInfo(png(2, 2, 0, Buffer.alloc(8), "acTL"))).toMatchObject({ animated: true });
+    const apng = png(2, 2, 0, Buffer.alloc(8), "acTL");
+    expect(imageInfo(apng.subarray(0, 40))).toMatchObject({ width: 2, animated: false });
+    const plain = png(2, 2);
+    const late = Buffer.concat([
+      plain.subarray(0, -12),
+      apng.subarray(33, 53),
+      plain.subarray(-12),
+    ]);
+    expect(imageInfo(late)).toMatchObject({ animated: false });
     for (const bytes of [PNG, RAW, Buffer.from("GIF8"), Buffer.from([0xff, 0xd8, 0xff, 0xd9])]) {
       expect(imageInfo(bytes)).toBeNull();
     }
   });
 
   it("keeps a side's bytes within the caps and stubs it with the reason otherwise", () => {
+    const side = (bytes: Buffer) => imageSide(bytes.length, () => bytes);
     const small = png(4, 4);
-    expect(imageSide(small)).toEqual({ bytes: small, ext: "png", width: 4, height: 4 });
+    expect(side(small)).toEqual({ bytes: small, ext: "png", width: 4, height: 4 });
     const edge = webp("VP8L", MAX_IMAGE_EDGE, 1);
-    expect(imageSide(edge).bytes).toBe(edge);
+    expect(side(edge).bytes).toBe(edge);
     const exact = png(1, 1, 0, Buffer.alloc(MAX_IMAGE_SIDE_BYTES - png(1, 1).length - 12));
     expect(exact.length).toBe(MAX_IMAGE_SIDE_BYTES);
-    expect(imageSide(exact).bytes).toBe(exact);
-    expect(imageSide(Buffer.concat([exact, Buffer.from([0])]))).toEqual({
-      width: 1,
-      height: 1,
+    expect(side(exact).bytes).toBe(exact);
+    expect(side(Buffer.concat([exact, Buffer.from([0])]))).toEqual({
       stub: "Too large to preview: 2 MB, over 2 MB.",
     });
-    expect(imageSide(png(1, 1, 0, Buffer.alloc(3 * 1024 * 1024))).stub).toBe(
+    const unread = () => {
+      throw new Error("read a side over the cap");
+    };
+    expect(imageSide(MAX_IMAGE_SIDE_BYTES + 1, unread)).toEqual({
+      stub: "Too large to preview: 2 MB, over 2 MB.",
+    });
+    expect(imageSide(600 * 1024 * 1024, unread).stub).toBe(
+      "Too large to preview: 600 MB, over 2 MB.",
+    );
+    expect(side(png(1, 1, 0, Buffer.alloc(3 * 1024 * 1024))).stub).toBe(
       "Too large to preview: 3 MB, over 2 MB.",
     );
-    expect(imageSide(webp("VP8L", 2, MAX_IMAGE_EDGE + 1))).toEqual({
+    expect(side(webp("VP8L", 2, MAX_IMAGE_EDGE + 1))).toEqual({
       width: 2,
       height: 4097,
       stub: "Too many pixels to preview: 2 × 4097, over 4096 on its longest side.",
     });
-    expect(imageSide(gif(2, 2, 3))).toEqual({
+    expect(side(png(2, 2, 0, Buffer.alloc(8), "acTL"))).toEqual({
       width: 2,
       height: 2,
       stub: "Animated; previews show still images only.",
     });
-    expect(imageSide(webp("VP8X", 2, 2, true)).stub).toBe(
-      "Animated; previews show still images only.",
-    );
-    expect(imageSide(RAW)).toEqual({ stub: "Not a PNG, JPEG, GIF or WebP image." });
+    expect(side(gif(2, 2, 3))).toEqual({
+      width: 2,
+      height: 2,
+      stub: "Animated; previews show still images only.",
+    });
+    expect(side(webp("VP8X", 2, 2, true)).stub).toBe("Animated; previews show still images only.");
+    expect(side(RAW)).toEqual({ stub: "Not a PNG, JPEG, GIF or WebP image." });
   });
 
   it("reads added, deleted and modified image sides byte for byte from git", () => {
@@ -1646,6 +1675,43 @@ describe("images", () => {
     expect(readFileSync(join(out, data.imgNew!)).equals(working)).toBe(true);
   });
 
+  it("stubs a side over 2 MB from its size, from git and from the working tree", () => {
+    const big = png(1, 1, 0, Buffer.alloc(MAX_IMAGE_SIDE_BYTES));
+    const dir = newRepo({ "big.png": big, "small.png": png(1, 1) });
+    git(dir, "checkout", "-q", "-b", "feature");
+    write(dir, { "big.png": png(2, 2, 0, Buffer.alloc(MAX_IMAGE_SIDE_BYTES)), "small.png": big });
+    commitAll(dir, "feature");
+    write(dir, { "big.png": png(3, 3, 0, Buffer.alloc(MAX_IMAGE_SIDE_BYTES)) });
+    const files = byPath(collectPage(dir, input()));
+    const stub = { stub: "Too large to preview: 2 MB, over 2 MB." };
+    expect(files.get("big.png")).toMatchObject({ source: "uncommitted" });
+    expect(files.get("big.png")!.image).toEqual({ old: stub, new: stub });
+    expect(files.get("small.png")!.image).toEqual({
+      old: { bytes: png(1, 1), ext: "png", width: 1, height: 1 },
+      new: stub,
+    });
+  });
+
+  it("keeps an image file with no previewed side in the manifest, writing no data file", () => {
+    const count = MAX_VERSION_FILES + 9;
+    const files = Array.from({ length: count + MAX_IMAGE_FILES }, (_, i) =>
+      imageFile(`s${String(i).padStart(3, "0")}.png`, { old: still(10, i), new: still(10, i) }),
+    );
+    const output = build(syntheticPage(files));
+    expect(output.files.size).toBe(1 + MAX_IMAGE_FILES);
+    expect(output.images.size).toBe(MAX_IMAGE_FILES);
+    const last = manifestEntry(output, files.at(-1)!.path);
+    expect(last).toMatchObject({
+      isImage: true,
+      stubOld: "Over the 20 image previews a page shows.",
+      stubNew: "Over the 20 image previews a page shows.",
+      sizeOld: [10, 20],
+      sizeNew: [10, 20],
+    });
+    expect(last.data).toBeUndefined();
+    expect(output.publish.send.length).toBe(1 + 2 * MAX_IMAGE_FILES);
+  });
+
   it("writes each image file's data with its sides' paths, sizes and stubs", () => {
     const old = png(2, 2, 1);
     const next = png(4, 3, 2);
@@ -1682,11 +1748,11 @@ describe("images", () => {
       sizeNew: [9000, 3],
       stubNew: "Too many pixels.",
     });
-    expect(dataOf(output, "a/raw.png")).toEqual({
-      path: "a/raw.png",
-      hunks: [],
+    expect(manifestEntry(output, "a/raw.png")).toMatchObject({
+      isImage: true,
       stubOld: "Not a PNG, JPEG, GIF or WebP image.",
     });
+    expect(manifestEntry(output, "a/raw.png").data).toBeUndefined();
     expect(manifestEntry(output, "a/mod.png")).toMatchObject({ isImage: true, binary: true });
     expect(manifestEntry(output, "b.ts").isImage).toBeUndefined();
     expect([...output.images.keys()]).toEqual([
@@ -1704,16 +1770,18 @@ describe("images", () => {
     );
     files.splice(1, 0, imageFile("i00a.gif", { new: { stub: "Animated." } }, "A"));
     const output = build(syntheticPage(files));
-    const shown = output.manifest.files.filter((file) => dataOf(output, file.path).imgNew);
+    const shown = output.manifest.files.filter(
+      (file) => file.data && dataOf(output, file.path).imgNew,
+    );
     expect(shown.map((file) => file.path)).toEqual(
       files
         .slice(0, 21)
         .map((file) => file.path)
         .filter((path) => path !== "i00a.gif"),
     );
-    expect(dataOf(output, "i00a.gif").stubNew).toBe("Animated.");
+    expect(manifestEntry(output, "i00a.gif").stubNew).toBe("Animated.");
     for (const path of ["i20.png", "i21.png"]) {
-      expect(dataOf(output, path)).toMatchObject({
+      expect(manifestEntry(output, path)).toMatchObject({
         stubNew: "Over the 20 image previews a page shows.",
         sizeNew: [10, 20],
       });
@@ -1738,7 +1806,7 @@ describe("images", () => {
     expect(dataOf(output, "f00.png").imgOld).toBe(dataOf(output, "g0.png").imgOld);
     const over = "Over the 40 MB of image previews a page holds.";
     expect(dataOf(output, "g0.png").stubNew).toBe(over);
-    expect(dataOf(output, "g1.png").stubNew).toBe(over);
+    expect(manifestEntry(output, "g1.png").stubNew).toBe(over);
     expect(
       output.publish.send.reduce(
         (sum, { path }) => sum + (output.images.get(path)?.length ?? 0),
