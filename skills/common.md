@@ -6,6 +6,17 @@ Skills follow the sections they name.
 
 Ask every question with `AskUserQuestion`.
 
+A single-select question with an option `preview`:
+
+- Has at most 3 other options and ends with **Something else**, whose `preview` and description both read "What should Claude do instead?".
+- With 4 to 6 options, splits them across two such questions in one call, with headers ending in `1 of 2` and `2 of 2`. The first ends with **None of these** instead, whose `preview` and description both read "See page 2.".
+
+Read its answers this way:
+
+- Notes on **Something else**, or notes with no option picked, are the user's own answer.
+- **None of these**, and **Something else** with no notes, are not picks.
+- Act on exactly one pick. Otherwise, ask again without previews.
+
 ## Command failures
 
 If a command fails, help the user resolve it, then carry on.
@@ -105,17 +116,79 @@ git -C <target> pull --ff-only origin main
 
 If the pull cannot fast-forward, help the user merge `origin/main`; never rebase. For any conflicts, read the registry to understand what each mod changes, and get a decision from the user on how to resolve them.
 
+## Personal clone
+
+`<origin-repo>` is the `owner/repo` of `<target>`'s `origin`. The target is a shared stock when `<origin-repo>` is `pleb/graft` or the `owner/repo` that `<target>/INTERSTOCK-MODS.md` names; otherwise it is a personal clone. Compare as `## Mod registry` does.
+
+```bash
+git -C <target> remote get-url origin
+```
+
+For a shared stock, point `gh` at `origin`. Read `GH_REPO`; exit 1 with no output means it is unset.
+
+```bash
+printenv GH_REPO
+```
+
+When it names another repo, ask whether to carry on with it unset for this run (prefix every `gh` command with `env -u GH_REPO`), or stop.
+
+Read the gh default from `<target>`. It exits 0 either way; empty output means no default.
+
+```bash
+(cd <target> && gh repo set-default --view)
+```
+
+With no default, set it and note that for Report. When the default is another repo, ask before replacing it, and stop when the user declines.
+
+```bash
+(cd <target> && gh repo set-default <origin-repo>)
+```
+
+## Publish the change
+
+The caller gives a branch name and PR guidance. A personal clone pushes to `main`; a shared stock gets a PR.
+
+For a personal clone, push and stop.
+
+```bash
+git -C <target> push origin main
+```
+
+For a shared stock, with the commit on local `main`, pick the branch: the caller's name, with `-2`, `-3`, ... appended while the name is taken. A name is taken when it exists locally, on `origin`, or as the head of any PR.
+
+```bash
+git -C <target> branch --list <branch>
+git -C <target> ls-remote --heads origin <branch>
+gh pr list -R <origin-repo> --head <branch> --state all
+```
+
+Move the commit to the branch and put local `main` back at `origin/main`.
+
+```bash
+git -C <target> switch -c <branch>
+git -C <target> branch -f main origin/main
+```
+
+Read `<target>/skills/pr/SKILL.md` and follow it with the caller's PR guidance as its arguments, running each of its commands from `<target>` (`git -C <target>` or `(cd <target> && ...)`), reading `${CLAUDE_SKILL_DIR}` as `<target>/skills/pr`.
+
+Then switch back to `main`, even when raising the PR fails or the user stops. The caller's Report gives the PR URL and says the change lands only once the PR is merged. When no PR was raised, it names the branch and says to raise it with `/graft:pr` from that branch.
+
+```bash
+git -C <target> switch main
+```
+
 ## Settings
 
 Get settings by running `settings.ts`, which is beside this file, with the root. It prints every setting's effective value as JSON keyed by skill (`common` for settings this file's shared sections read), then by setting. On a non-zero exit, follow `## Command failures`. A setting value given in a brief replaces running it for that setting.
 
-| Key                         | Values              | Default     | Shown when                       | What it does                                                                                                                                 |
-| --------------------------- | ------------------- | ----------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `common.reviewerModel`      | `fable`, `sonnet`   | opus        |                                  | The reviewer model when the arguments name none.                                                                                             |
-| `plan.outsideRepoPlans`     | `always`, `never`   | ask         |                                  | Outside a repo, `always` saves plans in `~/.my-graft/.claude/plans/` without asking; `never` stops.                                          |
-| `plan.questionsPerRound`    | `1`, `2`, `4`       | 3           |                                  | The most questions plan asks in one round.                                                                                                   |
-| `plan.manualChecksQuestion` | `finish`            | orchestrate | `orchestrate.manualChecks = ask` | With `finish`, plan asks the Manual check mode in its Finish question when `orchestrate.manualChecks` is `ask`.                              |
-| `orchestrate.finishedPlan`  | `archive`, `delete` | leave       |                                  | After every milestone is done, `archive` moves an untracked Graft plan to `~/.my-graft/.claude/plans/<repo>/<plan>.md`; `delete` deletes it. |
-| `orchestrate.manualChecks`  | `pause`, `defer`    | ask         |                                  | How orchestrate handles a plan's Manual checks: `pause` stops after each milestone that has them; `defer` lists them in Report.              |
-| `pr.state`                  | `ready`             | draft       |                                  | The state a new PR opens in when the arguments name none.                                                                                    |
-| `update.mode`               | `auto`              | ask         |                                  | `auto` merges without asking first when the arguments name no mode.                                                                          |
+| Key                         | Values                              | Default     | Shown when                       | What it does                                                                                                                                                                                                                                                          |
+| --------------------------- | ----------------------------------- | ----------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common.reviewerModel`      | `fable`, `sonnet`                   | opus        |                                  | The reviewer model when the arguments name none.                                                                                                                                                                                                                      |
+| `plan.outsideRepoPlans`     | `always`, `never`                   | ask         |                                  | Outside a repo, `always` saves plans in `~/.my-graft/.claude/plans/` without asking; `never` stops.                                                                                                                                                                   |
+| `plan.questionsPerRound`    | `1`, `2`, `4`                       | 3           |                                  | The most questions plan asks in one round.                                                                                                                                                                                                                            |
+| `plan.manualChecksQuestion` | `finish`                            | orchestrate | `orchestrate.manualChecks = ask` | With `finish`, plan asks the Manual check mode in its Finish question when `orchestrate.manualChecks` is `ask`.                                                                                                                                                       |
+| `orchestrate.finishedPlan`  | `archive`, `delete`                 | leave       |                                  | After every milestone is done, `archive` moves an untracked Graft plan to `~/.my-graft/.claude/plans/<repo>/<plan>.md`; `delete` deletes it.                                                                                                                          |
+| `orchestrate.manualChecks`  | `pause`, `defer`                    | ask         |                                  | How orchestrate handles a plan's Manual checks: `pause` stops after each milestone that has them; `defer` lists them in Report.                                                                                                                                       |
+| `pr.state`                  | `ready`                             | draft       |                                  | The state a new PR opens in when the arguments name none.                                                                                                                                                                                                             |
+| `update.mode`               | `auto`                              | ask         |                                  | `auto` merges without asking first when the arguments name no mode.                                                                                                                                                                                                   |
+| `update.notify`             | `daily`, `sha`, `persistent`, `off` | session     |                                  | When Graft tells you `/graft:update` is due: each session start (`session`), at most once a day (`daily`), once per upstream commit (`sha`), as a status line until updated (`persistent`) or never, with no upstream check (`off`). Per-repo overrides do not apply. |

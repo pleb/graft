@@ -38,6 +38,7 @@ describe("parseCatalog", () => {
       "orchestrate.manualChecks",
       "pr.state",
       "update.mode",
+      "update.notify",
     ]);
     expect(catalog.settings).toMatchObject([
       { skill: "common", name: "reviewerModel", values: ["fable", "sonnet"], defaultValue: "opus" },
@@ -63,6 +64,12 @@ describe("parseCatalog", () => {
       },
       { skill: "pr", name: "state", values: ["ready"], defaultValue: "draft" },
       { skill: "update", name: "mode", values: ["auto"], defaultValue: "ask" },
+      {
+        skill: "update",
+        name: "notify",
+        values: ["daily", "sha", "persistent", "off"],
+        defaultValue: "session",
+      },
     ]);
     for (const setting of catalog.settings) {
       expect(setting.description).not.toBe("");

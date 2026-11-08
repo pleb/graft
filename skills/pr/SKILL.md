@@ -68,6 +68,8 @@ With none left, leave the line out rather than asking or guessing.
 
 **Graft line.** Every body, with a template or without, ends with `_Graft: AI has reviewed and adversarially reviewed these changes._` verbatim, as its own paragraph, without the backticks. The brevity budget and the ban on mentioning Claude, AI or attribution do not apply to it.
 
+**Caller guidance.** A calling skill's guidance can replace the Graft line, start the body with an alert, and require listed items, with a template or without. Listed items go as a bulleted list under Notes, or the template's closest section; the brevity budget, the bullet rule and the section table do not apply to them.
+
 **One section, one question.**
 
 | Section | Answers                                                                                                | Never contains                                     |

@@ -557,9 +557,12 @@ function questionCorrections(
   const corrections: Correction[] = [];
   const context: QuestionContext = { question: truncate(text, CONTEXT_LIMIT), options: labels };
   if (typeof answer === "string") {
-    const { selected, freeText } = labels
-      ? splitAnswer(answer, labels, multiSelect)
-      : { selected: [], freeText: answer.trim() };
+    const { selected, freeText } =
+      answer === "(notes only)" && !labels?.includes(answer)
+        ? { selected: [], freeText: "" }
+        : labels
+          ? splitAnswer(answer, labels, multiSelect)
+          : { selected: [], freeText: answer.trim() };
     context.selected = selected;
     if (freeText && labels?.length !== 0)
       corrections.push({ source: "other", question: text, text: freeText, context });
