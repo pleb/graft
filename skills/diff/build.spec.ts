@@ -2040,6 +2040,9 @@ describe("template", () => {
         templateSource("const svgNew = "),
         templateSource("const isSvg = "),
         templateSource("function views("),
+        templateSource("const typeDefaults = "),
+        templateSource("function typeOf("),
+        templateSource("const typeDefault = "),
         templateSource("function fileView("),
         templateSource("function imagePanes("),
         "return { views, fileView, imagePanes };",
@@ -2074,6 +2077,38 @@ describe("template", () => {
       "Animated.",
       undefined,
     ]);
+  });
+
+  it("opens SVG files in the Settings default unless the file has its own view", () => {
+    const stored = new Map<string, string>();
+    const fileView = new Function(
+      "narrowMq",
+      "mdReady",
+      "load",
+      "viewKey",
+      [
+        templateSource("const svgNew = "),
+        templateSource("const isSvg = "),
+        templateSource("function views("),
+        templateSource("const typeDefaults = "),
+        templateSource("function typeOf("),
+        templateSource("const typeDefault = "),
+        templateSource("function fileView("),
+        "return fileView;",
+      ].join("\n"),
+    )(
+      { matches: false },
+      true,
+      (key: string) => stored.get(key) ?? null,
+      (path: string) => "view:" + path,
+    );
+    const svg = { path: "a.svg", status: "M", hunks: [], svgOld: "<svg/>", content: "<svg/>" };
+    expect(fileView(svg)).toBe("split");
+    stored.set("default:svg", "rendered");
+    expect(fileView(svg)).toBe("rendered");
+    expect(fileView({ ...svg, path: "a.ts" })).toBe("split");
+    stored.set("view:a.svg", "unified");
+    expect(fileView(svg)).toBe("unified");
   });
 
   describe("expandable context", () => {

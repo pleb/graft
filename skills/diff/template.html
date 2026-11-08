@@ -76,8 +76,6 @@
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
     padding-block: 16px 48px;
-    max-width: 1600px;
-    margin: 0 auto;
     display: grid;
     gap: 16px;
   }
@@ -656,11 +654,58 @@
   body.commenting .fhead .path:hover {
     text-decoration: underline dotted var(--accent);
   }
-  .wrapopt {
+  .settings {
+    position: relative;
+    margin-left: auto;
+  }
+  .gear {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .gear:hover,
+  .gear[aria-expanded="true"] {
+    background: var(--sunken);
+    color: var(--fg);
+  }
+  .menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 20;
+    width: max-content;
+    max-width: calc(100vw - 66px);
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 8px 12px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+    padding: 12px;
+    display: grid;
+    gap: 12px;
+  }
+  .menu[hidden] {
+    display: none;
+  }
+  .menu .mlabel {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .menu .seg {
+    flex-wrap: wrap;
+  }
+  .menu .seg button {
+    padding: 6px 8px;
+  }
+  .menu .mcheck {
     display: flex;
     gap: 8px;
     align-items: center;
@@ -932,8 +977,53 @@
   <header class="summary">
     <h1 id="title"></h1>
     <div class="meta" id="meta"></div>
+    <div class="settings" id="settings" data-uncommentable>
+      <button
+        type="button"
+        class="gear"
+        id="settings-btn"
+        aria-label="Settings"
+        aria-expanded="false"
+        aria-controls="settings-menu"
+      >
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+          <g fill="none" stroke="currentColor">
+            <circle cx="8" cy="8" r="6" stroke-width="2.4" stroke-dasharray="2.356 2.356" />
+            <circle cx="8" cy="8" r="4.2" stroke-width="2" />
+          </g>
+        </svg>
+      </button>
+      <div class="menu" id="settings-menu" hidden>
+        <div>
+          <span class="mlabel" id="theme-label">Theme</span>
+          <div class="seg" role="group" aria-labelledby="theme-label" id="theme-seg">
+            <button type="button" data-value="system">System</button>
+            <button type="button" data-value="light">Light</button>
+            <button type="button" data-value="dark">Dark</button>
+          </div>
+        </div>
+        <div>
+          <span class="mlabel" id="md-label">Default view for Markdown files</span>
+          <div class="seg" role="group" aria-labelledby="md-label" id="md-seg">
+            <button type="button" data-value="unified">Unified</button>
+            <button type="button" data-value="split">Side-by-side</button>
+            <button type="button" data-value="rendered">Rendered</button>
+            <button type="button" data-value="chunked">Chunked</button>
+          </div>
+        </div>
+        <div>
+          <span class="mlabel" id="svg-label">Default view for SVG files</span>
+          <div class="seg" role="group" aria-labelledby="svg-label" id="svg-seg">
+            <button type="button" data-value="unified">Unified</button>
+            <button type="button" data-value="split">Side-by-side</button>
+            <button type="button" data-value="rendered">Rendered</button>
+          </div>
+        </div>
+        <label class="mcheck"><input type="checkbox" id="wrap" /> Wrap lines</label>
+      </div>
+    </div>
     <div class="proto" style="flex-basis: 100%">
-      Comments are collected; nothing changes until you press Finish review.
+      Send each comment to Claude; Claude replies in its thread.
       <span id="comment-hint" hidden
         >Turn on comment mode, then click a line, hunk header, file path or rendered block to
         comment on it.</span
@@ -945,13 +1035,8 @@
     <aside class="side">
       <div class="finish" id="finish-review">
         <button type="button" class="act" id="act" hidden>Finish review</button>
-        <span class="hint" id="act-hint"
-          >When you are done, tell Claude in the terminal to act on your comments.</span
-        >
+        <span class="hint" id="act-hint">When you are done, tell Claude in the terminal.</span>
       </div>
-      <label class="wrapopt" data-uncommentable
-        ><input type="checkbox" id="wrap" /> Wrap lines</label
-      >
       <details class="files" id="files" open data-uncommentable>
         <summary>
           <span
@@ -1465,16 +1550,28 @@
     if (both && md && oldOf(f) != null) list.push("chunked");
     return list;
   }
+  // Markdown and SVG files open in the view chosen in Settings; other files open side by side.
+  const typeDefaults = {
+    markdown: { key: "default:markdown", fallback: "chunked" },
+    svg: { key: "default:svg", fallback: "split" },
+  };
+  function typeOf(f) {
+    if (f.isImage) return null;
+    return f.isMarkdown ? "markdown" : /\.svg$/i.test(f.path) ? "svg" : null;
+  }
+  const typeDefault = (type) => load(typeDefaults[type].key) || typeDefaults[type].fallback;
   function fileView(f) {
     const list = views(f);
     const saved = load(viewKey(f.path));
     if (list.includes(saved)) return saved;
+    const type = typeOf(f);
+    if (type && list.includes(typeDefault(type))) return typeDefault(type);
     return list.includes("split") ? "split" : list[0];
   }
   function setView(fi, v) {
     const f = DIFF.files[fi];
     if (!f.hunks || !views(f).includes(v)) return;
-    store(viewKey(f.path), v === "split" ? null : v);
+    store(viewKey(f.path), v === "split" && !typeOf(f) ? null : v);
     renderFile(sections[fi], fi);
     reportPins();
   }
@@ -2043,6 +2140,59 @@
   $("wrap").addEventListener("change", () => setWrap($("wrap").checked));
   setWrap(wrap);
 
+  // System restores whatever data-theme the host page set.
+  const hostTheme = document.documentElement.getAttribute("data-theme");
+  function setTheme(theme) {
+    const value = theme === "light" || theme === "dark" ? theme : "system";
+    store("theme", value === "system" ? null : value);
+    if (value === "system") {
+      if (hostTheme == null) document.documentElement.removeAttribute("data-theme");
+      else document.documentElement.setAttribute("data-theme", hostTheme);
+    } else document.documentElement.setAttribute("data-theme", value);
+    pressed("theme-seg", value);
+  }
+  function pressed(id, value) {
+    for (const b of $(id).querySelectorAll("button"))
+      b.setAttribute("aria-pressed", String(b.dataset.value === value));
+  }
+  function setTypeDefault(type, v) {
+    const t = typeDefaults[type];
+    store(t.key, v === t.fallback ? null : v);
+    pressed(type === "markdown" ? "md-seg" : "svg-seg", v);
+    DIFF.files.forEach((f, fi) => {
+      if (f.hunks && typeOf(f) === type && !load(viewKey(f.path))) renderFile(sections[fi], fi);
+    });
+    reportPins();
+  }
+  const segValue = (e) => e.target.closest("button[data-value]")?.dataset.value;
+  $("theme-seg").addEventListener("click", (e) => segValue(e) && setTheme(segValue(e)));
+  $("md-seg").addEventListener("click", (e) => {
+    if (segValue(e)) setTypeDefault("markdown", segValue(e));
+  });
+  $("svg-seg").addEventListener("click", (e) => {
+    if (segValue(e)) setTypeDefault("svg", segValue(e));
+  });
+  setTheme(load("theme"));
+  pressed("md-seg", typeDefault("markdown"));
+  pressed("svg-seg", typeDefault("svg"));
+
+  function setMenu(open, focusButton) {
+    $("settings-menu").hidden = !open;
+    $("settings-btn").setAttribute("aria-expanded", String(open));
+    if (!open && focusButton) $("settings-btn").focus();
+  }
+  $("settings-btn").addEventListener("click", () => setMenu($("settings-menu").hidden));
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || $("settings-menu").hidden) return;
+    setMenu(false, $("settings").contains(document.activeElement));
+  });
+  $("settings").addEventListener("focusout", (e) => {
+    if (e.relatedTarget && !$("settings").contains(e.relatedTarget)) setMenu(false);
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (!$("settings-menu").hidden && !$("settings").contains(e.target)) setMenu(false);
+  });
+
   const LIBS = [
     [
       "https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js",
@@ -2181,8 +2331,8 @@
       const ok = state === "available" && actAnchor;
       act.hidden = !ok;
       $("act-hint").textContent = ok
-        ? "Hands back to Claude to act on comments."
-        : "When you are done, tell Claude in the terminal to act on your comments.";
+        ? "When you are done, press Finish review or tell Claude in the terminal."
+        : "When you are done, tell Claude in the terminal.";
       reportPins();
     }
     await refreshAct();
