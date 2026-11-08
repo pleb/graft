@@ -51,7 +51,7 @@ And when you're ready to ship the changes:
 /graft:pr [guidance] [state: draft (default) | ready-state]
 ```
 
-`/graft:diff` publishes your changes as a private artifact to comment on. In `batch` mode (the default), Claude replies to each comment and changes code only when you give a go-ahead or press Finish review. In `auto` mode, Claude applies each comment as it arrives. [`diff.comments`](#settings) sets the default.
+`/graft:diff` publishes your changes as a private artifact to comment on. In `batch` mode (the default), Claude replies to each comment and changes code only when you give a go-ahead or press Finish review. In `auto` mode, Claude applies each comment as it arrives. [`diff.comments`](#settings) sets the default. PNG, JPEG, GIF and WebP previews are published with metadata not needed to render them removed; orientation and colour information are kept, including whole ICC colour profiles with any text they hold.
 
 ## Helper commands
 
