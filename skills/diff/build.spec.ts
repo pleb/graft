@@ -2171,7 +2171,7 @@ describe("images", () => {
   });
 });
 
-// Each format with ICC as its profile, carried as the given bytes.
+// A small image in `ext` with `carrier` placed where its profile belongs.
 function withProfile(ext: "png" | "jpg" | "webp", carrier: Buffer | Buffer[]): Buffer {
   const parts = Array.isArray(carrier) ? carrier : [carrier];
   if (ext === "png") {
@@ -2236,7 +2236,6 @@ describe("image structures", () => {
     const dqtAt = sofAt + 13;
     const dhtAt = dqtAt + 69;
     const scanAt = dhtAt + 22;
-    // The bare JPEG with the segment at `at` of length `length` given extra bytes.
     const padded = (at: number, length: number, extra: Buffer) => {
       const segment = Buffer.concat([bare.subarray(at, at + length), extra]);
       segment.writeUInt16BE(segment.length - 2, 2);

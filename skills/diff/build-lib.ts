@@ -962,7 +962,6 @@ function exifOrientation(tiff: Buffer): number | undefined {
   return undefined;
 }
 
-// A big-endian TIFF block holding only an IFD0 orientation entry.
 function orientationExif(value: number): Buffer {
   const tiff = Buffer.alloc(26);
   tiff.write("MM", 0, "latin1");
@@ -1008,7 +1007,7 @@ function iccProfile(data: Buffer): boolean {
   );
 }
 
-// An iCCP chunk's profile, when its zlib stream is whole, ends the chunk and inflates to one profile.
+// Null unless the zlib stream ends exactly at the chunk's end and inflates to one valid profile.
 function pngProfile(body: Buffer): Buffer | null {
   const nul = body.indexOf(0);
   if (nul < 1 || nul > 79 || body[nul + 1] !== 0) return null;
@@ -1072,7 +1071,7 @@ function stripPng(bytes: Buffer): Buffer | null {
   }
 }
 
-// SOFn, DHT, DAC, SOS, DQT, DNL and DRI; DNL and DRI hold two bytes.
+// SOFn, DHT, DAC, SOS, DQT, DNL and DRI.
 function jpegKept(marker: number): boolean {
   return (
     (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc8) || (marker >= 0xda && marker <= 0xdd)
@@ -1214,7 +1213,6 @@ function stripJpeg(bytes: Buffer): Buffer | null {
 
 function stripGif(bytes: Buffer): Buffer | null {
   const table = (packed: number) => (packed & 0x80 ? 3 * 2 ** ((packed & 7) + 1) : 0);
-  // The index past the sub-blocks starting at `at` and their terminator, or -1 when they run past the end.
   const blocksEnd = (at: number) => {
     while (at < bytes.length && bytes[at] !== 0) at += bytes[at] + 1;
     return at < bytes.length ? at + 1 : -1;
