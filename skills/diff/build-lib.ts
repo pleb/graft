@@ -928,9 +928,11 @@ function dataBytes(item: Sized, content: boolean, svg: boolean): number {
 }
 
 // Each shown file's data, failing when its hunks pass MAX_FILE_DATA_BYTES or all hunks pass
-// MAX_DATA_BYTES. Content is kept while the file stays within MAX_EXPAND_BYTES and SVG sides while
-// it stays within MAX_FILE_DATA_BYTES; then, until the total fits MAX_DATA_BYTES, content and then
-// SVG sides are dropped from the largest files first.
+// MAX_DATA_BYTES. SVG sides are kept, with the content that carries their new text, while the file
+// stays within MAX_FILE_DATA_BYTES; other content is kept while the file stays within
+// MAX_EXPAND_BYTES. Then, until the total fits MAX_DATA_BYTES, drops that save bytes are made from
+// the largest files first: content from files without kept SVG sides, then SVG sides, then the
+// content left.
 function fitData(files: PageFile[]): Sized[] {
   const sized = files
     .filter((file) => file.hunks)
@@ -957,23 +959,26 @@ function fitData(files: PageFile[]): Sized[] {
     );
   }
   for (const item of sized) {
-    if (item.content && dataBytes(item, true, item.svg) > MAX_EXPAND_BYTES) item.content = false;
-    if (item.svg && dataBytes(item, item.content, true) > MAX_FILE_DATA_BYTES) item.svg = false;
+    if (item.svg && dataBytes(item, item.content, true) <= MAX_FILE_DATA_BYTES) continue;
+    item.svg = false;
+    if (item.content && dataBytes(item, true, false) > MAX_EXPAND_BYTES) item.content = false;
   }
   let total = sized.reduce((sum, item) => sum + dataBytes(item, item.content, item.svg), 0);
-  const drop = (field: "content" | "svg") => {
-    const kept = sized
-      .filter((item) => item[field])
-      .map((item) => ({ item, bytes: dataBytes(item, item.content, item.svg) }))
+  const drop = (next: (item: Sized) => { content: boolean; svg: boolean } | undefined) => {
+    const drops = sized
+      .map((item) => ({ item, bytes: dataBytes(item, item.content, item.svg), to: next(item) }))
+      .filter(({ item, bytes, to }) => to && dataBytes(item, to.content, to.svg) < bytes)
       .sort((a, b) => b.bytes - a.bytes);
-    for (const { item, bytes } of kept) {
+    for (const { item, bytes, to } of drops) {
       if (total <= MAX_DATA_BYTES) return;
-      item[field] = false;
+      Object.assign(item, to);
       total += dataBytes(item, item.content, item.svg) - bytes;
     }
   };
-  drop("content");
-  drop("svg");
+  drop((item) => (item.content && !item.svg ? { content: false, svg: false } : undefined));
+  drop((item) => (item.svg ? { content: item.content, svg: false } : undefined));
+  // Content left with kept sides carries an SVG's only new text, so both go together.
+  drop((item) => (item.content ? { content: false, svg: false } : undefined));
   return sized;
 }
 

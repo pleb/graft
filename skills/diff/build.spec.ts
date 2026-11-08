@@ -1127,17 +1127,33 @@ describe("renderBuild", () => {
     expect(manifestEntry(output, "b.svg").note).toBeUndefined();
   });
 
-  it("keeps SVG sides in svgNew when only the content is dropped", () => {
+  it("keeps the content and sides of a modified SVG whose data fits its cap", () => {
     const file = sizedFile("a.svg", 1000);
-    file.svgOld = Array.from({ length: 1500 }, () => "o".repeat(100));
-    file.svgNew = Array.from({ length: 1500 }, () => "n".repeat(100));
+    file.svgOld = Array.from({ length: 1300 }, () => "o".repeat(100));
+    file.svgNew = Array.from({ length: 1300 }, () => "n".repeat(100));
     file.content = file.svgNew;
     const output = build(syntheticPage([file]));
     const data = dataOf(output, "a.svg");
-    expect(data.content).toBeUndefined();
+    expect(
+      Buffer.byteLength(output.files.get(manifestEntry(output, "a.svg").data!)!),
+    ).toBeGreaterThan(MAX_EXPAND_BYTES);
+    expect(data.content).toEqual(file.content);
     expect(data.svgOld).toEqual(file.svgOld);
-    expect(data.svgNew).toEqual(file.svgNew);
-    expect(manifestEntry(output, "a.svg").note).toBe("Too large to expand past its hunks.");
+    expect(data.svgNew).toBeUndefined();
+    expect(manifestEntry(output, "a.svg").note).toBeUndefined();
+  });
+
+  it("drops the sides of an SVG over its cap, keeping content that fits", () => {
+    const file = sizedFile("a.svg", 1000);
+    file.svgOld = Array.from({ length: 4000 }, () => "o".repeat(100));
+    file.svgNew = Array.from({ length: 2000 }, () => "n".repeat(100));
+    file.content = file.svgNew;
+    const output = build(syntheticPage([file]));
+    const data = dataOf(output, "a.svg");
+    expect(data.content).toEqual(file.content);
+    expect(data.svgOld).toBeUndefined();
+    expect(data.svgNew).toBeUndefined();
+    expect(manifestEntry(output, "a.svg").note).toBe("Too large to render; shows the diff only.");
   });
 
   it("names data files by a hash of their data, stable across builds", () => {
@@ -1265,6 +1281,38 @@ describe("renderBuild", () => {
       expect(data.svgOld === undefined).toBe(dropped.includes(file.path));
       expect(data.svgNew === undefined).toBe(dropped.includes(file.path));
       if (file.note) expect(file.note).toBe("Too large to render; shows the diff only.");
+    }
+  });
+
+  it("drops SVG sides before the content that carries their new text, largest first", () => {
+    // Each SVG keeps its old side and content alone, and their content alone passes the total cap.
+    const files = Array.from({ length: 26 }, (_, i) => {
+      const file = sizedFile(`f${String(i).padStart(2, "0")}.svg`, 1000, 0, 90 + i);
+      file.svgOld = Array.from({ length: 2000 }, () => "o".repeat(90 + i));
+      file.svgNew = Array.from({ length: 2000 }, () => "n".repeat(90 + i));
+      file.content = file.svgNew;
+      return file;
+    });
+    files.push(sizedFile("text.txt", 1000, 200 * 1024));
+    const output = build(syntheticPage(files));
+    expect(dataBytes(output)).toBeLessThanOrEqual(MAX_DATA_BYTES);
+    expect(dataOf(output, "text.txt").content).toBeUndefined();
+    expect(manifestEntry(output, "text.txt").note).toBe("Too large to expand past its hunks.");
+    const svgs = output.manifest.files.filter((file) => file.path.endsWith(".svg"));
+    const noExpand = svgs.filter((file) => file.note?.startsWith("Too large to expand"));
+    expect(noExpand.length).toBeGreaterThan(0);
+    expect(noExpand.length).toBeLessThan(svgs.length);
+    expect(noExpand).toEqual(svgs.slice(svgs.length - noExpand.length));
+    for (const file of svgs) {
+      const data = dataOf(output, file.path);
+      expect(data.svgOld).toBeUndefined();
+      expect(data.svgNew).toBeUndefined();
+      expect(data.content === undefined).toBe(noExpand.includes(file));
+      expect(file.note).toBe(
+        noExpand.includes(file)
+          ? "Too large to expand past its hunks. Too large to render; shows the diff only."
+          : "Too large to render; shows the diff only.",
+      );
     }
   });
 });
@@ -1439,7 +1487,7 @@ describe("template", () => {
     expect(commentCell(inPane)).toBeNull();
   });
 
-  it("offers Markdown views by isMarkdown and renders an SVG from svgNew or content", () => {
+  it("offers Markdown views by isMarkdown and renders an SVG with each side its status has", () => {
     const views = new Function(
       "narrowMq",
       "mdReady",
@@ -1471,14 +1519,34 @@ describe("template", () => {
       "chunked",
     ]);
     expect(views(file("a.md", { isMarkdown: true }))).toEqual(["unified", "split"]);
-    for (const more of [{ svgOld: "<svg/>", content: "b\n" }, { svgNew: "<svg/>" }]) {
+    for (const more of [
+      { svgOld: "<svg/>", content: "b\n" },
+      { svgOld: "<svg/>", svgNew: "<svg/>" },
+    ]) {
       expect(views(file("a.svg", more))).toEqual(["unified", "split", "rendered"]);
+      expect(views({ ...file("a.svg", more), status: "R" })).toEqual([
+        "unified",
+        "split",
+        "rendered",
+      ]);
     }
-    expect(views(file("a.svg", {}))).toEqual(["unified", "split"]);
+    for (const more of [{}, { svgOld: "<svg/>" }, { svgNew: "<svg/>" }, { content: "b\n" }]) {
+      expect(views(file("a.svg", more))).toEqual(["unified", "split"]);
+    }
     expect(views({ path: "a.svg", status: "A", hunks, content: "b\n" })).toEqual([
       "unified",
       "rendered",
     ]);
+    expect(views({ path: "a.svg", status: "A", hunks, svgNew: "<svg/>" })).toEqual([
+      "unified",
+      "rendered",
+    ]);
+    expect(views({ path: "a.svg", status: "A", hunks })).toEqual(["unified"]);
+    expect(views({ path: "a.svg", status: "D", hunks, svgOld: "<svg/>" })).toEqual([
+      "unified",
+      "rendered",
+    ]);
+    expect(views({ path: "a.svg", status: "D", hunks })).toEqual(["unified"]);
   });
 
   describe("rebuilds a Markdown file's old source", () => {

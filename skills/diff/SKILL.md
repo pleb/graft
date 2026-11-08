@@ -65,7 +65,7 @@ Write the input file:
 node ${CLAUDE_SKILL_DIR}/build.ts build --input <input file> --out <output directory>
 ```
 
-Show the user the `Wrote` line and the publishes and reader batches line.
+Show the user the three lines from `Wrote` on.
 
 ## Publish
 
@@ -87,7 +87,7 @@ For each entry in `publishes`, in order, call `Artifact` with:
 - `icon: "code"` on the session's first publish only.
 - `url`: the artifact link, on every publish after the session's first.
 
-Keep the link from the session's first publish for the rest of the session. When `publishes` has more than one entry, tell the user the page may show load errors until the last one lands.
+Keep the link from the session's first publish for the rest of the session. When `publishes` has more than one entry, tell the user the page may show load errors until the last one lands, and to reload it then.
 
 If a publish is refused with `capabilities.comments: unavailable`, publish again with `capabilities: {comments: {}}`, and tell the user comments then anchor to text selections, without line labels or comment icons.
 

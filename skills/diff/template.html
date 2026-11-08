@@ -1210,7 +1210,11 @@
   };
   // An SVG's new side is kept once: in content when the file has content, else in svgNew.
   const svgNew = (f) => f.svgNew ?? f.content;
-  const isSvg = (f) => /\.svg$/i.test(f.path) && (f.svgOld != null || svgNew(f) != null);
+  // Rendered needs each side the file's status has: the new one unless deleted, the old one unless added.
+  const isSvg = (f) => {
+    const old = f.status === "A" || f.svgOld != null;
+    return /\.svg$/i.test(f.path) && old && (f.status === "D" || svgNew(f) != null);
+  };
   const olds = new Map();
   const oldOf = (f) => {
     if (!olds.has(f)) olds.set(f, oldSource(f));
@@ -1617,6 +1621,14 @@
       return null;
     }
   }
+  // The section of the file an anchor points into while that file's data has not arrived or failed.
+  function loadingSection(anchor) {
+    const m = /#(f-[A-Za-z0-9_]*)/.exec(anchor || "");
+    const fi = m ? DIFF.files.findIndex((f) => f.id === m[1]) : -1;
+    return fi >= 0 && DIFF.files[fi].data != null && DIFF.files[fi].hunks == null
+      ? sections[fi]
+      : null;
+  }
   function reportPins() {
     if (!anchors) return;
     const map = {};
@@ -1782,7 +1794,7 @@
         },
         reveal(id) {
           const t = threads.find((x) => x.id === id);
-          const target = t && targetFor(t.anchor);
+          const target = t && (targetFor(t.anchor) || loadingSection(t.anchor));
           if (!target) return;
           const sec = target.closest("section.file");
           const fi = [...document.querySelectorAll("section.file")].indexOf(sec);
