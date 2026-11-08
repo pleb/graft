@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmodSync,
   existsSync,
@@ -11,6 +12,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { crc32, deflateSync } from "node:zlib";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
@@ -19,11 +21,17 @@ import {
   decodePath,
   encodePath,
   fileId,
+  imageInfo,
+  imageSide,
   isSupportedNode,
   lineId,
   listChanges,
   MAX_DATA_BYTES,
   MAX_EXPAND_BYTES,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGE_EDGE,
+  MAX_IMAGE_FILES,
+  MAX_IMAGE_SIDE_BYTES,
   MAX_PUBLISH_PATHS,
   mergeSides,
   pageName,
@@ -36,12 +44,14 @@ import {
   toPageFile,
   unquoteGitPath,
   untrackedFile,
+  writeBuild,
 } from "./build-lib.ts";
 import type {
   BuildInput,
   BuildOutput,
   BuiltFile,
   FileData,
+  ImageSide,
   Manifest,
   ManifestFile,
   PageData,
@@ -991,9 +1001,11 @@ describe("renderBuild", () => {
       add: 0,
       del: 0,
       binary: true,
+      isImage: true,
       hash: expect.stringMatching(/^[0-9a-f]{16}$/),
       hasHunks: false,
       isMarkdown: false,
+      data: expect.stringMatching(/^data\/f-[0-9a-f]{16}\.json$/),
     });
     expect(manifestEntry(output, "package-lock.json")).toMatchObject({
       stub: "Lockfile changed (+2 −1). Content hidden.",
@@ -1383,6 +1395,381 @@ describe("planPublish", () => {
   });
 });
 
+// A PNG of one solid color, its pixel bytes followed by the given bytes in a private chunk.
+function png(width: number, height: number, fill = 0, extra = Buffer.alloc(0)): Buffer {
+  const chunk = (kind: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(kind, "latin1"), data]);
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body));
+    return Buffer.concat([length, body, crc]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 2;
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(width * 3, fill)]);
+  return Buffer.concat([
+    Buffer.from("\x89PNG\r\n\x1a\n", "latin1"),
+    chunk("IHDR", header),
+    ...(extra.length ? [chunk("prVt", extra)] : []),
+    chunk("IDAT", deflateSync(Buffer.concat(Array.from({ length: height }, () => row)))),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+// A GIF of the given number of 1-pixel frames, each after a graphic control extension.
+function gif(width: number, height: number, frames: number): Buffer {
+  const head = Buffer.from("GIF89a\0\0\0\0\x80\0\0\0\0\0\xff\xff\xff", "latin1");
+  head.writeUInt16LE(width, 6);
+  head.writeUInt16LE(height, 8);
+  const frame = Buffer.from(
+    "\x21\xf9\x04\x00\x0a\x00\x00\x00\x2c\0\0\0\0\x01\0\x01\0\0\x02\x02\x4c\x01\0",
+    "latin1",
+  );
+  return Buffer.concat([head, ...Array.from({ length: frames }, () => frame), Buffer.from(";")]);
+}
+
+// A WebP whose first chunk is the given kind, sized width by height, with an ANIM chunk if asked.
+function webp(kind: "VP8 " | "VP8L" | "VP8X", width: number, height: number, anim = false) {
+  const chunk = (fourcc: string, data: Buffer) => {
+    const head = Buffer.alloc(8);
+    head.write(fourcc, 0, "latin1");
+    head.writeUInt32LE(data.length, 4);
+    return Buffer.concat([head, data, Buffer.alloc(data.length % 2)]);
+  };
+  const data = Buffer.alloc(10);
+  if (kind === "VP8 ") {
+    data.set([0x9d, 0x01, 0x2a], 3);
+    data.writeUInt16LE(width, 6);
+    data.writeUInt16LE(height, 8);
+  } else if (kind === "VP8L") {
+    data[0] = 0x2f;
+    data.writeUInt32LE((width - 1) | ((height - 1) << 14), 1);
+  } else {
+    data[0] = anim ? 0x02 : 0;
+    data.writeUIntLE(width - 1, 4, 3);
+    data.writeUIntLE(height - 1, 7, 3);
+  }
+  const chunks = [chunk(kind, data), ...(anim ? [chunk("ANIM", Buffer.alloc(6))] : [])];
+  const body = Buffer.concat([Buffer.from("WEBP"), ...chunks]);
+  const riff = Buffer.alloc(8);
+  riff.write("RIFF", 0, "latin1");
+  riff.writeUInt32LE(body.length, 4);
+  return Buffer.concat([riff, body]);
+}
+
+// A JPEG header: an APP0 segment, fill bytes, then a baseline SOF0 marker sized width by height.
+function jpeg(width: number, height: number): Buffer {
+  const sof = Buffer.from([0xff, 0xc0, 0, 11, 8, 0, 0, 0, 0, 1, 1, 0x11, 0]);
+  sof.writeUInt16BE(height, 5);
+  sof.writeUInt16BE(width, 7);
+  const app0 = Buffer.from([
+    0xff,
+    0xe0,
+    0,
+    16,
+    ...Buffer.from("JFIF\0"),
+    1,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    0,
+    0,
+  ]);
+  return Buffer.concat([
+    Buffer.from([0xff, 0xd8]),
+    app0,
+    Buffer.from([0xff]),
+    sof,
+    Buffer.from([0xff, 0xd9]),
+  ]);
+}
+
+// Bytes that a UTF-8 round trip would change.
+const RAW = Buffer.from([0, 0x80, 0xff, 0xfe, 0x0d, 0x0a, 0xc3, 0x28, 0xe2, 0x82]);
+
+function imageFile(
+  path: string,
+  image: NonNullable<PageFile["image"]>,
+  status: PageFile["status"] = "M",
+): PageFile {
+  return {
+    id: fileId(path),
+    path,
+    status,
+    source: "committed",
+    hash: "0000000000000000",
+    binary: true,
+    add: 0,
+    del: 0,
+    image,
+  };
+}
+
+// A previewable side of the given bytes, distinct by fill.
+function still(bytes: number, fill: number): ImageSide {
+  return { bytes: Buffer.alloc(bytes, fill), ext: "png", width: 10, height: 20 };
+}
+
+describe("images", () => {
+  it("reads the format, size and animation of PNG, JPEG, GIF and WebP headers", () => {
+    expect(imageInfo(png(3, 2))).toEqual({ ext: "png", width: 3, height: 2, animated: false });
+    expect(imageInfo(jpeg(640, 480))).toEqual({
+      ext: "jpg",
+      width: 640,
+      height: 480,
+      animated: false,
+    });
+    expect(imageInfo(gif(5, 7, 1))).toEqual({ ext: "gif", width: 5, height: 7, animated: false });
+    expect(imageInfo(gif(5, 7, 2))).toMatchObject({ animated: true });
+    expect(imageInfo(webp("VP8 ", 300, 200))).toEqual({
+      ext: "webp",
+      width: 300,
+      height: 200,
+      animated: false,
+    });
+    expect(imageInfo(webp("VP8L", 9000, 16))).toMatchObject({ width: 9000, height: 16 });
+    expect(imageInfo(webp("VP8X", 70000, 3))).toMatchObject({ width: 70000, height: 3 });
+    expect(imageInfo(webp("VP8X", 4, 4, true))).toMatchObject({ animated: true });
+    for (const bytes of [PNG, RAW, Buffer.from("GIF8"), Buffer.from([0xff, 0xd8, 0xff, 0xd9])]) {
+      expect(imageInfo(bytes)).toBeNull();
+    }
+  });
+
+  it("keeps a side's bytes within the caps and stubs it with the reason otherwise", () => {
+    const small = png(4, 4);
+    expect(imageSide(small)).toEqual({ bytes: small, ext: "png", width: 4, height: 4 });
+    const edge = webp("VP8L", MAX_IMAGE_EDGE, 1);
+    expect(imageSide(edge).bytes).toBe(edge);
+    const exact = png(1, 1, 0, Buffer.alloc(MAX_IMAGE_SIDE_BYTES - png(1, 1).length - 12));
+    expect(exact.length).toBe(MAX_IMAGE_SIDE_BYTES);
+    expect(imageSide(exact).bytes).toBe(exact);
+    expect(imageSide(Buffer.concat([exact, Buffer.from([0])]))).toEqual({
+      width: 1,
+      height: 1,
+      stub: "Too large to preview: 2 MB, over 2 MB.",
+    });
+    expect(imageSide(png(1, 1, 0, Buffer.alloc(3 * 1024 * 1024))).stub).toBe(
+      "Too large to preview: 3 MB, over 2 MB.",
+    );
+    expect(imageSide(webp("VP8L", 2, MAX_IMAGE_EDGE + 1))).toEqual({
+      width: 2,
+      height: 4097,
+      stub: "Too many pixels to preview: 2 × 4097, over 4096 on its longest side.",
+    });
+    expect(imageSide(gif(2, 2, 3))).toEqual({
+      width: 2,
+      height: 2,
+      stub: "Animated; previews show still images only.",
+    });
+    expect(imageSide(webp("VP8X", 2, 2, true)).stub).toBe(
+      "Animated; previews show still images only.",
+    );
+    expect(imageSide(RAW)).toEqual({ stub: "Not a PNG, JPEG, GIF or WebP image." });
+  });
+
+  it("reads added, deleted and modified image sides byte for byte from git", () => {
+    const before = png(2, 2, 10, RAW);
+    const committed = png(3, 2, 20, RAW);
+    const gone = jpeg(8, 8);
+    // Large enough beside its change for git to see the rename.
+    const moved = Buffer.concat([webp("VP8 ", 6, 6), Buffer.alloc(4000, 7)]);
+    const dir = newRepo({
+      "mod.png": before,
+      "work.PNG": before,
+      "gone.jpg": gone,
+      "anim.gif": gif(4, 4, 1),
+      "from.webp": moved,
+      "pointer.png": "version https://git-lfs.github.com/spec/v1\noid sha256:aa\nsize 1\n",
+    });
+    git(dir, "checkout", "-q", "-b", "feature");
+    rmSync(join(dir, "gone.jpg"));
+    git(dir, "mv", "from.webp", "to.webp");
+    write(dir, {
+      "mod.png": committed,
+      "work.PNG": committed,
+      "anim.gif": gif(4, 4, 2),
+      "to.webp": Buffer.concat([moved, RAW]),
+      "pointer.png": "version https://git-lfs.github.com/spec/v1\noid sha256:bb\nsize 2\n",
+    });
+    commitAll(dir, "feature");
+    const working = png(2, 3, 30, RAW);
+    const added = gif(9, 9, 1);
+    write(dir, { "mod.png": Buffer.from("not committed"), "new.gif": added });
+    git(dir, "checkout", "--", "mod.png");
+    write(dir, { "work.PNG": working });
+    const files = byPath(collectPage(dir, input({ untracked: ["new.gif"] })));
+
+    expect(files.get("mod.png")).toMatchObject({ source: "committed", status: "M" });
+    expect(files.get("mod.png")!.image).toEqual({
+      old: { bytes: before, ext: "png", width: 2, height: 2 },
+      new: { bytes: committed, ext: "png", width: 3, height: 2 },
+    });
+    expect(files.get("work.PNG")).toMatchObject({ source: "uncommitted" });
+    expect(files.get("work.PNG")!.image!.old!.bytes!.equals(before)).toBe(true);
+    expect(files.get("work.PNG")!.image!.new!.bytes!.equals(working)).toBe(true);
+    expect(files.get("gone.jpg")!.image).toEqual({
+      old: { bytes: gone, ext: "jpg", width: 8, height: 8 },
+    });
+    expect(files.get("new.gif")!.image).toEqual({
+      new: { bytes: added, ext: "gif", width: 9, height: 9 },
+    });
+    expect(files.get("anim.gif")!.image).toEqual({
+      old: { bytes: gif(4, 4, 1), ext: "gif", width: 4, height: 4 },
+      new: { width: 4, height: 4, stub: "Animated; previews show still images only." },
+    });
+    expect(files.get("to.webp")).toMatchObject({ status: "R", oldPath: "from.webp" });
+    expect(files.get("to.webp")!.image!.old!.bytes!.equals(moved)).toBe(true);
+    const pointer = files.get("pointer.png")!;
+    expect(pointer.image).toBeUndefined();
+    expect(pointer.binary).toBeUndefined();
+    expect(pointer.hunks!.length).toBe(1);
+
+    const output = build(collectPage(dir, input({ untracked: ["new.gif"] })));
+    expect(manifestEntry(output, "pointer.png").isImage).toBeUndefined();
+    expect(manifestEntry(output, "new.gif")).toMatchObject({
+      status: "A",
+      binary: true,
+      isImage: true,
+      hasHunks: false,
+    });
+    const out = join(tempDir(), "out");
+    writeBuild({ ...output, publish: { ...output.publish, out } });
+    const data = dataOf(output, "work.PNG");
+    expect(readFileSync(join(out, data.imgOld!)).equals(before)).toBe(true);
+    expect(readFileSync(join(out, data.imgNew!)).equals(working)).toBe(true);
+  });
+
+  it("writes each image file's data with its sides' paths, sizes and stubs", () => {
+    const old = png(2, 2, 1);
+    const next = png(4, 3, 2);
+    const output = build(
+      syntheticPage([
+        imageFile("a/added.png", { new: { bytes: next, ext: "png", width: 4, height: 3 } }, "A"),
+        imageFile("a/deleted.gif", { old: { bytes: old, ext: "gif", width: 2, height: 2 } }, "D"),
+        imageFile("a/mod.png", {
+          old: { bytes: old, ext: "png", width: 2, height: 2 },
+          new: { width: 9000, height: 3, stub: "Too many pixels." },
+        }),
+        imageFile("a/raw.png", { old: { stub: "Not a PNG, JPEG, GIF or WebP image." } }, "D"),
+        sizedFile("b.ts", 1000),
+      ]),
+    );
+    const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex").slice(0, 16);
+    expect(dataOf(output, "a/added.png")).toEqual({
+      path: "a/added.png",
+      hunks: [],
+      sizeNew: [4, 3],
+      imgNew: `img/${hash(next)}.png`,
+    });
+    expect(dataOf(output, "a/deleted.gif")).toEqual({
+      path: "a/deleted.gif",
+      hunks: [],
+      sizeOld: [2, 2],
+      imgOld: `img/${hash(old)}.gif`,
+    });
+    expect(dataOf(output, "a/mod.png")).toEqual({
+      path: "a/mod.png",
+      hunks: [],
+      sizeOld: [2, 2],
+      imgOld: `img/${hash(old)}.png`,
+      sizeNew: [9000, 3],
+      stubNew: "Too many pixels.",
+    });
+    expect(dataOf(output, "a/raw.png")).toEqual({
+      path: "a/raw.png",
+      hunks: [],
+      stubOld: "Not a PNG, JPEG, GIF or WebP image.",
+    });
+    expect(manifestEntry(output, "a/mod.png")).toMatchObject({ isImage: true, binary: true });
+    expect(manifestEntry(output, "b.ts").isImage).toBeUndefined();
+    expect([...output.images.keys()]).toEqual([
+      `img/${hash(next)}.png`,
+      `img/${hash(old)}.gif`,
+      `img/${hash(old)}.png`,
+    ]);
+    expect(output.images.get(`img/${hash(next)}.png`)).toBe(next);
+    expect(longestLine(output)).toBeLessThan(1000);
+  });
+
+  it("previews at most 20 image files in path order, counting only files with a preview", () => {
+    const files = Array.from({ length: MAX_IMAGE_FILES + 2 }, (_, i) =>
+      imageFile(`i${String(i).padStart(2, "0")}.png`, { new: still(10, i) }, "A"),
+    );
+    files.splice(1, 0, imageFile("i00a.gif", { new: { stub: "Animated." } }, "A"));
+    const output = build(syntheticPage(files));
+    const shown = output.manifest.files.filter((file) => dataOf(output, file.path).imgNew);
+    expect(shown.map((file) => file.path)).toEqual(
+      files
+        .slice(0, 21)
+        .map((file) => file.path)
+        .filter((path) => path !== "i00a.gif"),
+    );
+    expect(dataOf(output, "i00a.gif").stubNew).toBe("Animated.");
+    for (const path of ["i20.png", "i21.png"]) {
+      expect(dataOf(output, path)).toMatchObject({
+        stubNew: "Over the 20 image previews a page shows.",
+        sizeNew: [10, 20],
+      });
+    }
+    expect(output.images.size).toBe(MAX_IMAGE_FILES);
+  });
+
+  it("stubs every side past 40 MB of distinct image bytes, counting a repeated side once", () => {
+    const side = MAX_IMAGE_SIDE_BYTES;
+    const count = MAX_IMAGE_BYTES / side / 2;
+    const files = Array.from({ length: count }, (_, i) =>
+      imageFile(`f${String(i).padStart(2, "0")}.png`, {
+        old: still(side, 2 * i),
+        new: still(side, 2 * i + 1),
+      }),
+    );
+    files.push(imageFile("g0.png", { old: still(side, 0), new: still(side, 200) }));
+    files.push(imageFile("g1.png", { new: still(10, 201) }, "A"));
+    const output = build(syntheticPage(files));
+    const imageBytes = [...output.images.values()].reduce((sum, bytes) => sum + bytes.length, 0);
+    expect(imageBytes).toBe(MAX_IMAGE_BYTES);
+    expect(dataOf(output, "f00.png").imgOld).toBe(dataOf(output, "g0.png").imgOld);
+    const over = "Over the 40 MB of image previews a page holds.";
+    expect(dataOf(output, "g0.png").stubNew).toBe(over);
+    expect(dataOf(output, "g1.png").stubNew).toBe(over);
+    expect(
+      output.publish.send.reduce(
+        (sum, { path }) => sum + (output.images.get(path)?.length ?? 0),
+        0,
+      ),
+    ).toBe(MAX_IMAGE_BYTES);
+  });
+
+  it("sends, keeps and removes image paths against the server, in image reader batches", () => {
+    const page = syntheticPage(
+      Array.from({ length: 12 }, (_, i) =>
+        imageFile(`p${String(i).padStart(2, "0")}.png`, { new: still(100, i) }, "A"),
+      ),
+    );
+    const first = build(page);
+    const images = [...first.images.keys()];
+    const sources = new Map(first.publish.send.map(({ path, source }) => [path, source]));
+    for (const [i, path] of images.entries()) {
+      expect(sources.get(path)).toBe(`p${String(i).padStart(2, "0")}.png`);
+    }
+    expect(first.publish.batches.filter((batch) => batch.kind === "image")).toEqual([
+      { kind: "image", paths: images.slice(0, 10), bytes: 1000 },
+      { kind: "image", paths: images.slice(10), bytes: 200 },
+    ]);
+    const second = build(page, ["index.html", images[0], "img/0000000000000000.png"]);
+    expect(second.publish.keep).toContain(images[0]);
+    expect(second.publish.send.map(({ path }) => path)).not.toContain(images[0]);
+    expect(second.publish.remove).toEqual(["img/0000000000000000.png"]);
+  });
+});
+
 // A stand-in for the DOM calls the template's line rendering makes.
 class FakeElement {
   children: FakeElement[] = [];
@@ -1573,6 +1960,52 @@ describe("template", () => {
       "rendered",
     ]);
     expect(views({ path: "a.svg", status: "D", hunks })).toEqual(["unified"]);
+  });
+
+  it("offers images one Comparison view, with each side their status has", () => {
+    const { views, fileView, imagePanes } = new Function(
+      "narrowMq",
+      "mdReady",
+      "load",
+      "viewKey",
+      [
+        templateSource("const svgNew = "),
+        templateSource("const isSvg = "),
+        templateSource("function views("),
+        templateSource("function fileView("),
+        templateSource("function imagePanes("),
+        "return { views, fileView, imagePanes };",
+      ].join("\n"),
+    )(
+      { matches: false },
+      true,
+      () => "split",
+      () => "",
+    );
+    const image = (status: string) => ({
+      path: "a.png",
+      status,
+      isImage: true,
+      hunks: [],
+      imgOld: "img/o.png",
+      sizeOld: [1, 2],
+      imgNew: "img/n.png",
+      stubNew: undefined,
+    });
+    expect(views(image("M"))).toEqual(["comparison"]);
+    expect(fileView(image("M"))).toBe("comparison");
+    expect(imagePanes(image("M"))).toEqual([
+      ["Before", "img/o.png", undefined, [1, 2]],
+      ["After", "img/n.png", undefined, undefined],
+    ]);
+    expect(imagePanes(image("A")).map((pane: unknown[]) => pane[0])).toEqual(["After"]);
+    expect(imagePanes(image("D")).map((pane: unknown[]) => pane[0])).toEqual(["Before"]);
+    expect(imagePanes({ status: "R", stubOld: "Animated." })[0]).toEqual([
+      "Before",
+      undefined,
+      "Animated.",
+      undefined,
+    ]);
   });
 
   describe("expandable context", () => {

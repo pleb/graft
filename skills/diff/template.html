@@ -328,7 +328,8 @@
     color: var(--muted);
     cursor: pointer;
   }
-  .fhead .fold {
+  .fhead .fold,
+  .imgov-head .fold {
     font: inherit;
     font-size: 13px;
     background: none;
@@ -785,6 +786,72 @@
     color: #5d6778;
     font-size: 13px;
   }
+  .imgcmp.one,
+  .imgov-body.one {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .imgcmp.one figure {
+    max-width: 50%;
+  }
+  .imgdim {
+    margin-left: 8px;
+    font-weight: 400;
+  }
+  button.svgpane {
+    width: 100%;
+    font: inherit;
+    cursor: zoom-in;
+  }
+  .imgcmp .svgpane img {
+    max-height: 360px;
+  }
+  .imgov {
+    width: min(1600px, calc(100vw - 32px));
+    max-width: none;
+    max-height: calc(100vh - 32px);
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--fg);
+  }
+  .imgov::backdrop {
+    background: rgba(0, 0, 0, 0.6);
+  }
+  .imgov-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .imgov-head h2 {
+    flex: 1;
+    margin: 0;
+    font-family: var(--font-code);
+    font-size: 14px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .imgov-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+  }
+  .imgov-body figure {
+    margin: 0;
+    min-width: 0;
+  }
+  .imgov-body figcaption {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .imgov-body .svgpane img {
+    max-height: calc(100vh - 150px);
+  }
   .chunk + .chunk {
     border-top: 1px solid var(--border);
   }
@@ -839,8 +906,12 @@
   }
   @media (max-width: 760px) {
     .svgcmp,
+    .imgov-body,
     .cpanes {
       grid-template-columns: 1fr;
+    }
+    .imgcmp.one figure {
+      max-width: none;
     }
   }
   @media (max-width: 860px) {
@@ -1013,7 +1084,7 @@
     const a = el("a");
     a.href = "#" + f.id;
     a.addEventListener("click", () => setCurrent(fi, false));
-    const st = f.binary ? "B" : f.status;
+    const st = f.binary && !f.isImage ? "B" : f.status;
     a.append(el("span", "st st-" + st, st), el("span", "p", label));
     a.title = f.path;
     const n = el("span", "n");
@@ -1355,6 +1426,7 @@
     split: "Side-by-side",
     rendered: "Rendered",
     chunked: "Chunked",
+    comparison: "Comparison",
   };
   // An SVG's new side is kept once: in content when the file has content, else in svgNew.
   const svgNew = (f) => f.svgNew ?? f.content;
@@ -1369,6 +1441,7 @@
     return olds.get(f);
   };
   function views(f) {
+    if (f.isImage) return ["comparison"];
     const list = ["unified"];
     const both = f.status !== "A" && f.status !== "D";
     if (both && !narrowMq.matches) list.push("split");
@@ -1381,7 +1454,7 @@
     const list = views(f);
     const saved = load(viewKey(f.path));
     if (list.includes(saved)) return saved;
-    return list.includes("split") ? "split" : "unified";
+    return list.includes("split") ? "split" : list[0];
   }
   function setView(fi, v) {
     const f = DIFF.files[fi];
@@ -1567,13 +1640,79 @@
       box.append(fig);
     }
   }
+  // An image file's sides as [label, image path, stub, [width, height]]: old unless added, new unless deleted.
+  function imagePanes(f) {
+    const panes = [];
+    if (f.status !== "A") panes.push(["Before", f.imgOld, f.stubOld, f.sizeOld]);
+    if (f.status !== "D") panes.push(["After", f.imgNew, f.stubNew, f.sizeNew]);
+    return panes;
+  }
+  // Each side as a figure: an image, a button that opens the overlay when one is given, or its stub.
+  function imageFigures(f, box, open) {
+    const panes = imagePanes(f);
+    box.classList.toggle("one", panes.length === 1);
+    for (const [label, src, stub, size] of panes) {
+      const fig = el("figure");
+      const cap = el("figcaption", null, label);
+      if (size) cap.append(el("span", "imgdim", size[0] + " × " + size[1]));
+      let pane;
+      if (src && open) {
+        pane = el("button", "svgpane");
+        pane.type = "button";
+        pane.setAttribute("aria-label", "Enlarge comparison: " + f.path);
+        pane.addEventListener("click", () => open(pane));
+      } else pane = el("div", "svgpane");
+      if (src) {
+        const img = el("img");
+        img.alt = label + ": " + f.path;
+        img.src = src;
+        pane.append(img);
+      } else pane.append(el("span", "svgnone", stub || "No preview."));
+      fig.append(cap, pane);
+      box.append(fig);
+    }
+  }
+  let imgDialog = null;
+  let imgReturn = null;
+  // Both sides large in a modal dialog, closed with Escape, its Close button or a click outside the images.
+  function openImages(f, from) {
+    if (!imgDialog) {
+      imgDialog = el("dialog", "imgov");
+      imgDialog.setAttribute("role", "dialog");
+      imgDialog.setAttribute("aria-modal", "true");
+      imgDialog.setAttribute("aria-labelledby", "imgov-title");
+      imgDialog.setAttribute("data-uncommentable", "");
+      imgDialog.addEventListener("click", (e) => {
+        if (!e.target.closest(".imgov-head, figure")) imgDialog.close();
+      });
+      imgDialog.addEventListener("close", () => {
+        imgDialog.replaceChildren();
+        if (imgReturn && imgReturn.isConnected) imgReturn.focus();
+        imgReturn = null;
+      });
+      document.body.append(imgDialog);
+    }
+    const head = el("div", "imgov-head");
+    const title = el("h2", null, f.path);
+    title.id = "imgov-title";
+    const close = el("button", "fold", "Close");
+    close.type = "button";
+    close.addEventListener("click", () => imgDialog.close());
+    head.append(title, close);
+    const body = el("div", "imgov-body");
+    imageFigures(f, body, null);
+    imgDialog.replaceChildren(head, body);
+    imgReturn = from;
+    imgDialog.showModal();
+    close.focus();
+  }
   function renderFile(sec, fi) {
     const f = DIFF.files[fi];
     sec.replaceChildren();
     targets[fi] = { old: [], new: [] };
     const head = el("div", "fhead");
-    const st = f.binary ? "B" : f.status;
-    head.append(el("span", "chip st-" + st, f.binary ? "Binary" : STATUS[f.status]));
+    const st = f.binary && !f.isImage ? "B" : f.status;
+    head.append(el("span", "chip st-" + st, st === "B" ? "Binary" : STATUS[f.status]));
     const p = el("h2", "path");
     if (f.oldPath) p.append(el("span", "from", f.oldPath + " → "));
     p.append(f.path);
@@ -1624,10 +1763,15 @@
     for (const c of head.children) if (c !== p) c.setAttribute("data-uncommentable", "");
     sec.append(head);
     if (f.note) body.append(el("div", "note", f.note));
-    if (f.binary) body.append(el("div", "note", "Binary file changed."));
+    if (f.binary && !f.isImage) body.append(el("div", "note", "Binary file changed."));
     else if (f.stub) body.append(el("div", "note", f.stub));
     else if (!f.hunks) {
       body.append(el("div", "note", f.failed ? "Could not load this file's diff." : "Loading…"));
+    } else if (f.isImage) {
+      const box = el("div", "svgcmp imgcmp");
+      box.setAttribute("data-uncommentable", "");
+      imageFigures(f, box, (from) => openImages(f, from));
+      body.append(box);
     } else if (fileView(f) === "rendered" && isSvg(f)) {
       const box = el("div", "svgcmp");
       renderSvg(f, box);
@@ -1678,6 +1822,12 @@
           content: d.content,
           svgOld: d.svgOld,
           svgNew: d.svgNew,
+          imgOld: d.imgOld,
+          imgNew: d.imgNew,
+          stubOld: d.stubOld,
+          stubNew: d.stubNew,
+          sizeOld: d.sizeOld,
+          sizeNew: d.sizeNew,
         });
         if (isViewed(f)) collapsed.add(f.path);
       })
@@ -1730,7 +1880,7 @@
   );
 
   document.addEventListener("keydown", (e) => {
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.metaKey || e.ctrlKey || e.altKey || imgDialog?.open) return;
     if (e.target.closest && e.target.closest("input, textarea, select, [contenteditable]")) return;
     const k = e.key;
     if (k === "j") setCurrent(current + 1, true);
