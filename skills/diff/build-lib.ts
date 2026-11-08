@@ -232,7 +232,7 @@ export interface PublishPlan {
   send: { path: string; source: string | null }[];
   remove: string[];
   keep: string[];
-  // In order; index.html is in the last one.
+  // In order; each one sends index.html.
   publishes: { send: string[]; remove: string[] }[];
   batches: { kind: "text" | "image"; paths: string[]; bytes: number }[];
 }
@@ -1617,18 +1617,20 @@ export function planPublish(built: BuiltFile[], server: string[], out: string): 
     );
   }
 
+  const pages = send.filter((file) => file.path === PAGE).map((file) => file.path);
   const steps: ({ send: string } | { remove: string })[] = [
     ...remove.map((path) => ({ remove: path })),
     ...send.filter((file) => file.path !== PAGE).map((file) => ({ send: file.path })),
-    ...send.filter((file) => file.path === PAGE).map((file) => ({ send: file.path })),
   ];
+  const size = MAX_PUBLISH_PATHS - pages.length;
   const publishes: PublishPlan["publishes"] = [];
-  for (let i = 0; i < steps.length; i += MAX_PUBLISH_PATHS) {
+  for (let i = 0; i < steps.length || i === 0; i += size) {
     const group = { send: [] as string[], remove: [] as string[] };
-    for (const step of steps.slice(i, i + MAX_PUBLISH_PATHS)) {
+    for (const step of steps.slice(i, i + size)) {
       if ("send" in step) group.send.push(step.send);
       else group.remove.push(step.remove);
     }
+    group.send.push(...pages);
     publishes.push(group);
   }
 

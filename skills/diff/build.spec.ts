@@ -1376,25 +1376,37 @@ function builtFiles(count: number, bytes = 1000, ext = "json"): BuiltFile[] {
 const PAGE_FILE: BuiltFile = { path: "index.html", source: null, bytes: 10 * 1024 };
 
 describe("planPublish", () => {
-  it("splits more than 255 paths into publishes, removals first and the page last", () => {
+  it("splits paths into publishes of at most 255, removals first and the page in each", () => {
     const built = [PAGE_FILE, ...builtFiles(300)];
     const stale = Array.from({ length: 20 }, (_, i) => `data/f-stale${i}.json`);
     const plan = planPublish(built, ["index.html", ...stale], OUT);
     expect(plan.publishes.length).toBe(2);
     for (const step of plan.publishes) {
       expect(step.send.length + step.remove.length).toBeLessThanOrEqual(MAX_PUBLISH_PATHS);
+      expect(step.send).toContain("index.html");
     }
     expect(plan.publishes[0].remove).toEqual(stale);
     expect(plan.publishes[1].remove).toEqual([]);
-    expect(plan.publishes.flatMap((step) => step.send)).toEqual([
-      ...built.slice(1).map((file) => file.path),
-      "index.html",
+    expect(plan.publishes[0].send.length).toBe(MAX_PUBLISH_PATHS - stale.length);
+    expect(
+      plan.publishes.flatMap((step) => step.send.filter((path) => path !== "index.html")),
+    ).toEqual(built.slice(1).map((file) => file.path));
+
+    const old = Array.from({ length: 260 }, (_, i) => `data/f-old${i}.json`);
+    const spanning = planPublish([PAGE_FILE, ...builtFiles(10)], old, OUT);
+    expect(spanning.publishes.map((step) => [step.remove.length, step.send.length])).toEqual([
+      [254, 1],
+      [6, 11],
     ]);
-    expect(plan.publishes.at(-1)!.send.at(-1)).toBe("index.html");
+
+    const pageOnly = planPublish([PAGE_FILE], ["index.html"], OUT);
+    expect(pageOnly.publishes).toEqual([{ send: ["index.html"], remove: [] }]);
 
     const one = planPublish([PAGE_FILE, ...builtFiles(254)], [], OUT);
-    expect(one.publishes.length).toBe(1);
-    expect(planPublish([PAGE_FILE, ...builtFiles(255)], [], OUT).publishes.length).toBe(2);
+    expect(one.publishes.map((step) => step.send.length)).toEqual([MAX_PUBLISH_PATHS]);
+    const two = planPublish([PAGE_FILE, ...builtFiles(255)], [], OUT);
+    expect(two.publishes.map((step) => step.send.length)).toEqual([MAX_PUBLISH_PATHS, 2]);
+    expect(two.send.filter((file) => file.path === "index.html").length).toBe(1);
   });
 
   it("batches text by about 300 KB and images by ten, covering every path sent", () => {
