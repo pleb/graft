@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -21,23 +22,35 @@ import {
   isSupportedNode,
   lineId,
   listChanges,
-  MAX_PAGE_BYTES,
+  MAX_DATA_BYTES,
+  MAX_EXPAND_BYTES,
+  MAX_PUBLISH_PATHS,
   mergeSides,
   pageName,
   parseDiff,
   parseInput,
   parseLineId,
-  renderPage,
+  planPublish,
+  renderBuild,
   threadId,
   toPageFile,
   unquoteGitPath,
   untrackedFile,
 } from "./build-lib.ts";
-import type { BuildInput, PageData, PageFile } from "./build-lib.ts";
+import type {
+  BuildInput,
+  BuildOutput,
+  BuiltFile,
+  FileData,
+  Manifest,
+  ManifestFile,
+  PageData,
+  PageFile,
+} from "./build-lib.ts";
 
 const SCRIPT = fileURLToPath(new URL("./build.ts", import.meta.url));
 const TEMPLATE = readFileSync(fileURLToPath(new URL("./template.html", import.meta.url)), "utf8");
-const USAGE = "Usage: node build.ts files --default <branch> | build --input <file> --out <file>";
+const USAGE = "Usage: node build.ts files --default <branch> | build --input <file> --out <dir>";
 const DATA_OPEN = '<script id="diff-data" type="application/json">';
 
 // Keep the developer's own git config out of the temp repos.
@@ -97,16 +110,49 @@ function lines(prefix: string, count: number): string {
 }
 
 function input(over: Partial<BuildInput> = {}): BuildInput {
-  return { default: "main", untracked: [], exclude: [], threads: [], publish: 1, ...over };
+  return {
+    default: "main",
+    untracked: [],
+    exclude: [],
+    threads: [],
+    publish: 1,
+    server: [],
+    ...over,
+  };
 }
 
 function byPath(data: PageData): Map<string, PageFile> {
   return new Map(data.files.map((file) => [file.path, file]));
 }
 
-function embedded(html: string): PageData {
+function embedded(html: string): Manifest {
   const start = html.indexOf(DATA_OPEN) + DATA_OPEN.length;
   return JSON.parse(html.slice(start, html.indexOf("</script>", start)));
+}
+
+const OUT = "/out";
+
+function build(data: PageData, server: string[] = []): BuildOutput {
+  return renderBuild(TEMPLATE, data, server, OUT);
+}
+
+// Text the build split into pieces, joined back.
+function text(value: unknown): unknown {
+  return Array.isArray(value) ? value.join("") : value;
+}
+
+function manifestEntry(output: BuildOutput, path: string): ManifestFile {
+  return output.manifest.files.find((file) => file.path === path)!;
+}
+
+function dataOf(output: BuildOutput, path: string): FileData {
+  return JSON.parse(output.files.get(manifestEntry(output, path).data!)!);
+}
+
+function longestLine(output: BuildOutput): number {
+  return Math.max(
+    ...[...output.files.values()].flatMap((file) => file.split("\n").map((line) => line.length)),
+  );
 }
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 1, 2, 3]);
@@ -242,6 +288,10 @@ describe("parseInput", () => {
       'Input "untracked" must be an array of strings',
     );
     expect(() => parseInput({ default: "main", publish: 1.5 })).toThrow('Input "publish"');
+    expect(parseInput({ default: "main", server: ["index.html"] }).server).toEqual(["index.html"]);
+    expect(() => parseInput({ default: "main", server: [1] })).toThrow(
+      'Input "server" must be an array of strings',
+    );
     expect(() => parseInput([])).toThrow("Input must be a JSON object");
   });
 
@@ -451,24 +501,51 @@ describe("collectPage", () => {
     );
   });
 
-  it("embeds the new content of shown Markdown files only", () => {
+  it("embeds the new content of shown, non-deleted regular text files only", () => {
+    const lfs = "version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 1\n";
     const dir = newRepo({
       "doc.md": "# Doc\n\nold\n",
       "work.markdown": "a\n",
       "gone.md": "bye\n",
       "code.ts": "a\n",
       "x.min.md": "a\n",
+      "latin.txt": Buffer.from([0x63, 0x61, 0x66, 0xe9, 0x0a]),
+      "big.bin": lfs,
+      "img.png": PNG,
+      "target.txt": "t\n",
     });
     git(dir, "checkout", "-q", "-b", "feature");
-    write(dir, { "doc.md": "# Doc\n\nnew\n", "code.ts": "b\n", "x.min.md": "b\n" });
+    write(dir, {
+      "doc.md": "# Doc\n\nnew\n",
+      "code.ts": "b\n",
+      "x.min.md": "b\n",
+      "latin.txt": Buffer.from([0x63, 0x61, 0x66, 0xe8, 0x0a]),
+      "big.bin": lfs.replace("abc", "def"),
+      "img.png": Buffer.concat([PNG, Buffer.from([1])]),
+    });
     rmSync(join(dir, "gone.md"));
+    symlinkSync("target.txt", join(dir, "link"));
     commitAll(dir, "feature");
-    write(dir, { "work.markdown": "b\n", "new.MDX": "# New" });
-    const files = byPath(collectPage(dir, input({ untracked: ["new.MDX"] })));
+    write(dir, { "work.markdown": "b\n", "new.MDX": "# New", "new.txt": "\ufeffbom\n" });
+    symlinkSync("target.txt", join(dir, "ulink"));
+    const files = byPath(collectPage(dir, input({ untracked: ["new.MDX", "new.txt", "ulink"] })));
     expect(files.get("doc.md")!.content).toEqual(["# Doc", "", "new", ""]);
     expect(files.get("work.markdown")!.content).toEqual(["b", ""]);
     expect(files.get("new.MDX")!.content).toEqual(["# New"]);
-    for (const path of ["gone.md", "code.ts", "x.min.md"]) {
+    expect(files.get("code.ts")!.content).toEqual(["b", ""]);
+    expect(files.get("new.txt")!.content).toEqual(["\ufeffbom", ""]);
+    expect(files.get("latin.txt")!.hunks).toBeDefined();
+    expect(files.get("big.bin")!.hunks).toBeDefined();
+    expect(files.get("link")!.hunks).toBeDefined();
+    for (const path of [
+      "gone.md",
+      "x.min.md",
+      "latin.txt",
+      "big.bin",
+      "img.png",
+      "link",
+      "ulink",
+    ]) {
       expect(files.get(path)!.content).toBeUndefined();
     }
   });
@@ -730,7 +807,53 @@ describe("collectPage", () => {
   });
 });
 
-describe("renderPage", () => {
+// A shown text file of about the given bytes of hunks and content, in lines of the given width.
+function sizedFile(path: string, hunkBytes: number, contentBytes = 0, width = 100): PageFile {
+  const row = "x".repeat(width);
+  const hunkLines = Math.max(1, Math.round(hunkBytes / (width + 20)));
+  const file: PageFile = {
+    id: fileId(path),
+    path,
+    status: "M",
+    source: "committed",
+    hash: "0000000000000000",
+    add: hunkLines,
+    del: 0,
+    hunks: [
+      {
+        header: `@@ -0,0 +1,${hunkLines} @@`,
+        lines: Array.from({ length: hunkLines }, (_, i) => ["+", null, i + 1, row]),
+      },
+    ],
+  };
+  if (contentBytes) {
+    file.content = Array.from({ length: Math.round(contentBytes / (width + 4)) }, () => row);
+  }
+  return file;
+}
+
+function syntheticPage(files: PageFile[]): PageData {
+  return {
+    repo: "repo",
+    branch: "feature",
+    base: "main",
+    buildId: "abc-1",
+    mergeBase: "def",
+    head: "abc",
+    uncommitted: 0,
+    untracked: 0,
+    threads: [],
+    files,
+  };
+}
+
+function dataBytes(output: BuildOutput): number {
+  return [...output.files]
+    .filter(([path]) => path.startsWith("data/"))
+    .reduce((sum, [, file]) => sum + Buffer.byteLength(file), 0);
+}
+
+describe("renderBuild", () => {
   it("escapes the repo and branch in the title", () => {
     const dir = newRepo({ "a.txt": "a\n" });
     // Windows file names cannot hold < or >, so the branch is a packed ref, not a loose ref file.
@@ -741,38 +864,153 @@ describe("renderPage", () => {
     );
     git(dir, "symbolic-ref", "HEAD", `refs/heads/${branch}`);
     write(dir, { "a.txt": "b\n" });
-    const html = renderPage(TEMPLATE, collectPage(dir, input()));
+    const html = build(collectPage(dir, input())).files.get("index.html")!;
     expect(html).toContain(`<title>${basename(dir)} / feat/&lt;x&gt;&amp;y diff</title>`);
     expect(embedded(html).branch).toBe("feat/<x>&y");
   });
 
-  it("keeps the embedded JSON inside its script tag", () => {
+  it("keeps the inline manifest inside its script tag", () => {
     const dir = newRepo({ "a.html": "start\n" });
-    write(dir, { "a.html": "start\n</script><!-- x -->\u2028\n" });
-    const html = renderPage(TEMPLATE, collectPage(dir, input()));
+    const branch = "x</script><!--y";
+    writeFileSync(
+      join(dir, ".git/packed-refs"),
+      `${git(dir, "rev-parse", "HEAD")} refs/heads/${branch}\n`,
+    );
+    git(dir, "symbolic-ref", "HEAD", `refs/heads/${branch}`);
+    write(dir, { "a.html": "start\n</script><!-- x --> \n" });
+    const output = build(collectPage(dir, input()));
+    const html = output.files.get("index.html")!;
     expect(html.split("</script>").length).toBe(TEMPLATE.split("</script>").length);
     expect(html.split("<!--").length).toBe(TEMPLATE.split("<!--").length);
-    const data = embedded(html);
-    expect(data.files[0].hunks![0].lines[1]).toEqual(["+", null, 2, "</script><!-- x -->\u2028"]);
-    const block = html.slice(
-      html.indexOf(DATA_OPEN) + DATA_OPEN.length,
-      html.indexOf("</script>", html.indexOf(DATA_OPEN)),
+    expect(embedded(html).branch).toBe(branch);
+    expect(dataOf(output, "a.html").hunks[0].lines[1]).toEqual([
+      "+",
+      null,
+      2,
+      "</script><!-- x --> ",
+    ]);
+    expect(output.files.get(manifestEntry(output, "a.html").data!)!.split("\n")).toContain(
+      '[" ",1,1,"start"],',
     );
-    expect(block.split("\n")).toContain('[" ",1,1,"start"],');
   });
 
-  it("keeps every line of the page and the template under 1000 characters", () => {
-    const long = "<x>&".repeat(2500);
-    const dir = newRepo({ "a.txt": "a\n" });
-    write(dir, { "a.txt": `${long}\n`, "b.txt": "y".repeat(10000) });
-    const html = renderPage(TEMPLATE, collectPage(dir, input({ untracked: ["b.txt"] })));
-    for (const text of [TEMPLATE, html]) {
-      expect(Math.max(...text.split("\n").map((line) => line.length))).toBeLessThanOrEqual(1000);
+  it("writes a manifest with each file's fields and its data file, without hunks", () => {
+    const dir = featureRepo();
+    const output = build(
+      collectPage(
+        dir,
+        input({ untracked: ["notes.md"], threads: [{ path: "src/mod.ts", side: "new", line: 3 }] }),
+      ),
+    );
+    const page = embedded(output.files.get("index.html")!);
+    expect(page).toEqual(output.manifest);
+    const head = git(dir, "rev-parse", "--short", "HEAD");
+    expect({ ...page, files: [] }).toEqual({
+      repo: basename(dir),
+      branch: "feature",
+      base: "main",
+      buildId: `${head}-1`,
+      mergeBase: git(dir, "rev-parse", "--short", "main"),
+      head,
+      uncommitted: 1,
+      untracked: 1,
+      threads: [lineId("src/mod.ts", "new", 3)],
+      files: [],
+    });
+    const mod = manifestEntry(output, "src/mod.ts");
+    expect(Object.keys(mod)).toEqual([
+      "id",
+      "path",
+      "status",
+      "source",
+      "add",
+      "del",
+      "hash",
+      "hasHunks",
+      "isMarkdown",
+      "data",
+    ]);
+    expect(mod).toMatchObject({
+      id: "f-src_2f_mod_2e_ts",
+      path: "src/mod.ts",
+      status: "M",
+      source: "committed",
+      add: 1,
+      del: 1,
+      hasHunks: true,
+      isMarkdown: false,
+    });
+    expect(mod.hash).toMatch(/^[0-9a-f]{16}$/);
+    expect(mod.data).toMatch(/^data\/f-[0-9a-f]{16}\.json$/);
+    expect(Object.keys(manifestEntry(output, "src/new-name.ts")).slice(0, 4)).toEqual([
+      "id",
+      "path",
+      "oldPath",
+      "status",
+    ]);
+    expect(manifestEntry(output, "src/new-name.ts").oldPath).toBe("src/old-name.ts");
+    expect(manifestEntry(output, "img.png")).toEqual({
+      id: fileId("img.png"),
+      path: "img.png",
+      status: "M",
+      source: "committed",
+      add: 0,
+      del: 0,
+      binary: true,
+      hash: expect.stringMatching(/^[0-9a-f]{16}$/),
+      hasHunks: false,
+      isMarkdown: false,
+    });
+    expect(manifestEntry(output, "package-lock.json")).toMatchObject({
+      stub: "Lockfile changed (+2 −1). Content hidden.",
+      hasHunks: false,
+    });
+    expect(manifestEntry(output, "package-lock.json").data).toBeUndefined();
+    expect(manifestEntry(output, "notes.md")).toMatchObject({ isMarkdown: true, hasHunks: true });
+    for (const file of page.files) {
+      for (const key of ["hunks", "content", "svgOld", "svgNew"])
+        expect(file).not.toHaveProperty(key);
     }
-    const files = embedded(html).files;
-    const text = (line: unknown) => (Array.isArray(line) ? line.join("") : line);
-    expect(text(files[0].hunks![0].lines[1][3])).toBe(long);
-    expect(text(files[1].hunks![0].lines[0][3])).toBe("y".repeat(10000));
+
+    expect(dataOf(output, "src/mod.ts")).toEqual({
+      path: "src/mod.ts",
+      hunks: byPath(collectPage(dir, input())).get("src/mod.ts")!.hunks,
+      content: lines("line", 5).replace("line 3\n", "changed 3\n").split("\n"),
+    });
+    const shown = output.manifest.files.filter((file) => file.data).map((file) => file.data);
+    expect([...output.files.keys()]).toEqual(["index.html", ...shown]);
+  });
+
+  it("marks Markdown files that have hunks", () => {
+    const dir = newRepo({ "doc.md": "a\n", "code.ts": "a\n", "x.min.md": "a\n", "gone.md": "a\n" });
+    write(dir, { "doc.md": "b\n", "code.ts": "b\n", "x.min.md": "b\n", "new.MDX": "# New\n" });
+    rmSync(join(dir, "gone.md"));
+    const output = build(collectPage(dir, input({ untracked: ["new.MDX"] })));
+    expect(
+      Object.fromEntries(output.manifest.files.map((file) => [file.path, file.isMarkdown])),
+    ).toEqual({
+      "code.ts": false,
+      "doc.md": true,
+      "gone.md": true,
+      "new.MDX": true,
+      "x.min.md": false,
+    });
+  });
+
+  it("keeps every line of the page, the data and the template under 1000 characters", () => {
+    const long = "<x>&".repeat(2500);
+    const dir = newRepo({ "a.txt": "a\n", "c.md": "a\n" });
+    write(dir, {
+      "a.txt": `${long}\n`,
+      "b.txt": "y".repeat(10000),
+      "c.md": `${"<b>&".repeat(600)}\nshort\n`,
+    });
+    const output = build(collectPage(dir, input({ untracked: ["b.txt"] })));
+    expect(longestLine(output)).toBeLessThanOrEqual(1000);
+    expect(Math.max(...TEMPLATE.split("\n").map((line) => line.length))).toBeLessThanOrEqual(1000);
+    expect(text(dataOf(output, "a.txt").hunks[0].lines[1][3])).toBe(long);
+    expect(text(dataOf(output, "b.txt").hunks[0].lines[0][3])).toBe("y".repeat(10000));
+    expect(text(dataOf(output, "a.txt").content![0])).toBe(long);
   });
 
   it("splits long paths, ids and thread ids so every line stays under 1000 characters", () => {
@@ -789,26 +1027,25 @@ describe("renderPage", () => {
       input({ untracked: ["a.txt"], threads: [{ path: to, side: "old", line: 10 }] }),
     );
     expect(lineId(to, "old", 10).length).toBeGreaterThan(500);
-    const html = renderPage(TEMPLATE, data);
-    expect(Math.max(...html.split("\n").map((line) => line.length))).toBeLessThan(1000);
-    const page = embedded(html);
-    const text = (value: unknown) => (Array.isArray(value) ? value.join("") : value);
+    const output = build(data);
+    expect(longestLine(output)).toBeLessThan(1000);
+    const page = embedded(output.files.get("index.html")!);
     const renamed = page.files.find((file) => text(file.path) === to)!;
     expect(text(renamed.id)).toBe(fileId(to));
     expect(text(renamed.oldPath)).toBe(from);
     expect(page.threads.map(text)).toEqual([lineId(to, "old", 10)]);
+    expect(text(JSON.parse(output.files.get(renamed.data!)!).path)).toBe(to);
     const kept = page.files.find((file) => file.path === "a.txt")!;
     expect(kept.note).toBe("Removed from the index; kept as an untracked file.");
   });
 
-  it("chunks long Markdown content lines, which the page joins back", () => {
+  it("chunks long content lines, which the page joins back", () => {
     const long = "<b>&".repeat(600);
     const dir = newRepo({ "a.md": "a\n" });
     write(dir, { "a.md": `${long}\nshort\n` });
-    const html = renderPage(TEMPLATE, collectPage(dir, input()));
-    expect(Math.max(...html.split("\n").map((line) => line.length))).toBeLessThanOrEqual(1000);
-    const page = embedded(html);
-    const content = page.files[0].content as unknown[];
+    const output = build(collectPage(dir, input()));
+    const data = dataOf(output, "a.md");
+    const content = data.content as unknown[];
     expect(Array.isArray(content[0])).toBe(true);
     expect(content[1]).toBe("short");
     const join = new Function(
@@ -817,69 +1054,197 @@ describe("renderPage", () => {
         "\n",
       ),
     );
+    const page = { threads: [], files: [data] };
     join(page);
     expect(page.files[0].content).toBe(`${long}\nshort\n`);
-  });
-
-  it("counts Markdown content toward the size cap", () => {
-    const body = lines("a fairly long line of text in a big file", 9000);
-    const dir = newRepo({ "big.md": body, "big.txt": body });
-    write(dir, {
-      "big.md": body.replace("file 5\n", "changed 5\n"),
-      "big.txt": body.replace("file 5\n", "changed 5\n"),
-    });
-    const both = collectPage(dir, input());
-    expect(() => renderPage(TEMPLATE, both)).toThrow(/Largest files: big\.md \(\d+ KB\)/);
-    const text = collectPage(dir, input({ exclude: ["big.md"] }));
-    expect(() => renderPage(TEMPLATE, text)).not.toThrow();
   });
 
   it("chunks long SVG content lines, which the page joins back", () => {
     const old = `<svg>${"<g/>&".repeat(600)}</svg>`;
     const dir = newRepo({ "a.svg": `${old}\n` });
     write(dir, { "a.svg": `${old}\n<!-- x -->\n` });
-    const html = renderPage(TEMPLATE, collectPage(dir, input()));
-    expect(Math.max(...html.split("\n").map((line) => line.length))).toBeLessThanOrEqual(1000);
-    const page = embedded(html);
-    const before = page.files[0].svgOld as unknown[];
-    expect(Array.isArray(before[0])).toBe(true);
-    expect((page.files[0].svgNew as unknown[])[1]).toBe("<!-- x -->");
+    const output = build(collectPage(dir, input()));
+    expect(longestLine(output)).toBeLessThanOrEqual(1000);
+    const data = dataOf(output, "a.svg");
+    expect(Array.isArray((data.svgOld as unknown[])[0])).toBe(true);
+    expect((data.svgNew as unknown[])[1]).toBe("<!-- x -->");
     const join = new Function(
       "DIFF",
       [templateSource("const joined = "), templateSource("for (const f of DIFF.files) {")].join(
         "\n",
       ),
     );
+    const page = { threads: [], files: [data] };
     join(page);
     expect(page.files[0].svgOld).toBe(`${old}\n`);
     expect(page.files[0].svgNew).toBe(`${old}\n<!-- x -->\n`);
   });
 
-  it("counts SVG content toward the size cap", () => {
-    const body = lines("<text>a fairly long line of text in a big file</text>", 3500);
-    const dir = newRepo({ "big.svg": body, "big.txt": body });
-    write(dir, {
-      "big.svg": body.replace("file</text> 5\n", "changed 5\n"),
-      "big.txt": body.replace("file</text> 5\n", "changed 5\n"),
-    });
-    const both = collectPage(dir, input());
-    expect(() => renderPage(TEMPLATE, both)).toThrow(/Largest files: big\.svg \(\d+ KB\)/);
-    const text = collectPage(dir, input({ exclude: ["big.svg"] }));
-    expect(() => renderPage(TEMPLATE, text)).not.toThrow();
+  it("names data files by a hash of their data, stable across builds", () => {
+    const dir = featureRepo();
+    const names = (output: BuildOutput) =>
+      new Map(output.manifest.files.map((file) => [file.path, file.data]));
+    const first = names(build(collectPage(dir, input({ untracked: ["notes.md"] }))));
+    const again = names(build(collectPage(dir, input({ untracked: ["notes.md"], publish: 2 }))));
+    expect(again).toEqual(first);
+    write(dir, { "src/added.ts": "export const added = 2;\n" });
+    const changed = names(build(collectPage(dir, input({ untracked: ["notes.md"], publish: 3 }))));
+    for (const [path, data] of first) {
+      if (path === "src/added.ts") expect(changed.get(path)).not.toBe(data);
+      else expect(changed.get(path)).toBe(data);
+    }
   });
 
-  it("fails on an oversized page and names the largest files", () => {
-    const dir = newRepo({ "README.md": "x\n" });
-    write(dir, {
-      "big.txt": lines("a fairly long line of text in a big file", 12000),
-      "small.txt": "small\n",
+  it("sends what the server lacks, removes what the build lacks and keeps the rest", () => {
+    const dir = featureRepo();
+    const first = build(collectPage(dir, input()));
+    const paths = [...first.files.keys()];
+    expect(first.publish).toMatchObject({ out: OUT, remove: [], keep: [] });
+    expect(first.publish.send.map((file) => file.path)).toEqual(paths);
+    expect(first.publish.send[0]).toEqual({ path: "index.html", source: null });
+    expect(first.publish.send).toContainEqual({
+      path: manifestEntry(first, "src/mod.ts").data,
+      source: "src/mod.ts",
     });
-    const data = collectPage(dir, input({ untracked: ["big.txt", "small.txt"] }));
-    expect(() => renderPage(TEMPLATE, data)).toThrow(
-      new RegExp(
-        `over the ${MAX_PAGE_BYTES / 1024} KB Claude can read\\. Largest files: big\\.txt \\(\\d+ KB\\), small\\.txt \\(1 KB\\)$`,
-      ),
+
+    write(dir, { "src/added.ts": "export const added = 2;\n" });
+    const server = [...paths, "data/f-stale.json"];
+    const next = build(collectPage(dir, input({ publish: 2 })), server);
+    const oldAdded = manifestEntry(first, "src/added.ts").data!;
+    const newAdded = manifestEntry(next, "src/added.ts").data!;
+    expect(next.publish.send).toEqual([
+      { path: "index.html", source: null },
+      { path: newAdded, source: "src/added.ts" },
+    ]);
+    expect(next.publish.remove).toEqual([oldAdded, "data/f-stale.json"]);
+    expect(next.publish.keep).toEqual(
+      paths.filter((path) => path !== "index.html" && path !== oldAdded),
     );
+    expect(next.publish.publishes).toEqual([
+      { send: [newAdded, "index.html"], remove: [oldAdded, "data/f-stale.json"] },
+    ]);
+  });
+
+  it("fails when one file's hunks pass the per-file cap, naming the largest files", () => {
+    const data = syntheticPage([
+      sizedFile("big.txt", 600 * 1024),
+      sizedFile("mid.txt", 100 * 1024),
+      sizedFile("small.txt", 100),
+    ]);
+    expect(() => build(data)).toThrow(
+      /^1 file diff is over the 500 KB one file can hold\. Largest files: big\.txt \(\d+ KB\), mid\.txt \(\d+ KB\), small\.txt \(1 KB\)$/,
+    );
+  });
+
+  it("fails when the hunks alone pass the data cap, naming the five largest files", () => {
+    const files = Array.from({ length: 12 }, (_, i) => sizedFile(`f${i}.txt`, (460 + i) * 1024));
+    expect(() => build(syntheticPage(files))).toThrow(
+      /^The diff data is \d+ KB, over the 5120 KB readers can read\. Largest files: f11\.txt \(\d+ KB\), f10\.txt \(\d+ KB\), f9\.txt \(\d+ KB\), f8\.txt \(\d+ KB\), f7\.txt \(\d+ KB\)$/,
+    );
+  });
+
+  it("drops content with a note from a file whose data would pass its cap", () => {
+    const big = sizedFile("big.txt", 1000, 300 * 1024);
+    big.note = "Removed from the index; kept as an untracked file.";
+    const output = build(
+      syntheticPage([big, sizedFile("edge.txt", 1000, 240 * 1024), sizedFile("small.txt", 1000)]),
+    );
+    expect(dataOf(output, "big.txt").content).toBeUndefined();
+    expect(manifestEntry(output, "big.txt").note).toBe(
+      "Removed from the index; kept as an untracked file. Too large to expand past its hunks.",
+    );
+    const edge = output.files.get(manifestEntry(output, "edge.txt").data!)!;
+    expect(Buffer.byteLength(edge)).toBeLessThanOrEqual(MAX_EXPAND_BYTES);
+    expect(dataOf(output, "edge.txt").content).toBeDefined();
+    expect(manifestEntry(output, "edge.txt").note).toBeUndefined();
+    expect(manifestEntry(output, "small.txt").note).toBeUndefined();
+  });
+
+  it("drops content from the largest files first until the data fits its cap", () => {
+    // Each file's data is under the per-file cap, and all of it together passes the total cap.
+    const files = Array.from({ length: 25 }, (_, i) =>
+      sizedFile(`f${String(i).padStart(2, "0")}.txt`, 1000, 2000 * (94 + i), 90 + i),
+    );
+    const output = build(syntheticPage(files));
+    const total = files.reduce(
+      (sum, file) => sum + Buffer.byteLength(JSON.stringify(file.content)),
+      0,
+    );
+    expect(total).toBeGreaterThan(MAX_DATA_BYTES);
+    expect(dataBytes(output)).toBeLessThanOrEqual(MAX_DATA_BYTES);
+    const dropped = output.manifest.files.filter((file) => file.note).map((file) => file.path);
+    expect(dropped.length).toBeGreaterThan(0);
+    expect(dropped).toEqual(files.slice(25 - dropped.length).map((file) => file.path));
+    for (const file of output.manifest.files) {
+      expect(dataOf(output, file.path).content === undefined).toBe(dropped.includes(file.path));
+      if (file.note) expect(file.note).toBe("Too large to expand past its hunks.");
+    }
+  });
+});
+
+function builtFiles(count: number, bytes = 1000, ext = "json"): BuiltFile[] {
+  return Array.from({ length: count }, (_, i) => ({
+    path: `data/f-${String(i).padStart(4, "0")}.${ext}`,
+    source: `src/${i}.ts`,
+    bytes,
+  }));
+}
+
+const PAGE_FILE: BuiltFile = { path: "index.html", source: null, bytes: 10 * 1024 };
+
+describe("planPublish", () => {
+  it("splits more than 255 paths into publishes, removals first and the page last", () => {
+    const built = [PAGE_FILE, ...builtFiles(300)];
+    const stale = Array.from({ length: 20 }, (_, i) => `data/f-stale${i}.json`);
+    const plan = planPublish(built, ["index.html", ...stale], OUT);
+    expect(plan.publishes.length).toBe(2);
+    for (const step of plan.publishes) {
+      expect(step.send.length + step.remove.length).toBeLessThanOrEqual(MAX_PUBLISH_PATHS);
+    }
+    expect(plan.publishes[0].remove).toEqual(stale);
+    expect(plan.publishes[1].remove).toEqual([]);
+    expect(plan.publishes.flatMap((step) => step.send)).toEqual([
+      ...built.slice(1).map((file) => file.path),
+      "index.html",
+    ]);
+    expect(plan.publishes.at(-1)!.send.at(-1)).toBe("index.html");
+
+    const one = planPublish([PAGE_FILE, ...builtFiles(254)], [], OUT);
+    expect(one.publishes.length).toBe(1);
+    expect(planPublish([PAGE_FILE, ...builtFiles(255)], [], OUT).publishes.length).toBe(2);
+  });
+
+  it("batches text by about 300 KB and images by ten, covering every path sent", () => {
+    const text = builtFiles(7, 100 * 1024);
+    const images = builtFiles(23, 1000, "png");
+    const big = { path: "data/f-big.json", source: "big.ts", bytes: 400 * 1024 };
+    const plan = planPublish([PAGE_FILE, ...text, ...images, big], [text[6].path], OUT);
+    const paths = (files: BuiltFile[]) => files.map((file) => file.path);
+    expect(plan.batches.map((batch) => [batch.kind, batch.paths])).toEqual([
+      ["text", ["index.html", ...paths(text.slice(0, 2))]],
+      ["text", paths(text.slice(2, 5))],
+      ["text", [text[5].path]],
+      ["image", paths(images.slice(0, 10))],
+      ["image", paths(images.slice(10, 20))],
+      ["image", paths(images.slice(20))],
+      ["text", ["data/f-big.json"]],
+    ]);
+    expect(plan.batches[0].bytes).toBe(210 * 1024);
+    expect(plan.batches.flatMap((batch) => batch.paths).sort()).toEqual(
+      plan.send.map((file) => file.path).sort(),
+    );
+  });
+
+  it("fails past the version file and sent byte caps", () => {
+    expect(() => planPublish([PAGE_FILE, ...builtFiles(511)], [], OUT)).toThrow(
+      "The build has 512 files, over the 511 an artifact version can hold",
+    );
+    expect(() => planPublish([PAGE_FILE, ...builtFiles(510)], [], OUT)).not.toThrow();
+    const huge = builtFiles(2, 31 * 1024 * 1024, "png");
+    expect(() => planPublish([PAGE_FILE, ...huge], [], OUT)).toThrow(
+      /^The publish sends \d+ KB, over the 61440 KB cap\. Largest files: data\/f-0000\.png/,
+    );
+    expect(() => planPublish([PAGE_FILE, ...huge], [huge[0].path], OUT)).not.toThrow();
   });
 });
 
@@ -1139,23 +1504,33 @@ describe("build.ts", () => {
         publish: 2,
       }),
     );
-    const out = join(work, "nested", "page.html");
+    const out = join(work, "nested", "1");
     const result = run(["build", "--input", inputPath, "--out", out], join(dir, "src"));
     expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
     expect(result.stdout).toBe(
-      `Wrote ${out}\n8 files (1 uncommitted, 1 untracked), +7 -7 against main\n`,
+      `Wrote ${out}\n8 files (1 uncommitted, 1 untracked), +7 -7 against main\n1 publish, 1 reader batch\n`,
     );
-    const data = embedded(readFileSync(out, "utf8"));
+    const data = embedded(readFileSync(join(out, "index.html"), "utf8"));
     expect(data.buildId).toBe(`${git(dir, "rev-parse", "--short", "HEAD")}-2`);
     expect(data.files.map((file) => file.path)).toContain("img.png");
+    const plan = JSON.parse(readFileSync(join(out, "publish.json"), "utf8"));
+    expect(plan.out).toBe(out);
+    expect(plan.send[0]).toEqual({ path: "index.html", source: null });
+    for (const { path } of plan.send) expect(existsSync(join(out, path))).toBe(true);
+    const mod = data.files.find((file) => file.path === "src/mod.ts")!;
+    expect(plan.send).toContainEqual({ path: mod.data, source: "src/mod.ts" });
+
+    const again = run(["build", "--input", inputPath, "--out", out], dir);
+    expect(again.status).toBe(1);
+    expect(again.stderr).toBe(`${out} already exists and is not an empty directory\n`);
   });
 
   it("fails when the diff is empty", () => {
     const dir = newRepo({ "a.txt": "a\n" });
     const inputPath = join(tempDir(), "input.json");
     writeFileSync(inputPath, JSON.stringify({ default: "main", publish: 1 }));
-    const result = run(["build", "--input", inputPath, "--out", join(tempDir(), "page.html")], dir);
+    const result = run(["build", "--input", inputPath, "--out", join(tempDir(), "1")], dir);
     expect(result.status).toBe(1);
     expect(result.stderr).toBe("No changes against main\n");
   });

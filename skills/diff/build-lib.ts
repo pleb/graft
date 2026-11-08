@@ -1,7 +1,16 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, readlinkSync } from "node:fs";
-import { basename, extname, join, resolve } from "node:path";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, dirname, extname, join, resolve } from "node:path";
 
 const MIN_NODE_MAJOR = 24;
 const MAX_GIT_OUTPUT = 512 * 1024 * 1024;
@@ -14,10 +23,24 @@ const LISTED = new Set(["threads", "files", "hunks", "lines", "content", "svgOld
 const CHUNKED = new Set(["id", "path", "oldPath", "stub", "note"]);
 const MARKDOWN = new Set([".md", ".markdown", ".mdx"]);
 const SVG = ".svg";
+const IMAGES = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
 const REMOVED_FROM_INDEX = "Removed from the index; kept as an untracked file.";
+const NO_EXPAND = "Too large to expand past its hunks.";
+const LFS_POINTER = "version https://git-lfs.github.com/spec/v1\n";
+const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+const PAGE = "index.html";
 
-// The largest page Claude reads in full before publishing it.
-export const MAX_PAGE_BYTES = 300 * 1024;
+// The largest total of data files, which readers read in full before each publish.
+export const MAX_DATA_BYTES = 5 * 1024 * 1024;
+// The largest data file without its expandable content.
+export const MAX_FILE_DATA_BYTES = 500 * 1024;
+// The largest data file that keeps its expandable content.
+export const MAX_EXPAND_BYTES = 250 * 1024;
+export const MAX_SEND_BYTES = 60 * 1024 * 1024;
+export const MAX_VERSION_FILES = 511;
+export const MAX_PUBLISH_PATHS = 255;
+export const READER_TEXT_BYTES = 300 * 1024;
+export const READER_IMAGES = 10;
 
 export const DIFF_ARGS = [
   "-c",
@@ -99,7 +122,7 @@ export interface PageFile {
   add: number;
   del: number;
   hunks?: Hunk[];
-  // A Markdown file's full new content, one item per line, for the rendered view.
+  // A regular text file's full new content, one item per line.
   content?: string[];
   // An SVG file's old and new content, one item per line, for the rendered view.
   svgOld?: string[];
@@ -119,6 +142,60 @@ export interface PageData {
   files: PageFile[];
 }
 
+export interface ManifestFile {
+  id: string;
+  path: string;
+  oldPath?: string;
+  status: Status;
+  source: Source;
+  add: number;
+  del: number;
+  binary?: true;
+  hash: string;
+  hasHunks: boolean;
+  isMarkdown: boolean;
+  stub?: string;
+  note?: string;
+  // The data file's path in the build directory, when the file has hunks.
+  data?: string;
+}
+
+export interface Manifest extends Omit<PageData, "files"> {
+  files: ManifestFile[];
+}
+
+export interface FileData {
+  path: string;
+  hunks: Hunk[];
+  content?: string[];
+  svgOld?: string[];
+  svgNew?: string[];
+}
+
+// A file of the build, by its path in the build directory, with the repo file it comes from.
+export interface BuiltFile {
+  path: string;
+  source: string | null;
+  bytes: number;
+}
+
+export interface PublishPlan {
+  out: string;
+  send: { path: string; source: string | null }[];
+  remove: string[];
+  keep: string[];
+  // In order; index.html is in the last one.
+  publishes: { send: string[]; remove: string[] }[];
+  batches: { kind: "text" | "image"; paths: string[]; bytes: number }[];
+}
+
+export interface BuildOutput {
+  manifest: Manifest;
+  // Each file's text by its path in the build directory, index.html first.
+  files: Map<string, string>;
+  publish: PublishPlan;
+}
+
 export type Thread =
   | { path: string; side: Side; line: number }
   | { path: string; side: "file" }
@@ -131,6 +208,8 @@ export interface BuildInput {
   exclude: string[];
   threads: Thread[];
   publish: number;
+  // The artifact's published paths.
+  server: string[];
 }
 
 export interface Base {
@@ -515,6 +594,7 @@ export function parseInput(value: unknown): BuildInput {
     exclude: strings(input.exclude, "exclude"),
     threads: threads(input.threads),
     publish,
+    server: strings(input.server, "server"),
   };
 }
 
@@ -598,23 +678,37 @@ function fileMode(file: ParsedFile): string | undefined {
   return file.newMode ?? file.index?.split(" ")[1];
 }
 
-// A file's new content, from HEAD when committed and the working tree otherwise.
-function newContent(root: string, page: PageFile): string[] {
-  const text =
-    page.source === "committed"
-      ? git(root, ["show", `HEAD:${page.path}`]).stdout
-      : readFileSync(join(root, page.path), "utf8");
-  return text.split("\n");
+// A file's new bytes, from HEAD when committed and the working tree otherwise.
+function newBytes(root: string, page: PageFile): Buffer {
+  if (page.source !== "committed") return readFileSync(join(root, page.path));
+  const args = ["show", `HEAD:${page.path}`];
+  const result = spawnSync("git", ["-C", root, ...args], { maxBuffer: MAX_GIT_OUTPUT });
+  if (result.error) throw new BuildError(`git ${args.join(" ")} failed: ${result.error.message}`);
+  if (result.status !== 0) {
+    const reason = result.stderr.toString().trim() || `exit status ${result.status}`;
+    throw new BuildError(`git ${args.join(" ")} failed: ${reason}`);
+  }
+  return result.stdout;
 }
 
-// A shown, regular Markdown file's new content.
-function markdownContent(root: string, file: ParsedFile, page: PageFile): string[] | undefined {
-  if (!page.hunks || page.status === "D" || !MARKDOWN.has(extname(page.path).toLowerCase())) {
-    return undefined;
-  }
+function newContent(root: string, page: PageFile): string[] {
+  return newBytes(root, page).toString("utf8").split("\n");
+}
+
+// A shown, non-deleted regular file's new content, when it is UTF-8 text and not a Git LFS pointer.
+function textContent(root: string, file: ParsedFile, page: PageFile): string[] | undefined {
+  if (!page.hunks || page.status === "D") return undefined;
   const mode = fileMode(file);
   if (mode !== undefined && modeType(mode) !== "10") return undefined;
-  return newContent(root, page);
+  const bytes = newBytes(root, page);
+  let text: string;
+  try {
+    text = UTF8.decode(bytes);
+  } catch {
+    return undefined;
+  }
+  if (text.startsWith(LFS_POINTER)) return undefined;
+  return text.split("\n");
 }
 
 // A shown SVG file's old content from the merge base and new content, each side kept only when it is a regular file.
@@ -659,7 +753,7 @@ export function collectPage(cwd: string, input: BuildInput): PageData {
   }
   const files = mergeByPath(entries).map(({ file, source }) => {
     const page = toPageFile(file, source);
-    const content = markdownContent(root, file, page);
+    const content = textContent(root, file, page);
     if (content) page.content = content;
     Object.assign(page, svgSides(root, base, file, page));
     return page;
@@ -753,23 +847,217 @@ function kb(bytes: number): string {
   return `${Math.ceil(bytes / 1024)} KB`;
 }
 
-export function renderPage(template: string, data: PageData): string {
-  const json = layout(data);
+export function renderPage(template: string, manifest: Manifest): string {
   const [before, after, extra] = template.split("__DIFF_DATA__");
   if (after === undefined || extra !== undefined)
     throw new BuildError("The template must hold __DIFF_DATA__ once");
-  const title = escapeHtml(`${data.repo} / ${data.branch} diff`);
-  const html = before.split("__DIFF_TITLE__").join(title) + json + after;
-  const size = Buffer.byteLength(html);
-  if (size > MAX_PAGE_BYTES) {
-    const largest = data.files
-      .map((file) => ({ path: file.path, size: Buffer.byteLength(layout(file)) }))
-      .sort((a, b) => b.size - a.size)
-      .slice(0, LARGEST_SHOWN)
-      .map((file) => `${file.path} (${kb(file.size)})`);
+  const title = escapeHtml(`${manifest.repo} / ${manifest.branch} diff`);
+  return before.split("__DIFF_TITLE__").join(title) + layout(manifest) + after;
+}
+
+function largest(sizes: { path: string; bytes: number }[]): string {
+  return [...sizes]
+    .sort((a, b) => b.bytes - a.bytes)
+    .slice(0, LARGEST_SHOWN)
+    .map((file) => `${file.path} (${kb(file.bytes)})`)
+    .join(", ");
+}
+
+function fileData(file: PageFile, content: boolean): FileData {
+  const data: FileData = { path: file.path, hunks: file.hunks! };
+  if (content && file.content) data.content = file.content;
+  if (file.svgOld) data.svgOld = file.svgOld;
+  if (file.svgNew) data.svgNew = file.svgNew;
+  return data;
+}
+
+interface Sized {
+  file: PageFile;
+  bare: FileData;
+  bareBytes: number;
+  full: FileData;
+  fullBytes: number;
+  expand: boolean;
+}
+
+// Each shown file's data, keeping its content while the file stays within MAX_EXPAND_BYTES and
+// the total within MAX_DATA_BYTES, dropping it from the largest files first.
+function fitData(files: PageFile[]): Sized[] {
+  const sized = files
+    .filter((file) => file.hunks)
+    .map((file): Sized => {
+      const bare = fileData(file, false);
+      const bareBytes = Buffer.byteLength(layout(bare));
+      if (!file.content)
+        return { file, bare, bareBytes, full: bare, fullBytes: bareBytes, expand: false };
+      const full = fileData(file, true);
+      return {
+        file,
+        bare,
+        bareBytes,
+        full,
+        fullBytes: Buffer.byteLength(layout(full)),
+        expand: true,
+      };
+    });
+  const bare = sized.map((item) => ({ path: item.file.path, bytes: item.bareBytes }));
+  const over = sized.filter((item) => item.bareBytes > MAX_FILE_DATA_BYTES);
+  if (over.length) {
     throw new BuildError(
-      `The page is ${kb(size)}, over the ${kb(MAX_PAGE_BYTES)} Claude can read. Largest files: ${largest.join(", ")}`,
+      `${over.length} file diff${over.length === 1 ? " is" : "s are"} over the ${kb(MAX_FILE_DATA_BYTES)} one file can hold. Largest files: ${largest(bare)}`,
     );
   }
-  return html;
+  const bareTotal = bare.reduce((sum, item) => sum + item.bytes, 0);
+  if (bareTotal > MAX_DATA_BYTES) {
+    throw new BuildError(
+      `The diff data is ${kb(bareTotal)}, over the ${kb(MAX_DATA_BYTES)} readers can read. Largest files: ${largest(bare)}`,
+    );
+  }
+  for (const item of sized) if (item.fullBytes > MAX_EXPAND_BYTES) item.expand = false;
+  let total = sized.reduce((sum, item) => sum + (item.expand ? item.fullBytes : item.bareBytes), 0);
+  const expanding = sized.filter((item) => item.expand).sort((a, b) => b.fullBytes - a.fullBytes);
+  for (const item of expanding) {
+    if (total <= MAX_DATA_BYTES) break;
+    item.expand = false;
+    total -= item.fullBytes - item.bareBytes;
+  }
+  return sized;
+}
+
+function manifestFile(file: PageFile, data: string | undefined, dropped: boolean): ManifestFile {
+  const entry: ManifestFile = {
+    id: file.id,
+    path: file.path,
+    ...(file.oldPath !== undefined && { oldPath: file.oldPath }),
+    status: file.status,
+    source: file.source,
+    add: file.add,
+    del: file.del,
+    hash: file.hash,
+    hasHunks: file.hunks !== undefined,
+    isMarkdown: file.hunks !== undefined && MARKDOWN.has(extname(file.path).toLowerCase()),
+  };
+  if (file.binary) entry.binary = true;
+  if (file.stub !== undefined) entry.stub = file.stub;
+  const note = dropped
+    ? file.note === undefined
+      ? NO_EXPAND
+      : `${file.note} ${NO_EXPAND}`
+    : file.note;
+  if (note !== undefined) entry.note = note;
+  if (data !== undefined) entry.data = data;
+  return entry;
+}
+
+function isImage(path: string): boolean {
+  return IMAGES.has(extname(path).toLowerCase());
+}
+
+// The paths to send, remove and keep against the server's, split into publishes of at most
+// MAX_PUBLISH_PATHS paths, and the reader batches covering every path sent.
+export function planPublish(built: BuiltFile[], server: string[], out: string): PublishPlan {
+  if (built.length > MAX_VERSION_FILES) {
+    throw new BuildError(
+      `The build has ${built.length} files, over the ${MAX_VERSION_FILES} an artifact version can hold`,
+    );
+  }
+  const onServer = new Set(server);
+  const paths = new Set(built.map((file) => file.path));
+  const send = built.filter((file) => file.path === PAGE || !onServer.has(file.path));
+  const keep = built.filter((file) => file.path !== PAGE && onServer.has(file.path));
+  const remove = [...onServer].filter((path) => !paths.has(path));
+  const sent = send.reduce((sum, file) => sum + file.bytes, 0);
+  if (sent > MAX_SEND_BYTES) {
+    throw new BuildError(
+      `The publish sends ${kb(sent)}, over the ${kb(MAX_SEND_BYTES)} cap. Largest files: ${largest(send)}`,
+    );
+  }
+
+  const steps: ({ send: string } | { remove: string })[] = [
+    ...remove.map((path) => ({ remove: path })),
+    ...send.filter((file) => file.path !== PAGE).map((file) => ({ send: file.path })),
+    ...send.filter((file) => file.path === PAGE).map((file) => ({ send: file.path })),
+  ];
+  const publishes: PublishPlan["publishes"] = [];
+  for (let i = 0; i < steps.length; i += MAX_PUBLISH_PATHS) {
+    const group = { send: [] as string[], remove: [] as string[] };
+    for (const step of steps.slice(i, i + MAX_PUBLISH_PATHS)) {
+      if ("send" in step) group.send.push(step.send);
+      else group.remove.push(step.remove);
+    }
+    publishes.push(group);
+  }
+
+  const batches: PublishPlan["batches"] = [];
+  let text: PublishPlan["batches"][number] | undefined;
+  let images: PublishPlan["batches"][number] | undefined;
+  for (const file of send) {
+    if (isImage(file.path)) {
+      if (!images || images.paths.length >= READER_IMAGES) {
+        images = { kind: "image", paths: [], bytes: 0 };
+        batches.push(images);
+      }
+      images.paths.push(file.path);
+      images.bytes += file.bytes;
+    } else {
+      if (!text || (text.paths.length && text.bytes + file.bytes > READER_TEXT_BYTES)) {
+        text = { kind: "text", paths: [], bytes: 0 };
+        batches.push(text);
+      }
+      text.paths.push(file.path);
+      text.bytes += file.bytes;
+    }
+  }
+
+  return {
+    out,
+    send: send.map((file) => ({ path: file.path, source: file.source })),
+    remove,
+    keep: keep.map((file) => file.path),
+    publishes,
+    batches,
+  };
+}
+
+// The page with its inline manifest, a data file per shown file named by a hash of its text, and
+// the publish plan against the server's paths.
+export function renderBuild(
+  template: string,
+  data: PageData,
+  server: string[],
+  out: string,
+): BuildOutput {
+  const sized = new Map(fitData(data.files).map((item) => [item.file, item]));
+  const dataFiles = new Map<string, { text: string; source: string }>();
+  const files = data.files.map((file) => {
+    const item = sized.get(file);
+    if (!item) return manifestFile(file, undefined, false);
+    const text = `${layout(item.expand ? item.full : item.bare)}\n`;
+    const path = `data/f-${createHash("sha256").update(text).digest("hex").slice(0, 16)}.json`;
+    dataFiles.set(path, { text, source: file.path });
+    return manifestFile(file, path, item.full !== item.bare && !item.expand);
+  });
+  const manifest: Manifest = { ...data, files };
+  const html = renderPage(template, manifest);
+  const output = new Map([[PAGE, html]]);
+  const built: BuiltFile[] = [{ path: PAGE, source: null, bytes: Buffer.byteLength(html) }];
+  for (const [path, { text, source }] of dataFiles) {
+    output.set(path, text);
+    built.push({ path, source, bytes: Buffer.byteLength(text) });
+  }
+  return { manifest, files: output, publish: planPublish(built, server, out) };
+}
+
+// Writes the build into its directory, which must be new or empty.
+export function writeBuild(output: BuildOutput): void {
+  const out = output.publish.out;
+  if (existsSync(out) && (!statSync(out).isDirectory() || readdirSync(out).length)) {
+    throw new BuildError(`${out} already exists and is not an empty directory`);
+  }
+  for (const [path, text] of output.files) {
+    const full = join(out, path);
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, text);
+  }
+  writeFileSync(join(out, "publish.json"), `${JSON.stringify(output.publish, null, 2)}\n`);
 }
