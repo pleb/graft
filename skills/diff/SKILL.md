@@ -45,6 +45,8 @@ node ${CLAUDE_SKILL_DIR}/build.ts files --default <branch>
 
 It prints `{root, name, base, baseRef, tracked, untracked}`.
 
+Before the first publish, when `tracked` and `untracked` are both empty, reply only `No changes against <baseRef>.` and stop.
+
 ## Sensitive files
 
 Sensitive-looking names are `.env*`, `*.pem`, `*.key`, and names containing `secret`, `credential` or `token`. When `untracked` is not empty, or any path in `tracked` or `untracked` has a sensitive-looking name, list those files and ask once: include all, exclude some, or skip untracked. For exclude some, ask which to leave out.
