@@ -1114,6 +1114,43 @@ test("the effective view resolves the session's repo and shows each value's scop
   await ui.unmount();
 });
 
+test("the effective view applies the repo's .claude settings files, the local one last", async ($, on) => {
+  const w = world(
+    on,
+    JSON.stringify({ "~/w/*": { overrides: { plan: { outsideRepoPlans: "always" } } } }),
+  );
+  w.cwd = `${HOME}/w/repo-wt/sub`;
+  w.tops = { [w.cwd]: `${HOME}/w/repo-wt` };
+  w.worktrees = {
+    [`${HOME}/w/repo-wt`]: `worktree ${REPO}
+HEAD c0
+
+worktree ${HOME}/w/repo-wt
+HEAD c1
+`,
+  };
+  const shared = `${HOME}/w/repo-wt/.claude/graft-settings.json`;
+  const local = `${HOME}/w/repo-wt/.claude/graft-settings.local.json`;
+  w.files.set(shared, '{"orchestrate":{"deletePlan":"never"},"plan":{"outsideRepoPlans":"ask"}}');
+  w.files.set(local, '{"orchestrate":{"deletePlan":"always"}}');
+  const ui = await mountOn($, "terminal");
+  await ui.select({ key: "scope", value: ":effective" });
+
+  expect(
+    await ui.find({ type: "Text", text: `plan.outsideRepoPlans: ask (from ${shared})` }),
+  ).toBeDefined();
+  expect(
+    await ui.find({ type: "Text", text: `orchestrate.deletePlan: always (from ${local})` }),
+  ).toBeDefined();
+
+  w.files.set(local, "{");
+  await ui.input({ key: "effectivePath", text: w.cwd });
+  expect(
+    await ui.find({ type: "Text", text: /graft-settings\.local\.json does not parse/ }),
+  ).toBeDefined();
+  await ui.unmount();
+});
+
 test("the effective view reads this machine's admin share as its drive", async ($, on) => {
   const w = world(
     on,
