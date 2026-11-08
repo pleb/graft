@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";
-import { crc32 } from "node:zlib";
+import { crc32, deflateSync, inflateSync } from "node:zlib";
 
 const MIN_NODE_MAJOR = 24;
 const MAX_GIT_OUTPUT = 512 * 1024 * 1024;
@@ -1000,6 +1000,30 @@ const PNG_SIZES: Record<string, number> = {
 const PNG_SBIT = [1, 0, 3, 3, 2, 0, 4];
 const PNG_TRNS = [2, 0, 6];
 
+function iccProfile(data: Buffer): boolean {
+  return (
+    data.length >= 128 &&
+    data.readUInt32BE(0) === data.length &&
+    data.toString("latin1", 36, 40) === "acsp"
+  );
+}
+
+// An iCCP chunk's profile, when its zlib stream is whole, ends the chunk and inflates to one profile.
+function pngProfile(body: Buffer): Buffer | null {
+  const nul = body.indexOf(0);
+  if (nul < 1 || nul > 79 || body[nul + 1] !== 0) return null;
+  const compressed = body.subarray(nul + 2);
+  try {
+    const { buffer, engine } = inflateSync(compressed, {
+      info: true,
+      maxOutputLength: MAX_IMAGE_SIDE_BYTES,
+    }) as unknown as { buffer: Buffer; engine: { bytesWritten: number } };
+    return engine.bytesWritten === compressed.length && iccProfile(buffer) ? buffer : null;
+  } catch {
+    return null;
+  }
+}
+
 function pngChunk(kind: string, data: Buffer): Buffer {
   const chunk = Buffer.alloc(12 + data.length);
   chunk.writeUInt32BE(data.length);
@@ -1025,10 +1049,10 @@ function stripPng(bytes: Buffer): Buffer | null {
       const orientation = exifOrientation(body);
       if (orientation) out.push(pngChunk("eXIf", orientationExif(orientation)));
     } else if (kind === "iCCP") {
-      const nul = body.indexOf(0);
-      if (nul < 1 || nul > 79) return null;
+      const profile = pngProfile(body);
+      if (!profile) return null;
       out.push(
-        pngChunk("iCCP", Buffer.concat([Buffer.from("ICC\0", "latin1"), body.subarray(nul + 1)])),
+        pngChunk("iCCP", Buffer.concat([Buffer.from("ICC\0\0", "latin1"), deflateSync(profile)])),
       );
     } else if (PNG_KEPT.has(kind)) {
       if (kind in PNG_SIZES && length !== PNG_SIZES[kind]) return null;
@@ -1055,6 +1079,49 @@ function jpegKept(marker: number): boolean {
   );
 }
 
+// Whether a kept segment's body is exactly as long as the tables or components it declares.
+function jpegExact(marker: number, body: Buffer): boolean {
+  if (marker === 0xdb || marker === 0xc4) {
+    let at = 0;
+    while (at < body.length) {
+      if (marker === 0xdb) {
+        const precision = body[at] >> 4;
+        if (precision > 1) return false;
+        at += 1 + 64 * (precision + 1);
+      } else {
+        if (at + 17 > body.length) return false;
+        let symbols = 0;
+        for (let i = 1; i <= 16; i++) symbols += body[at + i];
+        at += 17 + symbols;
+      }
+    }
+    return at === body.length && at > 0;
+  }
+  if (marker === 0xda) return body.length >= 1 && body.length === 4 + 2 * body[0];
+  if (marker === 0xcc) return body.length >= 2 && body.length % 2 === 0;
+  if (marker === 0xdc || marker === 0xdd) return body.length === 2;
+  return body.length >= 6 && body.length === 6 + 3 * body[5];
+}
+
+const ICC_SIGNATURE = Buffer.from("ICC_PROFILE\0", "latin1");
+const ICC_FRAGMENT = 65519;
+
+// The ICC_PROFILE fragments joined in sequence order, when every one of the declared count is there once.
+function jpegProfile(fragments: Buffer[]): Buffer | null {
+  const count = fragments[0][13];
+  const parts: Buffer[] = [];
+  for (const body of fragments) {
+    const seq = body[12];
+    if (body.length < 14 || body[13] !== count || seq < 1 || seq > count || parts[seq - 1]) {
+      return null;
+    }
+    parts[seq - 1] = body.subarray(14);
+  }
+  if (fragments.length !== count) return null;
+  const profile = Buffer.concat(parts);
+  return iccProfile(profile) ? profile : null;
+}
+
 function jpegSegment(marker: number, data: Buffer): Buffer {
   const head = Buffer.from([0xff, marker, 0, 0]);
   head.writeUInt16BE(data.length + 2, 2);
@@ -1077,6 +1144,8 @@ function scanEnd(bytes: Buffer, at: number): number {
 function stripJpeg(bytes: Buffer): Buffer | null {
   const has = (data: Buffer, text: string) => data.toString("latin1", 0, text.length) === text;
   const out = [bytes.subarray(0, 2)];
+  const fragments: Buffer[] = [];
+  let iccAt = -1;
   let scanned = false;
   for (let at = 2; ;) {
     if (at + 2 > bytes.length || bytes[at] !== 0xff) return null;
@@ -1088,6 +1157,22 @@ function stripJpeg(bytes: Buffer): Buffer | null {
     if (marker === 0xd9) {
       if (!scanned) return null;
       out.push(bytes.subarray(at, at + 2));
+      if (fragments.length) {
+        const profile = jpegProfile(fragments);
+        if (!profile) return null;
+        const count = Math.ceil(profile.length / ICC_FRAGMENT);
+        const segments = Array.from({ length: count }, (_, i) =>
+          jpegSegment(
+            0xe2,
+            Buffer.concat([
+              ICC_SIGNATURE,
+              Buffer.from([i + 1, count]),
+              profile.subarray(i * ICC_FRAGMENT, (i + 1) * ICC_FRAGMENT),
+            ]),
+          ),
+        );
+        out.splice(iccAt, 0, ...segments);
+      }
       return Buffer.concat(out);
     }
     if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
@@ -1100,10 +1185,12 @@ function stripJpeg(bytes: Buffer): Buffer | null {
     if (length < 2 || end > bytes.length) return null;
     const body = bytes.subarray(at + 4, end);
     if (jpegKept(marker)) {
-      if ((marker === 0xdc || marker === 0xdd) && length !== 4) return null;
+      if (!jpegExact(marker, body)) return null;
       out.push(bytes.subarray(at, end));
-    } else if (marker === 0xe2 && has(body, "ICC_PROFILE\0")) out.push(bytes.subarray(at, end));
-    else if (marker === 0xee && has(body, "Adobe")) {
+    } else if (marker === 0xe2 && has(body, "ICC_PROFILE\0")) {
+      if (!fragments.length) iccAt = out.length;
+      fragments.push(body);
+    } else if (marker === 0xee && has(body, "Adobe")) {
       if (body.length < 12) return null;
       out.push(jpegSegment(marker, body.subarray(0, 12)));
     } else if (marker === 0xe1 && has(body, "Exif\0\0")) {
@@ -1193,7 +1280,10 @@ function stripWebp(bytes: Buffer): Buffer | null {
       if (kind !== "VP8X" || length !== 10) return null;
       header = Buffer.from(data);
       header.fill(0, 1, 4);
-    } else if (kind === "ICCP" || kind === "ALPH") chunks.push(riffChunk(kind, data));
+    } else if (kind === "ICCP") {
+      if (!iccProfile(data)) return null;
+      chunks.push(riffChunk(kind, data));
+    } else if (kind === "ALPH") chunks.push(riffChunk(kind, data));
     else if (kind === "EXIF" && !exif) {
       const tiff = data.toString("latin1", 0, 6) === "Exif\0\0" ? data.subarray(6) : data;
       const orientation = exifOrientation(tiff);

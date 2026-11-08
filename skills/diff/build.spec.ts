@@ -1568,6 +1568,18 @@ const ORIENTATION_6 = Buffer.from(
 );
 const NOT_STRIPPED = "Could not remove this image's metadata.";
 
+// A minimal ICC profile: a 128-byte header holding its size and the acsp signature, then a tag count of 0.
+const ICC = Buffer.alloc(132);
+ICC.writeUInt32BE(ICC.length, 0);
+ICC.write("acsp", 36, "latin1");
+
+function iccSegment(seq: number, count: number, data: Buffer): Buffer {
+  return jpegSegment(
+    0xe2,
+    Buffer.concat([Buffer.from("ICC_PROFILE\0"), Buffer.from([seq, count]), data]),
+  );
+}
+
 // A little-endian EXIF TIFF block whose IFD0 holds an ImageDescription of MARKER and the orientation.
 function tiff(orientation: number): Buffer {
   const block = Buffer.alloc(38 + MARKER.length + 1);
@@ -1605,7 +1617,7 @@ function pngWithMetadata(): { source: Buffer; stripped: Buffer } {
     pngChunk("cICP", Buffer.from([1, 13, 0, 1])),
     pngChunk("tRNS", Buffer.alloc(6)),
   ];
-  const profile = deflateSync("profile");
+  const profile = deflateSync(ICC);
   const source = Buffer.concat([
     head,
     ...colour,
@@ -1634,7 +1646,7 @@ const ADOBE = Buffer.from("Adobe\0\x64\0\0\0\0\x01", "latin1");
 function jpegWithMetadata(): { source: Buffer; stripped: Buffer } {
   const bare = jpeg(8, 8, true);
   const frame = bare.subarray(2, -2);
-  const icc = jpegSegment(0xe2, "ICC_PROFILE\0\x01\x01profile");
+  const icc = iccSegment(1, 1, ICC);
   const source = Buffer.concat([
     bare.subarray(0, 2),
     jpegSegment(0xe0, "JFIF\0\x01\x01\0\0\x01\0\x01\0\0"),
@@ -1695,7 +1707,7 @@ function webpWithMetadata(orientation = 6): { source: Buffer; stripped: Buffer }
   const source = Buffer.concat([
     riff([
       riffChunk("VP8X", Buffer.from([0x3c, 1, 2, 3, ...canvas])),
-      riffChunk("ICCP", "profile"),
+      riffChunk("ICCP", ICC),
       riffChunk("EXIF", tiff(orientation)),
       riffChunk("XMP ", MARKER),
       riffChunk("PRIV", MARKER),
@@ -1707,7 +1719,7 @@ function webpWithMetadata(orientation = 6): { source: Buffer; stripped: Buffer }
   const exif = orientation === 6 ? [riffChunk("EXIF", ORIENTATION_6)] : [];
   const stripped = riff([
     riffChunk("VP8X", Buffer.from([exif.length ? 0x38 : 0x30, 0, 0, 0, ...canvas])),
-    riffChunk("ICCP", "profile"),
+    riffChunk("ICCP", ICC),
     ...exif,
     riffChunk("ALPH", "alpha"),
     image,
@@ -2156,6 +2168,110 @@ describe("images", () => {
         stub: NOT_STRIPPED,
       });
     }
+  });
+});
+
+// Each format with ICC as its profile, carried as the given bytes.
+function withProfile(ext: "png" | "jpg" | "webp", carrier: Buffer | Buffer[]): Buffer {
+  const parts = Array.isArray(carrier) ? carrier : [carrier];
+  if (ext === "png") {
+    const plain = png(2, 2);
+    return Buffer.concat([plain.subarray(0, 33), ...parts, plain.subarray(33)]);
+  }
+  if (ext === "jpg") {
+    const bare = jpeg(8, 8, true);
+    return Buffer.concat([bare.subarray(0, 2), ...parts, bare.subarray(2)]);
+  }
+  const vp8x = riffChunk("VP8X", Buffer.from([0x20, 0, 0, 0, 5, 0, 0, 5, 0, 0]));
+  return riff([vp8x, ...parts, webp("VP8 ", 6, 6).subarray(12)]);
+}
+
+describe("image structures", () => {
+  const marker = Buffer.from(MARKER);
+  const iccp = (data: Buffer, method = 0) =>
+    pngChunk(
+      "iCCP",
+      Buffer.concat([Buffer.from("Photoshop ICC profile\0"), Buffer.from([method]), data]),
+    );
+
+  it("keeps a valid ICC profile in each format", () => {
+    const png = stripImage(withProfile("png", iccp(deflateSync(ICC))), "png")!;
+    expect(png).toEqual(
+      withProfile(
+        "png",
+        pngChunk("iCCP", Buffer.concat([Buffer.from("ICC\0\0"), deflateSync(ICC)])),
+      ),
+    );
+    const jpg = withProfile("jpg", [
+      iccSegment(2, 2, ICC.subarray(100)),
+      jpegSegment(0xfe, MARKER),
+      iccSegment(1, 2, ICC.subarray(0, 100)),
+    ]);
+    expect(stripImage(jpg, "jpg")).toEqual(withProfile("jpg", iccSegment(1, 1, ICC)));
+    const webp = withProfile("webp", riffChunk("ICCP", ICC));
+    expect(stripImage(webp, "webp")).toEqual(webp);
+  });
+
+  it("refragments a JPEG profile into APP2 segments of at most 65519 profile bytes", () => {
+    const large = Buffer.alloc(70000);
+    ICC.copy(large);
+    large.writeUInt32BE(large.length, 0);
+    const source = withProfile("jpg", [
+      iccSegment(1, 3, large.subarray(0, 30000)),
+      iccSegment(2, 3, large.subarray(30000, 60000)),
+      iccSegment(3, 3, large.subarray(60000)),
+    ]);
+    const result = stripImage(source, "jpg")!;
+    expect(result).toEqual(
+      withProfile("jpg", [
+        iccSegment(1, 2, large.subarray(0, 65519)),
+        iccSegment(2, 2, large.subarray(65519)),
+      ]),
+    );
+  });
+
+  it("stubs an image whose kept structures hold bytes past their content", () => {
+    const bare = jpeg(8, 8, true);
+    const sofAt = 2;
+    const dqtAt = sofAt + 13;
+    const dhtAt = dqtAt + 69;
+    const scanAt = dhtAt + 22;
+    // The bare JPEG with the segment at `at` of length `length` given extra bytes.
+    const padded = (at: number, length: number, extra: Buffer) => {
+      const segment = Buffer.concat([bare.subarray(at, at + length), extra]);
+      segment.writeUInt16BE(segment.length - 2, 2);
+      return Buffer.concat([bare.subarray(0, at), segment, bare.subarray(at + length)]);
+    };
+    const cases: Buffer[] = [
+      withProfile("png", iccp(Buffer.concat([deflateSync(ICC), marker]))),
+      withProfile("png", iccp(deflateSync(Buffer.concat([ICC, marker])))),
+      withProfile("png", iccp(deflateSync(ICC), 1)),
+      withProfile("png", iccp(deflateSync(ICC).subarray(0, -2))),
+      withProfile("png", iccp(deflateSync(marker))),
+      withProfile("jpg", iccSegment(1, 1, Buffer.concat([ICC, marker]))),
+      withProfile("jpg", iccSegment(1, 2, ICC)),
+      withProfile("jpg", [
+        iccSegment(1, 2, ICC.subarray(0, 100)),
+        iccSegment(1, 2, ICC.subarray(100)),
+      ]),
+      withProfile("jpg", [
+        iccSegment(1, 2, ICC.subarray(0, 100)),
+        iccSegment(2, 3, ICC.subarray(100)),
+      ]),
+      withProfile("jpg", [iccSegment(0, 1, ICC)]),
+      withProfile("webp", riffChunk("ICCP", Buffer.concat([ICC, marker]))),
+      padded(dqtAt, 69, marker),
+      padded(dhtAt, 22, marker),
+      padded(sofAt, 13, marker),
+      padded(scanAt, 10, marker),
+      withProfile("jpg", jpegSegment(0xcc, Buffer.from([0, 1, 2]))),
+      withProfile("jpg", jpegSegment(0xcc, Buffer.alloc(0))),
+    ];
+    expect(stripImage(bare, "jpg")).toEqual(bare);
+    for (const bytes of cases) expect(stripImage(bytes, imageInfo(bytes)!.ext)).toBeNull();
+    expect(
+      stripImage(withProfile("jpg", jpegSegment(0xcc, Buffer.from([0, 1]))), "jpg"),
+    ).not.toBeNull();
   });
 });
 
