@@ -282,6 +282,11 @@
     overflow: hidden;
     scroll-margin-top: 12px;
   }
+  /* Offscreen file bodies skip layout and paint; each body's size estimate is set in renderFile. */
+  .fbody {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 120px;
+  }
   .fhead {
     display: flex;
     flex-wrap: wrap;
@@ -1183,7 +1188,11 @@
     li.classList.toggle("cur", fi === current);
     const a = el("a");
     a.href = "#" + f.id;
-    a.addEventListener("click", () => setCurrent(fi, false));
+    a.addEventListener("click", (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      setCurrent(fi, true);
+    });
     const st = f.binary && !f.isImage ? "B" : f.status;
     a.append(el("span", "st st-" + st, st), el("span", "p", label));
     a.title = f.path;
@@ -1843,6 +1852,7 @@
     close.focus();
   }
   function renderFile(sec, fi) {
+    renderQueue.delete(fi);
     const f = DIFF.files[fi];
     sec.replaceChildren();
     targets[fi] = { old: [], new: [] };
@@ -1926,6 +1936,8 @@
       body.append(scroll);
       scroll.addEventListener("scroll", reportPins, { passive: true });
     }
+    const rows = body.querySelectorAll("tr").length;
+    if (rows) body.style.containIntrinsicSize = "auto " + (rows * 20 + 2) + "px";
     body.hidden = collapsed.has(f.path);
     if (f.hunks && body.hidden) head.querySelector(".fold").textContent = "Expand";
     sec.append(body);
@@ -1941,6 +1953,14 @@
       root.append(sec);
       sections[fi] = sec;
       renderFile(sec, fi);
+    });
+    reportPins();
+  }
+  // Re-renders the files that hold any of these comment ids, so their comment icons update.
+  function renderMarked(ids) {
+    const list = [...ids];
+    DIFF.files.forEach((f, fi) => {
+      if (list.some((id) => id.startsWith(f.id + "-"))) renderFile(sections[fi], fi);
     });
     reportPins();
   }
@@ -1970,10 +1990,25 @@
       .catch(() => {
         f.failed = true;
       })
-      .then(() => {
-        renderFile(sections[fi], fi);
-        reportPins();
-      });
+      .then(() => queueRender(fi));
+  }
+  // Queued files render in slices of about 40 ms per frame, so a large diff never blocks the page for long.
+  const renderQueue = new Set();
+  let renderTick = 0;
+  function queueRender(fi) {
+    renderQueue.add(fi);
+    if (!renderTick) renderTick = requestAnimationFrame(renderQueued);
+  }
+  function renderQueued() {
+    renderTick = 0;
+    const start = performance.now();
+    for (const fi of renderQueue) {
+      renderQueue.delete(fi);
+      renderFile(sections[fi], fi);
+      if (performance.now() - start > 40) break;
+    }
+    if (renderQueue.size) renderTick = requestAnimationFrame(renderQueued);
+    reportPins();
   }
 
   function setCurrent(fi, scroll) {
@@ -1987,10 +2022,21 @@
     if (!scroll) return;
     // The scroll this starts must not move the current file on to a short file below it.
     jumpUntil = Date.now() + 300;
-    sections[current].scrollIntoView({
-      block: "start",
-      behavior: reduced.matches ? "auto" : "smooth",
-    });
+    scrollToEl(sections[current], "start");
+  }
+  // Offscreen file bodies only have estimated heights, so a smooth scroll to a far target misses
+  // as the files it passes render. A far target is jumped to, then realigned once those files settle.
+  function scrollToEl(target, block) {
+    if (Math.abs(target.getBoundingClientRect().top) < 3 * window.innerHeight) {
+      target.scrollIntoView({ block, behavior: reduced.matches ? "auto" : "smooth" });
+      return;
+    }
+    let left = 3;
+    const jump = () => {
+      target.scrollIntoView({ block, behavior: "instant" });
+      if (--left) requestAnimationFrame(jump);
+    };
+    jump();
   }
   let scrollTick = 0;
   let jumpUntil = 0;
@@ -2059,7 +2105,9 @@
   function loadingSection(anchor) {
     const m = /#(f-[A-Za-z0-9_]*)/.exec(anchor || "");
     const fi = m ? DIFF.files.findIndex((f) => f.id === m[1]) : -1;
-    return fi >= 0 && DIFF.files[fi].data != null && DIFF.files[fi].hunks == null
+    return fi >= 0 &&
+      DIFF.files[fi].data != null &&
+      (DIFF.files[fi].hunks == null || renderQueue.has(fi))
       ? sections[fi]
       : null;
   }
@@ -2084,7 +2132,12 @@
     }
     renderFile(sections[fi], fi);
   }
+  let pinsTick = 0;
   function reportPins() {
+    if (anchors && !pinsTick) pinsTick = requestAnimationFrame(placePins);
+  }
+  function placePins() {
+    pinsTick = 0;
     if (!anchors) return;
     const map = {};
     for (const t of threads) {
@@ -2248,9 +2301,8 @@
         });
         mdReady = true;
         DIFF.files.forEach((f, fi) => {
-          if (f.isMarkdown && f.hunks && sections[fi]) renderFile(sections[fi], fi);
+          if (f.isMarkdown && f.hunks && sections[fi]) queueRender(fi);
         });
-        reportPins();
       })
       .catch(() => {});
   }
@@ -2298,13 +2350,14 @@
               .map((t) => idOf(t.anchor))
               .filter(Boolean),
           );
-          const changed =
-            [...known].some((id) => !open.has(id)) || [...open].some((id) => !known.has(id));
+          const changed = [
+            ...[...known].filter((id) => !open.has(id)),
+            ...[...open].filter((id) => !known.has(id)),
+          ];
           known.clear();
           for (const id of open) known.add(id);
           store(knownKey, JSON.stringify([...known]));
-          if (changed) renderFiles();
-          else reportPins();
+          renderMarked(changed);
         },
         reveal(id) {
           const t = threads.find((x) => x.id === id);
@@ -2314,7 +2367,7 @@
           const sec = target.closest("section.file");
           const fi = [...document.querySelectorAll("section.file")].indexOf(sec);
           if (fi >= 0 && collapsed.has(DIFF.files[fi].path)) setCollapsed(fi, false);
-          target.scrollIntoView({ block: "center", behavior: reduced.matches ? "auto" : "smooth" });
+          scrollToEl(target, "center");
           setTimeout(reportPins, 400);
         },
         composing(open) {
@@ -2332,7 +2385,7 @@
     } catch {
       anchors = null;
     }
-    renderFiles();
+    renderMarked(known);
     const act = $("act");
     async function refreshAct() {
       try {
