@@ -17,6 +17,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  blobSizeQuery,
   collectPage,
   decodePath,
   encodePath,
@@ -849,6 +850,32 @@ describe("collectPage", () => {
   it("fails when there are no changes", () => {
     const dir = newRepo({ "a.txt": "a\n" });
     expect(() => collectPage(dir, input())).toThrow("No changes against main");
+  });
+
+  it("builds an empty page that removes every published data and image path on a republish with no changes", () => {
+    const dir = newRepo({ "a.txt": "a\n" });
+    const server = ["index.html", "data/f-old.json", "img/0123456789abcdef.png"];
+    const data = collectPage(dir, input({ publish: 2, server }));
+    expect(data.files).toEqual([]);
+    const output = build(data, server);
+    expect(embedded(output.files.get("index.html")!).files).toEqual([]);
+    expect([...output.files.keys()]).toEqual(["index.html"]);
+    expect(output.publish.send).toEqual([{ path: "index.html", source: null }]);
+    expect(output.publish.remove).toEqual(["data/f-old.json", "img/0123456789abcdef.png"]);
+    expect(output.publish.keep).toEqual([]);
+  });
+});
+
+describe("blobSizeQuery", () => {
+  it("leaves out -z, which needs Git 2.38, unless a rev holds a newline", () => {
+    expect(blobSizeQuery(["abc:a.png", "HEAD:b c.png"])).toEqual({
+      args: ["cat-file", "--batch-check=%(objectsize)"],
+      input: "abc:a.png\nHEAD:b c.png\n",
+    });
+    expect(blobSizeQuery(["abc:a.png", "HEAD:new\nline.png"])).toEqual({
+      args: ["cat-file", "--batch-check=%(objectsize)", "-z"],
+      input: "abc:a.png\0HEAD:new\nline.png\0",
+    });
   });
 });
 
@@ -2043,6 +2070,7 @@ describe("template", () => {
         templateSource("const typeDefaults = "),
         templateSource("function typeOf("),
         templateSource("const typeDefault = "),
+        templateSource("const revealViews = "),
         templateSource("function fileView("),
         templateSource("function imagePanes("),
         "return { views, fileView, imagePanes };",
@@ -2093,6 +2121,7 @@ describe("template", () => {
         templateSource("const typeDefaults = "),
         templateSource("function typeOf("),
         templateSource("const typeDefault = "),
+        templateSource("const revealViews = "),
         templateSource("function fileView("),
         "return fileView;",
       ].join("\n"),
@@ -2109,6 +2138,112 @@ describe("template", () => {
     expect(fileView({ ...svg, path: "a.ts" })).toBe("split");
     stored.set("view:a.svg", "unified");
     expect(fileView(svg)).toBe("unified");
+  });
+
+  it("keeps settings for the page view when storage throws", () => {
+    const localStorage = {
+      getItem() {
+        throw new Error("denied");
+      },
+      setItem() {
+        throw new Error("denied");
+      },
+      removeItem() {
+        throw new Error("denied");
+      },
+    };
+    const { store, fileView } = new Function(
+      "localStorage",
+      "narrowMq",
+      "mdReady",
+      "viewKey",
+      [
+        templateSource("const stored = "),
+        templateSource("function store("),
+        templateSource("function load("),
+        templateSource("const svgNew = "),
+        templateSource("const isSvg = "),
+        templateSource("function views("),
+        templateSource("const typeDefaults = "),
+        templateSource("function typeOf("),
+        templateSource("const typeDefault = "),
+        templateSource("const revealViews = "),
+        templateSource("function fileView("),
+        "return { store, fileView };",
+      ].join("\n"),
+    )(localStorage, { matches: false }, true, (path: string) => "view:" + path);
+    const svg = { path: "a.svg", status: "M", hunks: [], svgOld: "<svg/>", content: "<svg/>" };
+    expect(fileView(svg)).toBe("split");
+    store("default:svg", "rendered");
+    expect(fileView(svg)).toBe("rendered");
+    store("view:a.svg", "unified");
+    expect(fileView(svg)).toBe("unified");
+    store("view:a.svg", null);
+    expect(fileView(svg)).toBe("rendered");
+  });
+
+  it("reveals a line a Chunked or Rendered file has no row for by showing it side by side for the page view", () => {
+    const stored = new Map<string, string>();
+    const rendered: number[] = [];
+    const states = new Map<number, { top: number; bottom: number }>();
+    const gap = {
+      at: 0,
+      lines: [
+        [" ", 1, 1, "x"],
+        [" ", 2, 2, "y"],
+      ],
+    };
+    let offered = ["unified", "split", "rendered", "chunked"];
+    const md = { id: "f-a", path: "a.md", status: "M", hunks: [{}] };
+    const { expandTo, fileView } = new Function(
+      "DIFF",
+      "load",
+      "viewKey",
+      "views",
+      "typeOf",
+      "typeDefault",
+      "targetFor",
+      "gapsOf",
+      "gapState",
+      "renderFile",
+      "sections",
+      [
+        templateSource("const idOf = "),
+        templateSource("const revealViews = "),
+        templateSource("function fileView("),
+        templateSource("function expandTo("),
+        "return { expandTo, fileView };",
+      ].join("\n"),
+    )(
+      { files: [md] },
+      (key: string) => stored.get(key) ?? null,
+      (path: string) => "view:" + path,
+      () => offered,
+      () => "markdown",
+      () => "chunked",
+      () => null,
+      () => [gap],
+      (_file: unknown, at: number) => {
+        if (!states.has(at)) states.set(at, { top: 0, bottom: 0 });
+        return states.get(at);
+      },
+      (_section: unknown, fi: number) => rendered.push(fi),
+      [{}],
+    );
+    expect(fileView(md)).toBe("chunked");
+    expandTo("https://x/#f-a-old-2");
+    expect(fileView(md)).toBe("split");
+    expect(states.get(0)).toEqual({ top: 2, bottom: 0 });
+    expect(rendered).toEqual([0]);
+    expect(stored.size).toBe(0);
+
+    // A line in no gap still switches; to Unified when Side-by-side is not offered.
+    stored.set("view:a.md", "rendered");
+    offered = ["unified", "rendered", "chunked"];
+    expect(fileView(md)).toBe("rendered");
+    expandTo("https://x/#f-a-new-9");
+    expect(fileView(md)).toBe("unified");
+    expect(rendered).toEqual([0, 0]);
   });
 
   describe("expandable context", () => {

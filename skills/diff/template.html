@@ -89,6 +89,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 12px 24px;
+    container-type: inline-size;
   }
   .summary h1 {
     font-size: 17px;
@@ -680,8 +681,10 @@
     right: 0;
     top: calc(100% + 6px);
     z-index: 20;
+    box-sizing: border-box;
     width: max-content;
-    max-width: calc(100vw - 66px);
+    /* The menu's right edge is the summary's content edge, which sits over 16px inside the viewport. */
+    max-width: 100cqw;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -1107,12 +1110,17 @@
   const sections = [];
 
   const counts = (f) => ({ add: f.add, del: f.del });
+  const noChanges = "No changes against " + DIFF.base;
+  // Values set in this page view, so settings hold when storage is unavailable.
+  const stored = new Map();
   function store(key, value) {
+    stored.set(key, value ?? null);
     try {
       value == null ? localStorage.removeItem(key) : localStorage.setItem(key, value);
     } catch {}
   }
   function load(key) {
+    if (stored.has(key)) return stored.get(key);
     try {
       return localStorage.getItem(key);
     } catch {
@@ -1190,6 +1198,10 @@
     $("list-flat").setAttribute("aria-pressed", String(!tree));
     $("list-tree").setAttribute("aria-pressed", String(tree));
     $("files-total").textContent = DIFF.files.length;
+    if (!DIFF.files.length) {
+      $("file-list").replaceChildren(el("li", "note", noChanges));
+      return;
+    }
     const viewed = DIFF.files.filter(isViewed).length;
     $("files-viewed").textContent = "· " + viewed + " viewed";
     const ol = $("file-list");
@@ -1560,8 +1572,11 @@
     return f.isMarkdown ? "markdown" : /\.svg$/i.test(f.path) ? "svg" : null;
   }
   const typeDefault = (type) => load(typeDefaults[type].key) || typeDefaults[type].fallback;
+  // Per file path, the view a reveal switched to for this page view; not saved.
+  const revealViews = new Map();
   function fileView(f) {
     const list = views(f);
+    if (list.includes(revealViews.get(f.path))) return revealViews.get(f.path);
     const saved = load(viewKey(f.path));
     if (list.includes(saved)) return saved;
     const type = typeOf(f);
@@ -1571,6 +1586,7 @@
   function setView(fi, v) {
     const f = DIFF.files[fi];
     if (!f.hunks || !views(f).includes(v)) return;
+    revealViews.delete(f.path);
     store(viewKey(f.path), v === "split" && !typeOf(f) ? null : v);
     renderFile(sections[fi], fi);
     reportPins();
@@ -1922,6 +1938,7 @@
   function renderFiles() {
     const root = $("diffs");
     root.replaceChildren();
+    if (!DIFF.files.length) root.append(el("section", "file note", noChanges));
     DIFF.files.forEach((f, fi) => {
       const sec = el("section", "file");
       sec.id = f.id;
@@ -2007,6 +2024,7 @@
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey || imgDialog?.open) return;
     if (e.target.closest && e.target.closest("input, textarea, select, [contenteditable]")) return;
+    if (!DIFF.files.length) return;
     const k = e.key;
     if (k === "j") setCurrent(current + 1, true);
     else if (k === "k") setCurrent(current - 1, true);
@@ -2052,7 +2070,9 @@
       ? sections[fi]
       : null;
   }
-  // Shows the whole collapsed gap that holds an anchor's line, re-rendering its file.
+  // Shows the whole collapsed gap that holds an anchor's line, re-rendering its file. A file shown
+  // Rendered or Chunked, which have no row for the line, switches to Side-by-side (Unified when that
+  // is not offered) for this page view; its pins otherwise stay missing in those views.
   function expandTo(anchor) {
     const id = idOf(anchor);
     const m = id && /^(f-[A-Za-z0-9_]*)-(old|new)-(\d+)$/.exec(id);
@@ -2060,12 +2080,16 @@
     if (fi < 0 || targetFor(anchor)) return;
     const f = DIFF.files[fi];
     const v = f.hunks && fileView(f);
-    if (v !== "unified" && v !== "split") return;
+    if (!["unified", "split", "rendered", "chunked"].includes(v)) return;
     const col = m[2] === "old" ? 1 : 2;
     const gap = (gapsOf(f) || []).find((g) => g.lines.some((l) => l[col] === +m[3]));
-    if (!gap) return;
-    const s = gapState(f, gap.at);
-    s.top = gap.lines.length - s.bottom;
+    if (v === "rendered" || v === "chunked") {
+      revealViews.set(f.path, views(f).includes("split") ? "split" : "unified");
+    } else if (!gap) return;
+    if (gap) {
+      const s = gapState(f, gap.at);
+      s.top = gap.lines.length - s.bottom;
+    }
     renderFile(sections[fi], fi);
   }
   function reportPins() {

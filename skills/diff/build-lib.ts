@@ -740,11 +740,28 @@ function showBytes(root: string, rev: string): Buffer {
   return result.stdout;
 }
 
-// Each blob's size in bytes by its rev, from one git cat-file call.
+// The git cat-file call that prints each rev's size on its own line. -z, which needs Git 2.38, is
+// used only when a rev holds a newline.
+export function blobSizeQuery(revs: string[]): { args: string[]; input: string } {
+  const args = ["cat-file", "--batch-check=%(objectsize)"];
+  if (!revs.some((rev) => rev.includes("\n"))) {
+    return { args, input: revs.map((rev) => `${rev}\n`).join("") };
+  }
+  return { args: [...args, "-z"], input: revs.map((rev) => `${rev}\0`).join("") };
+}
+
+// Each blob's size in bytes by its rev, from one git cat-file call, or one per rev when a Git
+// without -z rejects the call.
 function blobSizes(root: string, revs: string[]): Map<string, number> {
   if (!revs.length) return new Map();
-  const args = ["cat-file", "--batch-check=%(objectsize)", "-z"];
-  const lines = git(root, args, [0], revs.map((rev) => `${rev}\0`).join("")).stdout.split("\n");
+  const { args, input } = blobSizeQuery(revs);
+  let lines: string[];
+  try {
+    lines = git(root, args, [0], input).stdout.split("\n");
+  } catch (error) {
+    if (!args.includes("-z")) throw error;
+    lines = revs.map((rev) => git(root, ["cat-file", "-s", rev]).stdout.trim());
+  }
   return new Map(
     revs.map((rev, i) => {
       if (!/^\d+$/.test(lines[i] ?? "")) throw new BuildError(`git cat-file found no blob ${rev}`);
@@ -1036,7 +1053,8 @@ export function collectPage(cwd: string, input: BuildInput): PageData {
     }
     return page;
   });
-  if (!files.length) throw new BuildError(`No changes against ${baseRef}`);
+  // A republish with no changes left shows an empty page, so the published one stops showing them.
+  if (!files.length && !input.server.length) throw new BuildError(`No changes against ${baseRef}`);
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const paths = new Set(files.map((file) => file.path));
   const missing = input.threads.filter((thread) => !paths.has(thread.path));
