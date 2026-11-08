@@ -129,6 +129,7 @@ function input(over: Partial<BuildInput> = {}): BuildInput {
     threads: [],
     publish: 1,
     server: [],
+    fileList: "flat",
     ...over,
   };
 }
@@ -310,6 +311,8 @@ describe("parseInput", () => {
       'Input "untracked" must be an array of strings',
     );
     expect(() => parseInput({ default: "main", publish: 1.5 })).toThrow('Input "publish"');
+    expect(parseInput({ default: "main", fileList: "tree" }).fileList).toBe("tree");
+    expect(() => parseInput({ default: "main", fileList: "grid" })).toThrow('Input "fileList"');
     expect(parseInput({ default: "main", server: ["index.html"] }).server).toEqual(["index.html"]);
     expect(() => parseInput({ default: "main", server: [1] })).toThrow(
       'Input "server" must be an array of strings',
@@ -428,6 +431,7 @@ describe("collectPage", () => {
       uncommitted: 1,
       untracked: 1,
       threads: [lineId("src/mod.ts", "new", 3), lineId("src/new-name.ts", "old", 10)],
+      fileList: "flat",
       files: [],
     });
     expect(data.files.map((file) => file.path)).toEqual([
@@ -914,6 +918,7 @@ function syntheticPage(files: PageFile[]): PageData {
     uncommitted: 0,
     untracked: 0,
     threads: [],
+    fileList: "flat",
     files,
   };
 }
@@ -986,6 +991,7 @@ describe("renderBuild", () => {
       uncommitted: 1,
       untracked: 1,
       threads: [lineId("src/mod.ts", "new", 3)],
+      fileList: "flat",
       files: [],
     });
     const mod = manifestEntry(output, "src/mod.ts");

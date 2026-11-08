@@ -1194,7 +1194,7 @@
     return li;
   }
   function renderList() {
-    const tree = load("list-layout") === "tree";
+    const tree = (load("list-layout") ?? DIFF.fileList) === "tree";
     $("list-flat").setAttribute("aria-pressed", String(!tree));
     $("list-tree").setAttribute("aria-pressed", String(tree));
     $("files-total").textContent = DIFF.files.length;
@@ -1248,7 +1248,7 @@
     build(root, ol, "");
   }
   $("list-flat").addEventListener("click", () => {
-    store("list-layout", null);
+    store("list-layout", "flat");
     renderList();
   });
   $("list-tree").addEventListener("click", () => {

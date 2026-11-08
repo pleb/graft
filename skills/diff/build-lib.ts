@@ -170,6 +170,7 @@ export interface PageData {
   uncommitted: number;
   untracked: number;
   threads: string[];
+  fileList: "flat" | "tree";
   files: PageFile[];
 }
 
@@ -257,6 +258,7 @@ export interface BuildInput {
   publish: number;
   // The artifact's published paths.
   server: string[];
+  fileList: "flat" | "tree";
 }
 
 export interface Base {
@@ -637,6 +639,10 @@ export function parseInput(value: unknown): BuildInput {
   if (typeof publish !== "number" || !Number.isInteger(publish) || publish < 0) {
     throw new BuildError('Input "publish" must be a non-negative integer');
   }
+  const fileList = input.fileList ?? "flat";
+  if (fileList !== "flat" && fileList !== "tree") {
+    throw new BuildError('Input "fileList" must be "flat" or "tree"');
+  }
   return {
     default: input.default,
     untracked: strings(input.untracked, "untracked"),
@@ -644,6 +650,7 @@ export function parseInput(value: unknown): BuildInput {
     threads: threads(input.threads),
     publish,
     server: strings(input.server, "server"),
+    fileList,
   };
 }
 
@@ -1062,6 +1069,7 @@ export function collectPage(cwd: string, input: BuildInput): PageData {
     uncommitted: files.filter((file) => file.source === "uncommitted").length,
     untracked: files.filter((file) => file.source === "untracked").length,
     threads: input.threads.map(threadId),
+    fileList: input.fileList,
     files,
   };
 }

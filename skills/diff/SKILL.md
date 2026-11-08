@@ -68,7 +68,8 @@ Write the input file:
   "exclude": ["<exclusions>"],
   "threads": [{ "path": "<file path>", "side": "old or new", "line": 1 }],
   "publish": 1,
-  "server": ["<published paths>"]
+  "server": ["<published paths>"],
+  "fileList": "<diff.fileList>"
 }
 ```
 
