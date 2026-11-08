@@ -1305,7 +1305,7 @@ function stripWebp(bytes: Buffer): Buffer | null {
 }
 
 // The image rebuilt from the structures needed to show it, or null when it cannot be walked.
-// Orientation and colour data are kept; PNG, JPEG and WebP ICC profiles are kept whole, including any text they hold.
+// Keeps orientation and colour data; PNG, JPEG and WebP ICC profiles stay whole, text included.
 export function stripImage(bytes: Buffer, ext: ImageInfo["ext"]): Buffer | null {
   if (ext === "png") return stripPng(bytes);
   if (ext === "jpg") return stripJpeg(bytes);
