@@ -74,7 +74,7 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 ## Clean up
 
 - Once every milestone except a PR milestone is committed and no worker or pause is pending, run a `graft:comment-editor` agent and a `graft:docs-editor` agent on the branch's changes, in parallel.
-- Check their reports, restore anything they removed that you know is needed, then commit.
+- Check their reports, then commit.
 
 ## Final checks
 
