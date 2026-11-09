@@ -61,9 +61,9 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 
 - Commit each milestone once its worker reports it verified, before any review, in the repo's commit style, staging only that milestone's files.
 - After each commit, decide whether to review now or go on. Go on while the unreviewed commits are small. Review when the unreviewed change is substantial, or before starting a milestone that builds on an unreviewed risky change.
-- After the last milestone, run `## Clean up`, then review the commits not yet reviewed, including the clean-up commit, in a final pass, so every milestone commit, every earlier pass's fixes and the clean-up commit are reviewed once. The final pass's brief names the clean-up commit's intent (comment and doc edits that remove or reword without changing behaviour or required content) and gives reviewers that commit's own diff, so they can check what it removed. On completion, run a review and an adversarial review over the changes, unless every part has already had both.
+- Once `## Clean up` has run, review the commits not yet reviewed, including any clean-up commit, in a final pass, so every milestone commit, every earlier pass's fixes and any clean-up commit are reviewed once. When there is a clean-up commit, the final pass's brief names its intent (comment and doc edits that remove or reword without changing behaviour or required content) and gives reviewers its own diff, so they can check what it removed. On completion, run a review and an adversarial review over the changes, unless every part has already had both.
 - A pass and its fixes finish before the next milestone starts, and no pass starts while any worker is running.
-- In pause mode, once a milestone with Manual checks is committed and any pass you run over it now has finished, ask with `AskUserQuestion`, listing its Manual checks: **Checks passed**, **A check failed**, or **Stop**. Send a failed check, with what the user said about it, to a worker, commit the fix separately in the repo's commit style, then ask again. When the fix is risky by the test above, run a pass over it as `### Each pass` describes; otherwise check it yourself. When Final checks have already run, run them again before pushing or going on. Stop goes to Report, with the remaining milestones listed as undone. A milestone with Manual checks never runs in parallel with a later one, and no later milestone starts while its pause is pending.
+- In pause mode, once a milestone with Manual checks is committed and any pass you run over it now has finished, ask with `AskUserQuestion`, listing its Manual checks: **Checks passed**, **A check failed**, or **Stop**. For the last milestone that changes files, this pause comes before `## Clean up` and the final pass. Send a failed check, with what the user said about it, to a worker, commit the fix separately in the repo's commit style, then ask again. When the fix is risky by the test above, run a pass over it as `### Each pass` describes; otherwise check it yourself. When Final checks have already run, run them again before pushing or going on. Stop goes to Report, with the remaining milestones listed as undone. A milestone with Manual checks never runs in parallel with a later one, and no later milestone starts while its pause is pending.
 
 ### Each pass
 
@@ -73,8 +73,8 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 
 ## Clean up
 
-- Once the last milestone is committed, use a `graft:comment-editor` agent on the branch's changes.
-- Once the last milestone is committed, use a `graft:docs-editor` agent on the branch's changes.
+- Once the last milestone that changes files is committed and its pause, if any, has finished, use a `graft:comment-editor` agent on the branch's changes.
+- Once the last milestone that changes files is committed and its pause, if any, has finished, use a `graft:docs-editor` agent on the branch's changes.
 - Run them in parallel when both are ready.
 - Check their reports, restore anything they removed that you know is needed, then commit.
 
