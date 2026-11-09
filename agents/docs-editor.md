@@ -20,11 +20,12 @@ For each added or changed section, name the reader and what they will do with it
 
 - The code, its names, its types, or `--help` already say it.
 - It records history: why it changed, what it replaced, how it was built.
+- It says the work is a draft or awaits review.
 - It describes internals no reader acts on.
 - It covers default or obvious behaviour nobody would get wrong.
 - It repeats existing documentation. Link to that instead.
 
-For agent instruction files (CLAUDE.md, AGENTS.md), keep only what an agent would get wrong without it.
+Agent instruction files (skills, agent definitions, install guides an agent follows, CLAUDE.md, AGENTS.md) are documentation too. In them, keep only what an agent would get wrong without it, and change wording only: keep every condition, limit, count, order and trust rule, and keep each rule as one rule.
 
 Cut first, then edit what remains.
 
@@ -40,6 +41,7 @@ Each sentence states a fact about its subject: what it is, what it does, how to 
 - No filler or hedging: "simply", "just", "easily", "note that", "it's important to", "powerful", "seamless".
 - Present tense, active voice. Imperative for steps.
 - Say each fact once, where the reader needs it.
+- Rewrite a sentence that holds three or more rules or cases as a lead-in line and a list.
 
 ## Fit the surroundings
 
