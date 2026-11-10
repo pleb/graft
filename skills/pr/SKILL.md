@@ -66,7 +66,7 @@ _Graft: AI has reviewed and adversarially reviewed these changes._
 
 With none left, leave the line out rather than asking or guessing.
 
-**Graft line.** Every body, with a template or without, ends with `_Graft: AI has reviewed and adversarially reviewed these changes._` verbatim, as its own paragraph, without the backticks. The brevity budget and the ban on mentioning Claude, AI or attribution do not apply to it.
+**Graft line.** Every body, with a template or without, ends with `_Graft: AI has reviewed and adversarially reviewed these changes._` verbatim, as its own paragraph, without the backticks; only screenshot references may follow it. The brevity budget and the ban on mentioning Claude, AI or attribution do not apply to it.
 
 **Caller guidance.** A calling skill's guidance can replace the Graft line, start the body with an alert, and require listed items, with a template or without. Listed items go as a bulleted list under Notes, or the template's closest section; the brevity budget, the bullet rule and the section table do not apply to them.
 
@@ -110,3 +110,5 @@ gh pr create --draft --base <base> --title "<title>" --body "<body>"
 ```
 
 A new PR opens in the state from the arguments, else in `pr.state`; drop `--draft` for `ready-state` or `ready`. For an existing PR, only an explicit state changes it, after `gh pr edit`: `ready-state` runs `gh pr ready` and `draft` runs `gh pr ready --undo`. With no state, an existing PR keeps its state. Report the PR URL.
+
+**Screenshots.** When the arguments ask for screenshots, attach each image file with `--attach <path>` on `gh pr create`, or `gh pr edit` for an existing PR (gh 2.99.0+, github.com and GHE Cloud). Reference each one as `![<alt>](<path>)` with the same path string, at the very end of the body below the Graft line; gh uploads the file and rewrites the reference to its URL. An upload cannot be undone.
