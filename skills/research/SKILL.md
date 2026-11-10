@@ -48,7 +48,7 @@ Run common.md's `## Check the Graft folder` here.
 
 Each round is one `AskUserQuestion` call with up to `plan.questionsPerRound` questions, most consequential first.
 
-- Facts come from the code or an agent, never from the user. Where to dig is the user's call.
+- Facts come from the code or an agent, never from the user.
 - Each question names its subject and says in a clause what it steers.
 - Every question carries a recommendation. Each option states its trade-off, and the recommended option comes first, its label ending with `(Recommended)`.
 - A question whose choices are not exclusive uses `multiSelect`.
@@ -75,7 +75,7 @@ Before the first experimenter in a run:
 3. Make the run directory: a fresh `graft-research-<n>` folder in the scratchpad when the session lists one, else `mktemp -d "${TMPDIR:-/tmp}/graft-research-XXXXXX"`. Resolve it with `cd <dir> && pwd -P` and use that path from then on.
 4. Ask once to confirm setting up worktrees like the main tree (for example, dependency installs). The answer covers the run.
 
-Before an experiment that could touch anything else outside its worktree (network, databases, cloud credentials, files under home such as `~/.claude.json`), ask the user.
+Before an experiment that could touch anything outside its worktree (network, databases, cloud credentials, files under home such as `~/.claude.json`), ask the user.
 
 Each brief names the question, the root, the base OID, its own folder `<run directory>/<n>`, the snapshot mode, whether setup like the main tree is allowed, and the external effects the user confirmed.
 
@@ -119,7 +119,7 @@ Research by Graft.
 - `## Summary` is filled on conclusion.
 - Each discovery states what was found, its sources (`path:line`, URL, or an experiment with its base commit and whether it ran on the uncommitted changes) and its confidence.
 - Add these parts when they help: `## Options` with trade-offs, `## Ruled out`, `## Open threads`, and `## References`, one line per reference: `- Related owner/repo#N: <title>` for a GitHub issue or PR, `- Related <URL>` for any other link, and `- Related <path>` for a plan or file given as context.
-- Draw an SVG diagram wherever a picture explains a flow, architecture or sequence better than prose. Save it beside `report.md` and embed it with `![<alt text>](<file>.svg)`. It reads on light and dark backgrounds.
+- Draw an SVG diagram wherever a picture explains a flow, architecture or sequence better than prose. Save it beside `report.md` and embed it with `![<alt text>](<file>.svg)`. Make it read on light and dark backgrounds.
 - Write it as a professional report: plain headings, short paragraphs, and tables for comparisons.
 
 A report missing the status or the footer gains what it lacks with its first edit. Continuing a concluded report sets it back to `open` with the first edit.
@@ -143,4 +143,4 @@ When `research.artifact` is `true`, publish the report on conclusion, and republ
 4. Write a styled HTML page from `report.md` to `<page directory>/index.html`, and copy each SVG beside it, referencing it by its file name.
 5. Call `Artifact` with that `file_path`, `files` mapping each SVG's name to its copy in the page directory, and `icon: "report"` on the first publish. Republish to the same `file_path`.
 
-`report.md` stays the source plan and execute read. Give the user the link.
+`report.md` stays the source that plan and execute read. Give the user the link.

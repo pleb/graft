@@ -24,7 +24,7 @@ Follow common.md's `## Claude Code version`, then its `## Sync the clone`.
 
 ## Migrate plans
 
-Run this step when the target is `~/.my-graft`, `~/.my-graft/.claude/plans/` holds files, and `git -C ~/.my-graft check-ignore -q .claude/graft/.probe.md` succeeds. Move each file there that `git -C ~/.my-graft ls-files` does not list (ignored ones included) to the same relative path under `~/.my-graft/.claude/graft/plans/`, creating folders. Tracked files stay. When that path exists, add `-2`, `-3` and so on before the extension; never overwrite. Tell the user each moved file's new path.
+Run this step when the target is `~/.my-graft`, `~/.my-graft/.claude/plans/` holds files, and `git -C ~/.my-graft check-ignore -q .claude/graft/.probe.md` succeeds. Move each file there that `git -C ~/.my-graft ls-files` does not list (ignored ones included) to the same relative path under `~/.my-graft/.claude/graft/plans/`, creating folders. When that path exists, add `-2`, `-3` and so on before the extension; never overwrite. Tell the user each moved file's new path.
 
 ## Check upstream
 
