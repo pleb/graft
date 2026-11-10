@@ -1,7 +1,7 @@
 ---
 name: plan
 description: Settles a solution with the user and writes it as a plan under .claude/graft/plans as the conversation goes. Finds gaps the user may not have seen, reviews when it is worth it, and asks before finalising.
-argument-hint: "[plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]"
+argument-hint: "[plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
 allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 ---
@@ -32,7 +32,7 @@ node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 
 ## Find the work
 
-A plan found is revised; other work is a new topic. Ask when there is none.
+A plan found is revised. Research found is context for a new plan named after it. Other work is a new topic. Ask when there is none.
 
 ## Check the Graft folder
 
@@ -108,7 +108,7 @@ Record every answer from a round, and every answer to a question a review raised
 
 Spend words on decisions, risks and contracts. Give routine changes a line.
 
-`## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, and `- Related <URL>` for any other link. Read an issue or PR the conversation brings in, not only one in the arguments, as `## GitHub issue reference handling` describes. An issue References already lists keeps its line. Other issues supplied in the arguments are added as Resolves; other references are added as Related. The user can move any line between the two.
+`## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, `- Related <URL>` for any other link, and `- Research <path>` for research the plan builds on. Read an issue or PR the conversation brings in, not only one in the arguments, as `## GitHub issue reference handling` describes. An issue References already lists keeps its line. Other issues supplied in the arguments are added as Resolves; other issues, PRs and links are added as Related. The user can move any line between the two.
 
 Plan a PR only when the user asks for one, as a milestone of its own. It names a state only when the user does.
 

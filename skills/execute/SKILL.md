@@ -1,7 +1,7 @@
 ---
 name: execute
 description: Settles a solution with the user as plan does, writes it under .claude/graft/plans, then executes it as orchestrate does in the same session. Asks no Finish question and takes the review Finish would recommend.
-argument-hint: "[plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr request]"
+argument-hint: "[plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr request]"
 disable-model-invocation: true
 allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 ---
@@ -15,7 +15,7 @@ You run plan's phase, then orchestrate's phase, in this session. Each phase foll
 - When `git rev-parse --show-toplevel` exits non-zero, stop and say execute needs a git repo.
 - Take any PR request out of the arguments, as orchestrate's `## Start` does. Issues it names also go to plan. When it is unclear whether PR wording is part of the topic or a request, ask.
 - The rest (a topic, a plan name or path, issues, a reviewer model) is plan's arguments.
-- When plan's arguments name a plan whose `status` is `finalised` and name no revision, go to `## Orchestrate phase`. A plan name resolves as common.md's `## Find the work` rule 2 does.
+- When plan's arguments name a plan whose `status` is `finalised` and name no revision, go to `## Orchestrate phase`. A plan name resolves as common.md's `## Find the work` rule 3 does.
 
 ## Plan phase
 

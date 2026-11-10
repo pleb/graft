@@ -26,6 +26,8 @@ node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 
 The work in this conversation is a plan or task list. Ask when there is none, or more than one.
 
+When the work is research, stop and name `/graft:plan <name>` as the next step (`/graft:plan <path>` for research outside `.claude/graft/research/`).
+
 When the work is a plan file (including a plan in this conversation written to or read from one), check for the Graft footer: a `Plan by Graft.` line after a thematic break, outside any code fence. It need not be the last line. Skip the check for a plan without it. Otherwise warn when either holds:
 
 - Its `status` is not `finalised`.
