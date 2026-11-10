@@ -8,7 +8,7 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 
 You are the coordinator. Agents do the work. You order it, write the briefs, judge the results, and commit.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## GitHub issue reference handling` and `## Settings`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## GitHub issue reference handling`, `## My Graft ignore probe` and `## Settings`.
 
 **Arguments:** $ARGUMENTS
 
@@ -26,12 +26,14 @@ node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 
 The work in this conversation is a plan or task list. Ask when there is none, or more than one.
 
+When the work is research, stop and name `/graft:plan <name>` as the next step. Name `/graft:plan <path>` instead when `<root>/.claude/graft/plans/<name>.md` or `<root>/.claude/plans/<name>.md` exists, or when the report is outside `<root>/.claude/graft/research/`.
+
 When the work is a plan file (including a plan in this conversation written to or read from one), check for the Graft footer: a `Plan by Graft.` line after a thematic break, outside any code fence. It need not be the last line. Skip the check for a plan without it. Otherwise warn when either holds:
 
 - Its `status` is not `finalised`.
 - Its `## Open questions` section lists questions.
 
-Say which holds, list any open questions, and ask whether to continue or stop. On stop, name `/graft:plan <name>` as the next step (`/graft:plan <path>` for a plan outside `.claude/plans/`). Never edit the plan.
+Say which holds, list any open questions, and ask whether to continue or stop. On stop, name `/graft:plan <name>` as the next step (`/graft:plan <path>` for a plan outside `.claude/graft/plans/`). Never edit the plan.
 
 When issues were supplied, before Execute:
 
@@ -107,11 +109,11 @@ Ask the user when something is ambiguous, needs more than a straightforward deci
 
 Run this step only when the work is a plan file with the Graft footer and every milestone is done, including the PR when one was asked for.
 
-Run `git -C <plan's directory> ls-files --error-unmatch <plan's absolute path>`. Go on only when it fails with `did not match any file(s) known to git` and the plan is not in a subfolder of `~/.my-graft/.claude/plans/`; otherwise leave the plan in place.
+Run `git -C <plan's directory> ls-files --error-unmatch <plan's absolute path>`. Go on only when it fails with `did not match any file(s) known to git` and the plan is not in a subfolder of `~/.my-graft/.claude/graft/plans/` or `~/.my-graft/.claude/plans/`; otherwise leave the plan in place.
 
 Follow `orchestrate.finishedPlan`:
 
-- `archive`: move the plan to `~/.my-graft/.claude/plans/<repo>/<plan>.md`, creating the folder. The root is the directory `## Start` found. When `git -C <root> rev-parse --absolute-git-dir` differs from `git -C <root> rev-parse --path-format=absolute --git-common-dir`, `<repo>` is the basename of the path on the first `worktree` line of `git -C <root> worktree list --porcelain`; otherwise it is the basename of the root. `<plan>` is the plan's file name without `.md`. When the target exists, use `<plan>-2.md`, `<plan>-3.md` and so on; never overwrite.
+- `archive`: move the plan to `~/.my-graft/.claude/graft/plans/<repo>/<plan>.md`, creating the folder. Follow `## My Graft ignore probe`, falling back to `~/.my-graft/.claude/plans/<repo>/<plan>.md`. The root is the directory `## Start` found. When `git -C <root> rev-parse --absolute-git-dir` differs from `git -C <root> rev-parse --path-format=absolute --git-common-dir`, `<repo>` is the basename of the path on the first `worktree` line of `git -C <root> worktree list --porcelain`; otherwise it is the basename of the root. `<plan>` is the plan's file name without `.md`. When the target exists, use `<plan>-2.md`, `<plan>-3.md` and so on; never overwrite.
 - `delete`: delete the plan file.
 - Otherwise, leave the plan in place.
 

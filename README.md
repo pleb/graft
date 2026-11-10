@@ -17,41 +17,73 @@ To install Graft on another machine, or again after `/graft:uninstall`, run the 
 
 ## How it works
 
-![Graft's flow: /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:execute runs plan and then orchestrate in one session. /graft:diff publishes a Claude Code artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
+Graft has three levels to start from, depending on the size of the work and how much you already know:
 
-Start by creating a plan. Plans are automatically saved to `.claude/plans` in the repo. The first time, Graft asks whether to ignore them.
+- `/graft:research` when the question is still open and you want facts before deciding.
+- `/graft:plan` when you know what you want and need a plan to build it.
+- `/graft:execute` when the work is small enough to plan and build in one session.
 
-The plan can be a task with any level of initial detail. Graft will help build enough context for successful plan execution.
+![Graft's flow: /graft:research, /graft:plan and /graft:execute are where you begin. /graft:research works with you, a researcher, an experimenter and an adversarial reviewer to write a research report, which /graft:plan takes as context. /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:execute runs plan and then orchestrate in one session. /graft:diff publishes a Claude Code artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
+
+### Research
+
+```text
+/graft:research [research path | research name | question] [issues] [reviewer model: sonnet | opus (default) | fable]
+```
+
+Investigates a question with you before planning. It sends researchers to read code and sources and experimenters to run code in throwaway git worktrees, then has an adversarial reviewer challenge what it found. It writes a report to `.claude/graft/research/<name>/report.md`. Pass the research name to `/graft:plan` or `/graft:execute` to plan from the report.
+
+```text
+/graft:research why do static site deploys take ten minutes
+```
+
+### Plan
+
+```text
+/graft:plan [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]
+```
+
+Settles a plan with you. The plan can be a task with any level of initial detail; Graft helps build enough context for successful plan execution. Plans are saved to `.claude/graft/plans` in the repo. The first time, Graft asks whether to ignore them.
 
 ```text
 /graft:plan deployment of the static site under /web to an azure static website using bicep
 ```
 
-Once the plan is ready to execute, use the orchestrator to implement the plan.
+### Orchestrate
+
+```text
+/graft:orchestrate [plan path | plan name | task] [issues] [reviewer model: sonnet | opus (default) | fable]
+```
+
+Implements a ready plan, milestone by milestone.
 
 ```text
 /graft:orchestrate deploy-static-site-to-azure
 ```
 
-Or use `/graft:execute` to plan and then orchestrate in one session, with no `/clear` in between.
-
-And when you're ready to ship the changes:
+### Execute
 
 ```text
-/graft:pr
+/graft:execute [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr request]
 ```
 
-## Flow commands
+Plans and then orchestrates in one session, with no `/clear` in between.
+
+### Diff
 
 ```text
-/graft:plan [plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]
-/graft:orchestrate [plan path | plan name | task] [issues] [reviewer model: sonnet | opus (default) | fable]
-/graft:execute [plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr request]
 /graft:diff [mode: batch (default) | auto]
+```
+
+Publishes your changes as a private artifact to comment on. In `batch` mode (the default), Claude replies to each comment and changes code only when you give a go-ahead or press Finish review. In `auto` mode, Claude applies each comment as it arrives. [`diff.comments`](#settings) sets the default.
+
+### PR
+
+```text
 /graft:pr [guidance] [state: draft (default) | ready-state]
 ```
 
-`/graft:diff` publishes your changes as a private artifact to comment on. In `batch` mode (the default), Claude replies to each comment and changes code only when you give a go-ahead or press Finish review. In `auto` mode, Claude applies each comment as it arrives. [`diff.comments`](#settings) sets the default.
+Pushes the branch and opens a PR when you're ready to ship the changes.
 
 ## Helper commands
 
@@ -93,10 +125,12 @@ When the clone is behind, a notice says so and suggests `/graft:update` at the p
 | Key                                                                                    | Values                                         | Default     | What it does                                                                                                                                                                                                                                                                         |
 | -------------------------------------------------------------------------------------- | ---------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `common.reviewerModel`                                                                 | `fable`, `opus`, `sonnet`                      | opus        | The reviewer model when the command names none.                                                                                                                                                                                                                                      |
-| `plan.outsideRepoPlans`                                                                | `always`, `ask`, `never`                       | ask         | What `/graft:plan` does outside a repo: save plans in `~/.my-graft/.claude/plans/` (`always`), ask first (`ask`) or stop (`never`).                                                                                                                                                  |
-| `plan.questionsPerRound`                                                               | `1`, `2`, `3`, `4`                             | 3           | The most questions `/graft:plan` asks at once.                                                                                                                                                                                                                                       |
+| `plan.outsideRepoPlans`                                                                | `always`, `ask`, `never`                       | ask         | What `/graft:plan` and `/graft:research` do outside a repo: save plans in `~/.my-graft/.claude/graft/plans/` and research in `~/.my-graft/.claude/graft/research/` (`always`), ask first (`ask`) or stop (`never`).                                                                  |
+| `plan.questionsPerRound`                                                               | `1`, `2`, `3`, `4`                             | 3           | The most questions `/graft:plan` and `/graft:research` ask at once.                                                                                                                                                                                                                  |
 | `plan.manualChecksQuestion` <br><sub>(shown when orchestrate.manualChecks = ask)</sub> | `finish`, `orchestrate`                        | orchestrate | When `orchestrate.manualChecks` is `ask`, whether `/graft:plan` asks how a plan's Manual checks are handled in its Finish question (`finish`) or leaves it to `/graft:orchestrate` (`orchestrate`).                                                                                  |
-| `orchestrate.finishedPlan`                                                             | `archive`, `delete`, `leave`                   | leave       | What `/graft:orchestrate` does with an untracked plan once every milestone is done: move it to `~/.my-graft/.claude/plans/<repo>/<plan>.md` (`archive`), delete it (`delete`) or leave it in place (`leave`). Archives stay on this machine.                                         |
+| `research.artifact`                                                                    | `false`, `true`                                | false       | Whether `/graft:research` also publishes its report as a private claude.ai artifact (`true`) or keeps it as Markdown only (`false`).                                                                                                                                                 |
+| `research.uncommittedChanges`                                                          | `always`, `ask`, `never`                       | ask         | Whether `/graft:research` experiments run on your uncommitted changes (`always`), on the last commit (`never`), or ask once per run (`ask`).                                                                                                                                         |
+| `orchestrate.finishedPlan`                                                             | `archive`, `delete`, `leave`                   | leave       | What `/graft:orchestrate` does with an untracked plan once every milestone is done: move it to `~/.my-graft/.claude/graft/plans/<repo>/<plan>.md` (`archive`), delete it (`delete`) or leave it in place (`leave`). Archives stay on this machine.                                   |
 | `orchestrate.manualChecks`                                                             | `ask`, `defer`, `pause`                        | ask         | How `/graft:orchestrate` handles a plan's Manual checks: stop after each milestone that has them until you report the result (`pause`), list them in its report (`defer`) or ask at the start of the run (`ask`).                                                                    |
 | `diff.comments`                                                                        | `auto`, `batch`                                | batch       | How `/graft:diff` handles your comments when the command names no mode: discuss them in their threads and change code when you send a go-ahead or press Finish review (`batch`), or apply each one as it arrives and republish (`auto`).                                             |
 | `diff.fileList`                                                                        | `flat`, `tree`                                 | flat        | The file list layout a new `/graft:diff` page starts in, until you switch it on the page (your browser then remembers your choice for that page).                                                                                                                                    |

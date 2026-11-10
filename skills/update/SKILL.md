@@ -22,6 +22,10 @@ node ${CLAUDE_SKILL_DIR}/../settings.ts <target>
 
 Follow common.md's `## Claude Code version`, then its `## Sync the clone`.
 
+## Migrate plans
+
+Run this step when the target is `~/.my-graft`, `~/.my-graft/.claude/plans/` holds files, and `git -C ~/.my-graft check-ignore -q .claude/graft/.probe.md` succeeds. Move each file there that `git -C ~/.my-graft ls-files` does not list (ignored ones included) to the same relative path under `~/.my-graft/.claude/graft/plans/`, creating folders. When that path exists, add `-2`, `-3` and so on before the extension; never overwrite. Tell the user each moved file's new path.
+
 ## Check upstream
 
 `upstream` is where the target gets Graft from: `pleb/graft`, or an interstock (an organisation's copy of Graft). Use it as it is. When the target has no `upstream` remote, add the URL in `<target>/agent-install.md`'s `remote add upstream` command, or `https://github.com/pleb/graft.git` when that URL is the target's `origin`.

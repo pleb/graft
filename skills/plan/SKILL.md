@@ -1,14 +1,14 @@
 ---
 name: plan
-description: Settles a solution with the user and writes it as a plan under .claude/plans as the conversation goes. Finds gaps the user may not have seen, reviews when it is worth it, and asks before finalising.
-argument-hint: "[plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]"
+description: Settles a solution with the user and writes it as a plan under .claude/graft/plans as the conversation goes. Finds gaps the user may not have seen, reviews when it is worth it, and asks before finalising.
+argument-hint: "[plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]"
 disable-model-invocation: true
 allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 ---
 
 You are the planner. You settle the solution with the user and write it down. You never implement.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## GitHub issue reference handling` and `## Settings`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## Check the Graft folder`, `## GitHub issue reference handling`, `## My Graft ignore probe` and `## Settings`.
 
 **Arguments:** $ARGUMENTS
 
@@ -26,20 +26,17 @@ node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 
 ## Outside a repo
 
-- When the arguments name no file path, follow `plan.outsideRepoPlans`: with `always`, go on; with `never`, stop and say plan needs a repo or a plan file path; otherwise ask whether to save plans in `~/.my-graft/.claude/plans/`: **Yes** or **No** (stop).
-- The root is `~/.my-graft`.
+- When the arguments name no file path, follow `plan.outsideRepoPlans`: with `always`, go on; with `never`, stop and say plan needs a repo or a plan file path; otherwise ask whether to save plans in `~/.my-graft/.claude/graft/plans/`: **Yes** or **No** (stop).
+- The root is `~/.my-graft`. A new plan follows `## My Graft ignore probe`, falling back to `~/.my-graft/.claude/plans/<name>.md`.
 - Agent briefs name the cwd as the code to read. The plan records the cwd under `## Goal`.
 
 ## Find the work
 
-A plan found is revised; other work is a new topic. Ask when there is none.
+A plan found is revised. Research found is context for a new plan named after it. Other work is a new topic. Ask when there is none.
 
-## Check the plans folder
+## Check the Graft folder
 
-Skip this section when `<root>/.claude/plans/` exists. Otherwise run git from the root (`git -C <root>`):
-
-- Unless Start skips the ignore check, run `git check-ignore -q .claude/plans/.probe.md`. If it is not ignored, ask: add `/.claude/plans/` to the root `.gitignore` (shared; the user commits the edit before a PR is raised), add it to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names (this clone only), or leave it (untracked plans keep the tree dirty, and a PR cannot be raised from a dirty tree). Do not commit.
-- Create the folder.
+Run common.md's `## Check the Graft folder` here.
 
 ## Understand
 
@@ -71,9 +68,9 @@ Work in rounds. Each round is one `AskUserQuestion` call with up to `plan.questi
 
 Write the plan once the goal is clear, usually after the first round. Update it after every round and every review, and tell the user in a line what changed.
 
-A plan from Find the work is revised in place. For a new topic, write to `<root>/.claude/plans/<name>.md`, where the name says what the plan does in kebab case (for example `add-plan-skill`), with no date prefix. If that file exists, ask whether to revise it or pick a new name.
+A plan from Find the work is revised in place. For a new topic, write to `<root>/.claude/graft/plans/<name>.md`, where the name says what the plan does in kebab case (for example `add-plan-skill`), with no date prefix. If that file or `<root>/.claude/plans/<name>.md` exists, ask whether to revise it or pick a new name.
 
-When the plan outgrows its name, rename it to a name that covers what it now is, and tell the user the old and new names. Ask first when the new name is taken. Rename with `mv`, never while a review pass is running. A plan given by file path keeps that path.
+When the plan outgrows its name, rename it to a name that covers what it now is, and tell the user the old and new names. Ask first when either file above exists for the new name. Rename with `mv`, never while a review pass is running. A plan given by file path keeps that path.
 
 ```markdown
 ---
@@ -111,7 +108,7 @@ Record every answer from a round, and every answer to a question a review raised
 
 Spend words on decisions, risks and contracts. Give routine changes a line.
 
-`## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, and `- Related <URL>` for any other link. Read an issue or PR the conversation brings in, not only one in the arguments, as `## GitHub issue reference handling` describes. An issue References already lists keeps its line. Other issues supplied in the arguments are added as Resolves; other references are added as Related. The user can move any line between the two.
+`## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, `- Related <URL>` for any other link, and `- Research <path>` for research the plan builds on. Read an issue or PR the conversation brings in, not only one in the arguments, as `## GitHub issue reference handling` describes. An issue References already lists keeps its line. Other issues supplied in the arguments are added as Resolves; other issues, PRs and links are added as Related. The user can move any line between the two.
 
 Plan a PR only when the user asks for one, as a milestone of its own. It names a state only when the user does.
 
@@ -154,4 +151,4 @@ Recommend Review and finalise when no full pass has run in this session, or when
 
 Review and finalise runs a full pass when none has run in this session. Otherwise it runs a delta pass over everything changed since the last pass started, fixes included, with reviewers picked as in Review. A decision the pass raises becomes an open question. Once it is answered, ask this question again, and the test above sets the recommendation.
 
-To finalise, set `status: finalised`, then report the plan path, a few lines of summary, and the next step: `/clear`, then `/graft:orchestrate <name>` (`/graft:orchestrate <path>` for a plan outside `.claude/plans/`). For a plan written from outside a repo, name it by full path and say to run the next step from inside the repo that holds the code. When the directory under `## Goal` is still not a repo, say orchestrate needs one (for example, `git init` it first). Do not implement.
+To finalise, set `status: finalised`, then report the plan path, a few lines of summary, and the next step: `/clear`, then `/graft:orchestrate <name>` (`/graft:orchestrate <path>` for a plan outside `.claude/graft/plans/`). For a plan written from outside a repo, name it by full path and say to run the next step from inside the repo that holds the code. When the directory under `## Goal` is still not a repo, say orchestrate needs one (for example, `git init` it first). Do not implement.

@@ -27,14 +27,14 @@ const INTERRUPTS = new Set([
   "[Request interrupted by user]",
   "[Request interrupted by user for tool use]",
 ]);
-const PLAN_FILE = /[\\/]\.claude[\\/]plans[\\/][^\\/]+\.md$/;
+const PLAN_FILE = /[\\/]\.claude[\\/](?:graft[\\/])?plans[\\/][^\\/]+\.md$/;
 const PLAN_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const BASH_PLAN =
-  /(?:\b[A-Za-z]:)?(?:[\w.~@+-]*\/)*\.claude\/plans\/[\w@+-][\w.@+-]*\.md(?![\w.@+-])/g;
+  /(?:\b[A-Za-z]:)?(?:[\w.~@+-]*\/)*\.claude\/(?:graft\/)?plans\/[\w@+-][\w.@+-]*\.md(?![\w.@+-])/g;
 const POWERSHELL_PLAN =
-  /(?:\b[A-Za-z]:)?(?:[\w.~@+-]*[\\/])*\.claude[\\/]plans[\\/][\w@+-][\w.@+-]*\.md(?![\w.@+-])/g;
+  /(?:\b[A-Za-z]:)?(?:[\w.~@+-]*[\\/])*\.claude[\\/](?:graft[\\/])?plans[\\/][\w@+-][\w.@+-]*\.md(?![\w.@+-])/g;
 const WINDOWS_PATH = /^(?:[A-Za-z]:[\\/]|\\\\)/;
-// A plan path after any other character is the tail of a word such as `$root/.claude/plans/x.md`.
+// A plan path after any other character is the tail of a word such as `$root/.claude/graft/plans/x.md`.
 const WORD_START = /[\s'"`=:;|&<>(]/;
 // As WORD_START, but `$env:root\.claude\plans\x.md` is also the tail of a word.
 const POWERSHELL_WORD_START = /[\s'"`=;|&<>(]/;
@@ -423,14 +423,17 @@ export function planFromArgs(
     }
     const name = token.replace(/\.md$/, "");
     if (!PLAN_NAME.test(name)) continue;
-    candidates.push({
-      path: resolveIn(root, `.claude/plans/${name}.md`),
-      fallback: first && (name.includes("-") || token.endsWith(".md")),
-    });
+    candidates.push(
+      {
+        path: resolveIn(root, `.claude/graft/plans/${name}.md`),
+        fallback: first && (name.includes("-") || token.endsWith(".md")),
+      },
+      { path: resolveIn(root, `.claude/plans/${name}.md`), fallback: false },
+    );
   }
   return (
-    candidates.find(({ path }) => existsSync(path)) ??
     candidates.find(({ path }) => recorded.has(path)) ??
+    candidates.find(({ path }) => existsSync(path)) ??
     candidates.find(({ fallback }) => fallback)
   )?.path;
 }
@@ -447,7 +450,7 @@ function commandPlanPaths(
     const path =
       whole && !/^[\\/]\.claude[\\/]/.test(match[0])
         ? match[0]
-        : match[0].slice(match[0].search(/\.claude[\\/]plans[\\/]/));
+        : match[0].slice(match[0].search(/\.claude[\\/](?:graft[\\/])?plans[\\/]/));
     return resolveIn(root, expandHome(path.replace(/^~\\/, "~/")));
   });
 }

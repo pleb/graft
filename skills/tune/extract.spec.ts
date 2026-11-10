@@ -607,19 +607,47 @@ describe("compareVersions", () => {
 });
 
 describe("planFromArgs", () => {
-  function repo(plans: string[]): string {
+  function repo(plans: string[], legacy: string[] = []): string {
     const root = tempDir("tune-repo-");
     mkdirSync(join(root, ".git"));
+    mkdirSync(join(root, ".claude", "graft", "plans"), { recursive: true });
     mkdirSync(join(root, ".claude", "plans"), { recursive: true });
-    for (const name of plans) writeFileSync(join(root, ".claude", "plans", `${name}.md`), "");
+    for (const name of plans) writeFileSync(plan(root, name), "");
+    for (const name of legacy) writeFileSync(legacyPlan(root, name), "");
     return root;
   }
-  const plan = (root: string, name: string) => join(root, ".claude", "plans", `${name}.md`);
+  const plan = (root: string, name: string) =>
+    join(root, ".claude", "graft", "plans", `${name}.md`);
+  const legacyPlan = (root: string, name: string) => join(root, ".claude", "plans", `${name}.md`);
 
   it("finds an existing plan named anywhere in the arguments", () => {
     const root = repo(["add-cache"]);
     expect(planFromArgs("Run the add-cache plan", root, new Set())).toBe(plan(root, "add-cache"));
     expect(planFromArgs('"add-cache.md".', root, new Set())).toBe(plan(root, "add-cache"));
+  });
+
+  it("finds a plan in the legacy folder when the new folder lacks it", () => {
+    const root = repo([], ["add-cache"]);
+    expect(planFromArgs("add-cache", root, new Set())).toBe(legacyPlan(root, "add-cache"));
+  });
+
+  it("prefers a plan in the new folder to one in the legacy folder", () => {
+    const root = repo(["add-cache"], ["add-cache"]);
+    expect(planFromArgs("add-cache", root, new Set())).toBe(plan(root, "add-cache"));
+  });
+
+  it("finds a recorded plan in the legacy folder", () => {
+    const root = repo([]);
+    expect(planFromArgs("add-cache", root, new Set([legacyPlan(root, "add-cache")]))).toBe(
+      legacyPlan(root, "add-cache"),
+    );
+  });
+
+  it("prefers a recorded legacy plan to the moved plan that exists", () => {
+    const root = repo(["add-cache"]);
+    expect(planFromArgs("add-cache", root, new Set([legacyPlan(root, "add-cache")]))).toBe(
+      legacyPlan(root, "add-cache"),
+    );
   });
 
   it("finds an existing plan by path", () => {
@@ -647,11 +675,11 @@ describe("planFromArgs", () => {
 
   it("resolves a plan in the style of the transcript's root", () => {
     expect(planFromArgs("fresh-plan", "/w/repo", new Set())).toBe(
-      "/w/repo/.claude/plans/fresh-plan.md",
+      "/w/repo/.claude/graft/plans/fresh-plan.md",
     );
     for (const root of ["C:\\w\\repo", "C:/w/repo"]) {
       expect(planFromArgs("fresh-plan", root, new Set())).toBe(
-        "C:\\w\\repo\\.claude\\plans\\fresh-plan.md",
+        "C:\\w\\repo\\.claude\\graft\\plans\\fresh-plan.md",
       );
       expect(planFromArgs("docs\\plan.md", root, new Set())).toBe("C:\\w\\repo\\docs\\plan.md");
       expect(planFromArgs("C:/w/repo/docs/plan.md", root, new Set())).toBe(
@@ -676,6 +704,22 @@ describe("bashPlanPaths", () => {
       join(homedir(), ".claude", "plans", "a.md"),
     ]);
     expect(bashPlanPaths("cat .claude/plans/a.md", null)).toEqual(["/.claude/plans/a.md"]);
+  });
+
+  it("resolves plan paths under .claude/graft", () => {
+    expect(
+      bashPlanPaths("cat .claude/graft/plans/a.md docs/.claude/graft/plans/b.md", "/r"),
+    ).toEqual(["/r/.claude/graft/plans/a.md", "/r/docs/.claude/graft/plans/b.md"]);
+    expect(bashPlanPaths("cat /abs/.claude/graft/plans/a.md", "/r")).toEqual([
+      "/abs/.claude/graft/plans/a.md",
+    ]);
+    expect(bashPlanPaths('cat "$root/.claude/graft/plans/a.md"', "/r")).toEqual([
+      "/r/.claude/graft/plans/a.md",
+    ]);
+    expect(bashPlanPaths('cat "$root/.claude/graft/plans/a.md"', "C:\\r")).toEqual([
+      "C:\\r\\.claude\\graft\\plans\\a.md",
+    ]);
+    expect(bashPlanPaths("cat .claude/graft/plans/a.md.bak", "/r")).toEqual([]);
   });
 
   it("reads the tail of a word as a path under the root", () => {
@@ -714,6 +758,12 @@ describe("powerShellPlanPaths", () => {
     expect(powerShellPlanPaths("Get-Content $env:root\\.claude\\plans\\a.md", "C:\\r")).toEqual([
       "C:\\r\\.claude\\plans\\a.md",
     ]);
+    expect(
+      powerShellPlanPaths(
+        "Get-Content D:\\abs\\.claude\\graft\\plans\\a.md; type $env:root\\.claude\\graft\\plans\\b.md",
+        "C:\\r",
+      ),
+    ).toEqual(["D:\\abs\\.claude\\graft\\plans\\a.md", "C:\\r\\.claude\\graft\\plans\\b.md"]);
   });
 
   it("resolves plan paths written with forward slashes", () => {
@@ -1004,6 +1054,24 @@ describe("buildReport", () => {
           { path: "C:\\work\\repo\\.claude\\plans\\a.md", actions: ["write", "edit", "read"] },
         ],
       },
+    ]);
+  });
+
+  it("records plan files under .claude/graft", async () => {
+    const cwd = "/work/repo";
+    const lines = [
+      command("/graft:plan", "add a cache", 3, "graft-cmd", { cwd }),
+      assistant(2, "graft-as", [
+        toolUse("graft-write", "Write", {
+          file_path: `${cwd}/.claude/graft/plans/a.md`,
+          content: "x",
+        }),
+        toolUse("graft-bash", "Bash", { command: "cat .claude/graft/plans/a.md" }),
+      ]),
+    ];
+    const { runs } = await report([transcript("graft-folder", lines)]);
+    expect(runs).toMatchObject([
+      { cwd, planFiles: [{ path: `${cwd}/.claude/graft/plans/a.md`, actions: ["write", "read"] }] },
     ]);
   });
 

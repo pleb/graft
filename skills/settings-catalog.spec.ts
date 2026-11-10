@@ -34,6 +34,8 @@ describe("parseCatalog", () => {
       "plan.outsideRepoPlans",
       "plan.questionsPerRound",
       "plan.manualChecksQuestion",
+      "research.artifact",
+      "research.uncommittedChanges",
       "orchestrate.finishedPlan",
       "orchestrate.manualChecks",
       "diff.comments",
@@ -51,6 +53,13 @@ describe("parseCatalog", () => {
         name: "manualChecksQuestion",
         values: ["finish"],
         defaultValue: "orchestrate",
+      },
+      { skill: "research", name: "artifact", values: ["true"], defaultValue: "false" },
+      {
+        skill: "research",
+        name: "uncommittedChanges",
+        values: ["always", "never"],
+        defaultValue: "ask",
       },
       {
         skill: "orchestrate",
