@@ -24,14 +24,13 @@ Get settings once, passing the cwd as `<root>` outside a repo.
 node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 ```
 
-In a repo, list `git worktree list --porcelain` entries left by earlier runs: those under a `graft-research-` run directory, or marked `prunable`. When there are any, list them and ask before removing them with `git worktree remove --force <path>`, then run `git worktree prune`.
+In a repo, list the `git worktree list --porcelain` entries under a `graft-research-` run directory, left by earlier runs. When there are any, ask which to remove, and run `git worktree remove --force <path>` on each the user picks.
 
 ## Outside a repo
 
 - When the arguments name no research path, follow `plan.outsideRepoPlans`: with `always`, go on; with `never`, stop and say research needs a repo or a report path; otherwise ask whether to save research in `~/.my-graft/.claude/graft/research/`: **Yes** or **No** (stop).
 - The root is `~/.my-graft`. Before writing a new report there, run `## My Graft ignore probe`'s check. When it fails, stop and name `/graft:update` as the next step.
 - Agent briefs name the cwd as the code to read. The report records the cwd under `## Question`.
-- Send no experimenters.
 
 ## Find the work
 
@@ -67,18 +66,20 @@ Each wave sends, in parallel:
 
 ## Experimenters
 
+Send experimenters only in a repo.
+
 Before the first experimenter in a run:
 
 1. Record the base OID with `git rev-parse HEAD`.
 2. Settle the snapshot. With a clean `git status --porcelain`, it is `never`. Otherwise use `research.uncommittedChanges`; for `ask`, ask once per run whether experiments run on the uncommitted changes (`always`) or on `HEAD` (`never`).
-3. Make the run directory: a fresh `graft-research-<n>` folder in the scratchpad when the session lists one, else `mktemp -d -t graft-research`. Resolve it with `cd <dir> && pwd -P` and use that path from then on.
+3. Make the run directory: a fresh `graft-research-<n>` folder in the scratchpad when the session lists one, else `mktemp -d "${TMPDIR:-/tmp}/graft-research-XXXXXX"`. Resolve it with `cd <dir> && pwd -P` and use that path from then on.
 4. Ask once to confirm setting up worktrees like the main tree (for example, dependency installs). The answer covers the run.
 
 Before an experiment that could touch anything else outside its worktree (network, databases, cloud credentials, files under home such as `~/.claude.json`), ask the user.
 
-Each brief names the question, the root, the base OID, its own folder `<run directory>/<n>`, the snapshot mode, and the external effects the user confirmed.
+Each brief names the question, the root, the base OID, its own folder `<run directory>/<n>`, the snapshot mode, whether setup like the main tree is allowed, and the external effects the user confirmed.
 
-After every experimenter in a wave has returned, run `git worktree remove --force <path>` on each `git worktree list --porcelain` entry that is the run directory or starts with `<run directory>/`, then `git worktree prune`.
+After every experimenter in a wave has returned, run `git worktree remove --force <path>` on each `git worktree list --porcelain` entry that is the run directory or starts with `<run directory>/`.
 
 ## Steer
 
@@ -138,7 +139,8 @@ When `research.artifact` is `true`, publish the report on conclusion, and republ
 
 1. Run a `graft:publish-reader` agent with the absolute paths of `report.md` and its SVGs. On a finding, or a path it did not read in full, ask the user whether to fix the file, leave out that diagram, or skip publishing.
 2. Load the `Artifact` tool with `ToolSearch` (`select:Artifact`) when it is deferred. On the first publish in the session, call it with `action: "quickstart"` and `intent: "other"`.
-3. Write a styled HTML page from `report.md` to `<scratchpad>/research/<name>/index.html`, or `<report folder>/index.html` without a scratchpad, referencing each SVG by its file name.
-4. Call `Artifact` with that `file_path`, `files` mapping each SVG's name to its path, and `icon: "report"` on the first publish. Republish to the same `file_path`.
+3. The page directory is `<scratchpad>/research/<name>/` when the session lists a scratchpad directory. Otherwise it is `<cwd>/.graft-research/<name>/`; in a repo, before the first write, add `.graft-research/` to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names when it is not already there.
+4. Write a styled HTML page from `report.md` to `<page directory>/index.html`, and copy each SVG beside it, referencing it by its file name.
+5. Call `Artifact` with that `file_path`, `files` mapping each SVG's name to its copy in the page directory, and `icon: "report"` on the first publish. Republish to the same `file_path`.
 
 `report.md` stays the source plan and execute read. Give the user the link.
