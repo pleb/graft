@@ -432,8 +432,8 @@ export function planFromArgs(
     );
   }
   return (
-    candidates.find(({ path }) => existsSync(path)) ??
     candidates.find(({ path }) => recorded.has(path)) ??
+    candidates.find(({ path }) => existsSync(path)) ??
     candidates.find(({ fallback }) => fallback)
   )?.path;
 }

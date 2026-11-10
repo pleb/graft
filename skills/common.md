@@ -47,14 +47,17 @@ When there are issues, they join the work by the rule that applied:
 
 Skip this section when the root is `~/.my-graft`. Otherwise run git from the root (`git -C <root>`). `info/exclude` is the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names.
 
-Unless the caller skips the ignore check, and when `<root>/.claude/plans/` holds files `git ls-files` does not list (ignored ones included), ask whether to **Upgrade** them to `.claude/graft/plans/` or **Leave them**. On Upgrade:
+Unless the caller skips the ignore check, and when `<root>/.claude/plans/` holds files `git ls-files` does not list (ignored ones included), ask whether to **Upgrade** them to `.claude/graft/plans/` or **Leave them**. Ask only when `<root>/.claude/graft/` does not exist or `<root>/.claude/graft/.upgrade-pending` exists. On Upgrade:
 
 1. Unless `git check-ignore -q .claude/graft/.probe.md` succeeds, settle the ignore from what `git check-ignore -v .claude/plans/.probe.md` names. A plans-only line is `/.claude/plans/`, `.claude/plans/`, `/.claude/plans` or `.claude/plans`.
    - A plans-only line in the root `.gitignore`: add `/.claude/graft/` beside it and keep it. Tell the user the edit needs committing before a PR is raised.
-   - A plans-only line in `info/exclude`: add `/.claude/graft/` beside it, and remove it only after every move in step 2 succeeds.
-   - Otherwise edit no existing line, and ask the ignore question below without its leave-it option. When the user declines, skip steps 2 and 3.
-2. Move each of those files to `.claude/graft/plans/`, keeping its path relative to `.claude/plans/`. Files git tracks stay.
-3. When the work from `## Find the work` is a path step 2 moved, the work is its new path.
+   - A plans-only line in `info/exclude`: add `/.claude/graft/` beside it.
+   - Otherwise edit no existing line, and ask the ignore question below without its leave-it option. When the user declines, skip the remaining steps.
+2. Create `.claude/graft/` and write `.claude/graft/.upgrade-pending`.
+3. Move each of those files to `.claude/graft/plans/`, keeping its path relative to `.claude/plans/`. Never overwrite: when the destination exists, add `-2`, `-3` and so on before the extension.
+4. When `info/exclude` holds a plans-only line, remove that line and keep `/.claude/graft/`. Keep the plans-only line instead when another worktree in `git worktree list --porcelain` still has files git does not track under its `.claude/plans/`.
+5. Once every move has succeeded, delete `.claude/graft/.upgrade-pending`.
+6. When the work from `## Find the work` is a file step 3 moved, the work is its destination path.
 
 When `<root>/.claude/graft/` does not exist:
 

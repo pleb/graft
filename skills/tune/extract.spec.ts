@@ -643,6 +643,13 @@ describe("planFromArgs", () => {
     );
   });
 
+  it("prefers a recorded legacy plan to the moved plan that exists", () => {
+    const root = repo(["add-cache"]);
+    expect(planFromArgs("add-cache", root, new Set([legacyPlan(root, "add-cache")]))).toBe(
+      legacyPlan(root, "add-cache"),
+    );
+  });
+
   it("finds an existing plan by path", () => {
     const root = repo([]);
     mkdirSync(join(root, "docs"));
