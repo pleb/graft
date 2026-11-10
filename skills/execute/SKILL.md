@@ -1,6 +1,6 @@
 ---
 name: execute
-description: Settles a solution with the user as plan does, writes it under .claude/plans, then executes it as orchestrate does in the same session. Asks no Finish question and takes the review Finish would recommend.
+description: Settles a solution with the user as plan does, writes it under .claude/graft/plans, then executes it as orchestrate does in the same session. Asks no Finish question and takes the review Finish would recommend.
 argument-hint: "[plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr request]"
 disable-model-invocation: true
 allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)

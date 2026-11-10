@@ -1,3 +1,4 @@
 node_modules/
 /.claude/plans/
+/.claude/graft/
 /.claude-plugin/types/

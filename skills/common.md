@@ -32,8 +32,8 @@ If GitHub issues are supplied, read them as `## GitHub issue reference handling`
 Take the first that applies:
 
 1. A file path: that plan file is the work.
-2. A plan name: the arguments match `<root>/.claude/plans/<name>.md` (`.md` optional). That plan is the work.
-3. A single kebab-case word with no matching plan: list the top-level plans in `<root>/.claude/plans/` and ask whether it names one of them or is the work.
+2. A plan name: the arguments match `<root>/.claude/graft/plans/<name>.md`, else the legacy `<root>/.claude/plans/<name>.md` (`.md` optional). That plan is the work.
+3. A single kebab-case word with no matching plan: list the top-level plans in `<root>/.claude/graft/plans/` and `<root>/.claude/plans/` and ask whether it names one of them or is the work.
 4. Other text: that text is the work.
 5. Nothing: the work in this conversation.
 
@@ -42,6 +42,28 @@ When there are issues, they join the work by the rule that applied:
 - Rule 1, 2 or 3 found a plan: the issues are context for that plan.
 - Rule 4, other text: the work is that text plus the issues.
 - Rule 5, nothing else: the issues are the work.
+
+## Check the Graft folder
+
+Skip this section when the root is `~/.my-graft`. Otherwise run git from the root (`git -C <root>`). `info/exclude` is the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names.
+
+Unless the caller skips the ignore check, and when `<root>/.claude/plans/` holds files `git ls-files` does not list (ignored ones included), ask whether to **Upgrade** them to `.claude/graft/plans/` or **Leave them**. On Upgrade:
+
+1. Unless `git check-ignore -q .claude/graft/.probe.md` succeeds, settle the ignore from what `git check-ignore -v .claude/plans/.probe.md` names. A plans-only line is `/.claude/plans/`, `.claude/plans/`, `/.claude/plans` or `.claude/plans`.
+   - A plans-only line in the root `.gitignore`: add `/.claude/graft/` beside it and keep it. Tell the user the edit needs committing before a PR is raised.
+   - A plans-only line in `info/exclude`: add `/.claude/graft/` beside it, and remove it only after every move in step 2 succeeds.
+   - Otherwise edit no existing line, and ask the ignore question below without its leave-it option. When the user declines, skip steps 2 and 3.
+2. Move each of those files to `.claude/graft/plans/`, keeping its path relative to `.claude/plans/`. Files git tracks stay.
+3. When the work from `## Find the work` is a path step 2 moved, the work is its new path.
+
+When `<root>/.claude/graft/` does not exist:
+
+- Unless the caller skips the ignore check, or the user declined the ignore question in step 1, run `git check-ignore -q .claude/graft/.probe.md`. If it is not ignored, ask: add `/.claude/graft/` to the root `.gitignore` (shared; the user commits the edit before a PR is raised), add it to `info/exclude` (this clone only), or leave it (untracked plans keep the tree dirty, and a PR cannot be raised from a dirty tree). Do not commit.
+- Create the folder.
+
+## My Graft ignore probe
+
+Before writing under `~/.my-graft/.claude/graft/`, run `git -C ~/.my-graft check-ignore -q .claude/graft/.probe.md`. When it fails, write under the legacy `~/.my-graft/.claude/plans/` instead.
 
 ## GitHub issue reference handling
 
@@ -184,10 +206,10 @@ Get settings by running `settings.ts`, which is beside this file, with the root.
 | Key                         | Values                              | Default     | Shown when                       | What it does                                                                                                                                                                                                                                                          |
 | --------------------------- | ----------------------------------- | ----------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `common.reviewerModel`      | `fable`, `sonnet`                   | opus        |                                  | The reviewer model when the arguments name none.                                                                                                                                                                                                                      |
-| `plan.outsideRepoPlans`     | `always`, `never`                   | ask         |                                  | Outside a repo, `always` saves plans in `~/.my-graft/.claude/plans/` without asking; `never` stops.                                                                                                                                                                   |
+| `plan.outsideRepoPlans`     | `always`, `never`                   | ask         |                                  | Outside a repo, `always` saves plans in `~/.my-graft/.claude/graft/plans/` without asking; `never` stops.                                                                                                                                                             |
 | `plan.questionsPerRound`    | `1`, `2`, `4`                       | 3           |                                  | The most questions plan asks in one round.                                                                                                                                                                                                                            |
 | `plan.manualChecksQuestion` | `finish`                            | orchestrate | `orchestrate.manualChecks = ask` | With `finish`, plan asks the Manual check mode in its Finish question when `orchestrate.manualChecks` is `ask`.                                                                                                                                                       |
-| `orchestrate.finishedPlan`  | `archive`, `delete`                 | leave       |                                  | After every milestone is done, `archive` moves an untracked Graft plan to `~/.my-graft/.claude/plans/<repo>/<plan>.md`; `delete` deletes it.                                                                                                                          |
+| `orchestrate.finishedPlan`  | `archive`, `delete`                 | leave       |                                  | After every milestone is done, `archive` moves an untracked Graft plan to `~/.my-graft/.claude/graft/plans/<repo>/<plan>.md`; `delete` deletes it.                                                                                                                    |
 | `orchestrate.manualChecks`  | `pause`, `defer`                    | ask         |                                  | How orchestrate handles a plan's Manual checks: `pause` stops after each milestone that has them; `defer` lists them in Report.                                                                                                                                       |
 | `diff.comments`             | `auto`                              | batch       |                                  | The comment mode when the arguments name none: `auto` applies each comment and republishes as it arrives.                                                                                                                                                             |
 | `diff.fileList`             | `tree`                              | flat        |                                  | The file list layout a diff page starts in until the viewer picks one.                                                                                                                                                                                                |

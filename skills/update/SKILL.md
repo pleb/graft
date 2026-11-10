@@ -22,6 +22,10 @@ node ${CLAUDE_SKILL_DIR}/../settings.ts <target>
 
 Follow common.md's `## Claude Code version`, then its `## Sync the clone`.
 
+## Migrate plans
+
+Run this step when the target is `~/.my-graft`, `~/.my-graft/.claude/plans/` holds files, and `git -C ~/.my-graft check-ignore -q .claude/graft/.probe.md` succeeds. Move each file to the same relative path under `~/.my-graft/.claude/graft/plans/`, creating folders. When that path exists, add `-2`, `-3` and so on before the extension; never overwrite.
+
 ## Check upstream
 
 `upstream` is where the target gets Graft from: `pleb/graft`, or an interstock (an organisation's copy of Graft). Use it as it is. When the target has no `upstream` remote, add the URL in `<target>/agent-install.md`'s `remote add upstream` command, or `https://github.com/pleb/graft.git` when that URL is the target's `origin`.
@@ -140,5 +144,6 @@ Then follow common.md's `## Publish the change` with the branch `graft/update-<Y
 - Mods revised or dropped, with their registry rows.
 - Review findings acted on, with their fixes.
 - For a shared stock, the PR URL and that it needs merging with a merge commit, not squash or rebase. When no PR was raised, the branch, with the PR guidance above (the Graft line chosen and the items filled in) as the arguments to pass to `/graft:pr`.
+- Plans `## Migrate plans` moved, with their new paths.
 - When `## Personal clone` set the gh default, say so.
 - When the target is `~/.my-graft`, ask the user to run `/reload-plugins`.
