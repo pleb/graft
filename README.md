@@ -17,9 +17,23 @@ To install Graft on another machine, or again after `/graft:uninstall`, run the 
 
 ## How it works
 
-![Graft's flow: /graft:research works with you, a researcher, an experimenter and an adversarial reviewer to write a research report, which /graft:plan takes as context. /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:execute runs plan and then orchestrate in one session. /graft:diff publishes a Claude Code artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
+![Graft's flow: /graft:research, /graft:plan and /graft:execute are where you begin. /graft:research works with you, a researcher, an experimenter and an adversarial reviewer to write a research report, which /graft:plan takes as context. /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:execute runs plan and then orchestrate in one session. /graft:diff publishes a Claude Code artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
 
-Start by creating a plan. Plans are automatically saved to `.claude/graft/plans` in the repo. The first time, Graft asks whether to ignore them.
+Start from one of three commands:
+
+- `/graft:research` when the question is still open and you want facts before deciding.
+- `/graft:plan` when you know what you want and need a plan to build it.
+- `/graft:execute` when you want to plan and build in one session.
+
+To investigate a question before planning, use `/graft:research`. It digs with you, sending researchers to read code and sources and experimenters to run code in throwaway git worktrees, then has an adversarial reviewer challenge what it found. It writes a report to `.claude/graft/research/<name>/report.md` and never implements.
+
+```text
+/graft:research why do static site deploys take ten minutes
+```
+
+Pass the research name to `/graft:plan` or `/graft:execute` to plan from the report.
+
+To create a plan, use `/graft:plan`. Plans are automatically saved to `.claude/graft/plans` in the repo. The first time, Graft asks whether to ignore them.
 
 The plan can be a task with any level of initial detail. Graft will help build enough context for successful plan execution.
 
@@ -34,14 +48,6 @@ Once the plan is ready to execute, use the orchestrator to implement the plan.
 ```
 
 Or use `/graft:execute` to plan and then orchestrate in one session, with no `/clear` in between.
-
-To investigate a question before planning, use `/graft:research`. It digs with you, sending researchers to read code and sources and experimenters to run code in throwaway git worktrees, then has an adversarial reviewer challenge what it found. It writes a report to `.claude/graft/research/<name>/report.md` and never implements.
-
-```text
-/graft:research why do static site deploys take ten minutes
-```
-
-Pass the research name to `/graft:plan` or `/graft:execute` to plan from the report.
 
 And when you're ready to ship the changes:
 
