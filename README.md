@@ -17,7 +17,7 @@ To install Graft on another machine, or again after `/graft:uninstall`, run the 
 
 ## How it works
 
-![Graft's flow: /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:execute runs plan and then orchestrate in one session. /graft:diff publishes a Claude Code artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
+![Graft's flow: /graft:research works with you, a researcher, an experimenter and an adversarial reviewer to write a research report, which /graft:plan takes as context. /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:execute runs plan and then orchestrate in one session. /graft:diff publishes a Claude Code artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
 
 Start by creating a plan. Plans are automatically saved to `.claude/graft/plans` in the repo. The first time, Graft asks whether to ignore them.
 
@@ -35,6 +35,14 @@ Once the plan is ready to execute, use the orchestrator to implement the plan.
 
 Or use `/graft:execute` to plan and then orchestrate in one session, with no `/clear` in between.
 
+To investigate a question before planning, use `/graft:research`. It digs with you, sending researchers to read code and sources and experimenters to run code in throwaway git worktrees, then has an adversarial reviewer challenge what it found. It writes a report to `.claude/graft/research/<name>/report.md` and never implements.
+
+```text
+/graft:research why do static site deploys take ten minutes
+```
+
+Pass the research name to `/graft:plan` or `/graft:execute` to plan from the report.
+
 And when you're ready to ship the changes:
 
 ```text
@@ -44,9 +52,10 @@ And when you're ready to ship the changes:
 ## Flow commands
 
 ```text
-/graft:plan [plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]
+/graft:research [research path | research name | question] [issues] [reviewer model: sonnet | opus (default) | fable]
+/graft:plan [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]
 /graft:orchestrate [plan path | plan name | task] [issues] [reviewer model: sonnet | opus (default) | fable]
-/graft:execute [plan path | plan name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr request]
+/graft:execute [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr request]
 /graft:diff [mode: batch (default) | auto]
 /graft:pr [guidance] [state: draft (default) | ready-state]
 ```
