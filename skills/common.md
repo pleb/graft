@@ -59,6 +59,8 @@ Unless the caller skips the ignore check, and when `<root>/.claude/plans/` holds
 5. Once every move has succeeded, delete `.claude/graft/.upgrade-pending`.
 6. When the work from `## Find the work` is a file step 3 moved, the work is its destination path.
 
+When `<root>/.claude/graft/.upgrade-pending` exists and `<root>/.claude/plans/` holds no files `git ls-files` does not list, run steps 4 and 5 without asking.
+
 When `<root>/.claude/graft/` does not exist:
 
 - Unless the caller skips the ignore check, or the user declined the ignore question in step 1, run `git check-ignore -q .claude/graft/.probe.md`. If it is not ignored, ask: add `/.claude/graft/` to the root `.gitignore` (shared; the user commits the edit before a PR is raised), add it to `info/exclude` (this clone only), or leave it (untracked plans keep the tree dirty, and a PR cannot be raised from a dirty tree). Do not commit.

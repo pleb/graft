@@ -70,7 +70,7 @@ Write the plan once the goal is clear, usually after the first round. Update it 
 
 A plan from Find the work is revised in place. For a new topic, write to `<root>/.claude/graft/plans/<name>.md`, where the name says what the plan does in kebab case (for example `add-plan-skill`), with no date prefix. If that file or `<root>/.claude/plans/<name>.md` exists, ask whether to revise it or pick a new name.
 
-When the plan outgrows its name, rename it to a name that covers what it now is, and tell the user the old and new names. Ask first when the new name is taken. Rename with `mv`, never while a review pass is running. A plan given by file path keeps that path.
+When the plan outgrows its name, rename it to a name that covers what it now is, and tell the user the old and new names. Ask first when either file above exists for the new name. Rename with `mv`, never while a review pass is running. A plan given by file path keeps that path.
 
 ```markdown
 ---
