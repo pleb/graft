@@ -596,6 +596,41 @@ describe("background agents", () => {
   });
 });
 
+describe("busy", () => {
+  it("lasts from the prompt to the turn's end, after its agents finish", () => {
+    const scenarios = [
+      scenario("s", "start", [
+        { type: "prompt", text: "/graft:execute x" },
+        { type: "agent.start", id: "w", agent: "graft:worker", description: "Raise the PR" },
+        { type: "agent.done", id: "w" },
+        {
+          type: "pr.open",
+          number: 1,
+          title: "x",
+          branch: "x",
+          base: "main",
+          draft: true,
+          commits: [],
+          body: "",
+        },
+        { type: "say", text: "Done" },
+        { type: "end" },
+      ]),
+    ];
+    const steps = timeline(new Map(scenarios.map((s) => [s.id, s])), ["s"]);
+    const busy = (position: number) => replay(steps, position, repo).busy;
+    expect([0, 1, 2, 3, 4, 5, 6].map(busy)).toEqual([false, true, true, true, true, true, false]);
+  });
+
+  it("stops at a hand-off and starts again at the chosen prompt", () => {
+    const steps = timeline(new Map(branching().map((s) => [s.id, s])), ["s", "a"]);
+    const handoff = steps.findIndex((step) => step.event.type === "handoff");
+    expect(replay(steps, handoff).busy).toBe(true);
+    expect(replay(steps, handoff + 1).busy).toBe(false);
+    expect(replay(steps, handoff + 2).busy).toBe(true);
+  });
+});
+
 describe("finale", () => {
   it("recaps each skill on a PR path", () => {
     const byId = new Map(FIXTURES.map((s) => [s.id, s]));

@@ -240,7 +240,9 @@ function askWidget(questions: Question[], current: number): [HTMLElement, HTMLEl
   return [widget, items];
 }
 
+// The spinner stays hidden while the questions wait on the user; the commit renders it again.
 async function ask(dom: TermDom, questions: Question[], run: Run): Promise<void> {
+  dom.spinner.hidden = true;
   for (let current = 0; current < questions.length; current++) {
     const [widget, items] = askWidget(questions, current);
     dom.pending.replaceChildren(widget);
