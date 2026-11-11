@@ -26,11 +26,12 @@ type ControlsDom = {
 let controlsDom: ControlsDom | undefined;
 
 const SPEED_KEY = "graft-sim-speed";
-const LABELS: Record<string, string> = {
-  research: "Research",
-  plan: "Plan",
-  execute: "Execute",
-  review: "Review",
+// The known entry points in their order, each with when to start there.
+const HINTS: Record<string, string> = {
+  research: "Question still open? Get the facts first.",
+  plan: "Know what you want? Plan it, then build.",
+  execute: "Small, clear task? Plan and build in one go.",
+  review: "Review a PR or your changes.",
 };
 const SPEED_LABELS: Record<Speed, string> = { slow: "Slow", medium: "Medium", fast: "Fast" };
 
@@ -56,21 +57,31 @@ function button(className: string, text: string, onClick: () => void): HTMLButto
 }
 
 function group(label: string, className: string, children: HTMLElement[]): HTMLElement {
-  const node = element("div", `ctl-group ${className}`);
+  const node = element("div", className);
   node.setAttribute("role", "group");
   node.setAttribute("aria-label", label);
-  node.append(element("span", "ctl-label", label), ...children);
+  node.append(...children);
   return node;
 }
 
-// The known starts in their order, then any others by title.
+// The known entry points in their order, then any others by title.
 function ordered(scenarios: Scenario[], kind: Scenario["kind"]): Scenario[] {
-  const known = Object.keys(LABELS);
+  const known = Object.keys(HINTS);
   const rank = (scenario: Scenario): number => {
     const at = known.indexOf(scenario.id);
     return at === -1 ? known.length : at;
   };
   return scenarios.filter((scenario) => scenario.kind === kind).sort((a, b) => rank(a) - rank(b));
+}
+
+function entryCard(scenario: Scenario, className: string, onClick: () => void): HTMLButtonElement {
+  const node = button(className, "", onClick);
+  node.dataset.id = scenario.id;
+  node.append(
+    element("span", "entry-cmd", `/graft:${skillName(scenario)}`),
+    element("span", "entry-hint", HINTS[scenario.id] ?? scenario.title),
+  );
+  return node;
 }
 
 function editable(target: EventTarget | null): boolean {
@@ -81,20 +92,33 @@ function editable(target: EventTarget | null): boolean {
 }
 
 export function initControls(
+  entries: HTMLElement,
   root: HTMLElement,
   scenarios: Scenario[],
   speed: Speed,
   handlers: ControlHandlers,
 ): void {
-  const startButton = (scenario: Scenario, className: string): HTMLButtonElement => {
-    const node = button(className, LABELS[scenario.id] ?? scenario.title, () =>
-      handlers.start(scenario.id),
+  const card = (className: string) => (scenario: Scenario) =>
+    entryCard(scenario, className, () => handlers.start(scenario.id));
+  const primary = ordered(scenarios, "start").map(card("entry entry-start"));
+  const helpers = ordered(scenarios, "helper").map(card("entry entry-helper"));
+  const blocks: HTMLElement[] = [];
+  if (primary.length > 0) {
+    const block = element("div", "entry-block entry-starts");
+    block.append(
+      element("span", "entry-label", "Pick where to start"),
+      group("Pick where to start", "entry-row", primary),
     );
-    node.dataset.id = scenario.id;
-    return node;
-  };
-  const primary = ordered(scenarios, "start").map((s) => startButton(s, "ctl-start"));
-  const helpers = ordered(scenarios, "helper").map((s) => startButton(s, "ctl-helper"));
+    blocks.push(block);
+  }
+  if (helpers.length > 0) {
+    const block = element("div", "entry-block entry-helpers");
+    block.append(element("span", "entry-label", "Helper"), group("Helper", "entry-row", helpers));
+    blocks.push(block);
+  }
+  entries.replaceChildren(...blocks);
+  entries.hidden = blocks.length === 0;
+
   const speeds = (Object.keys(SPEED_LABELS) as Speed[]).map((value) => {
     const node = button("ctl-speed", SPEED_LABELS[value], () => handlers.speed(value));
     node.dataset.speed = value;
@@ -103,13 +127,6 @@ export function initControls(
   });
   const play = button("ctl-play", "", () => handlers.toggle());
   const restart = button("ctl-restart", "↺ Restart", () => handlers.restart());
-
-  const top = element("div", "ctl-row");
-  if (primary.length > 0) top.append(group("Start here", "ctl-starts", primary));
-  if (helpers.length > 0) top.append(group("Helper", "ctl-helpers", helpers));
-  const playback = element("div", "ctl-playback");
-  playback.append(play, restart, group("Speed", "ctl-speeds", speeds));
-  top.append(playback);
 
   const trail = element("ol", "ctl-trail");
   trail.setAttribute("aria-label", "Skills walked");
@@ -123,10 +140,12 @@ export function initControls(
   ticks.setAttribute("aria-hidden", "true");
   const scrub = element("div", "ctl-scrub");
   scrub.append(scrubber, ticks);
-  const progress = element("div", "ctl-row ctl-progress");
-  progress.append(trail, scrub);
+  const buttons = element("div", "ctl-buttons");
+  buttons.append(play, restart);
+  const playback = element("div", "ctl-playback");
+  playback.append(buttons, group("Speed", "ctl-speeds", speeds));
 
-  root.replaceChildren(top, progress);
+  root.replaceChildren(trail, scrub, playback);
   controlsDom = {
     starts: [...primary, ...helpers],
     speeds,
@@ -148,7 +167,6 @@ export function initControls(
     event.preventDefault();
   });
 }
-
 function drawPath(dom: ControlsDom, playback: Playback): void {
   dom.drawn = playback.path;
   const found = marks(playback.byId, playback.steps);

@@ -50,19 +50,25 @@ function main(): void {
   );
   initStage();
   initFinale();
-  initControls(document.getElementById("controls")!, data.scenarios, playback.speed, {
-    start: (id) => {
-      startPath(playback, [id], true);
-      writeHash();
+  initControls(
+    document.getElementById("entries")!,
+    document.getElementById("controls")!,
+    data.scenarios,
+    playback.speed,
+    {
+      start: (id) => {
+        startPath(playback, [id], true);
+        writeHash();
+      },
+      speed: (speed) => {
+        setSpeed(playback, speed);
+        saveSpeed(speed);
+      },
+      toggle: () => setPlaying(playback, !playback.playing),
+      restart: () => restart(playback),
+      seek: (position) => seek(playback, position),
     },
-    speed: (speed) => {
-      setSpeed(playback, speed);
-      saveSpeed(speed);
-    },
-    toggle: () => setPlaying(playback, !playback.playing),
-    restart: () => restart(playback),
-    seek: (position) => seek(playback, position),
-  });
+  );
 
   const open = (): void => {
     const hash = window.location.hash;

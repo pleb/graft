@@ -66,44 +66,210 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 10px 16px;
+        max-width: 1440px;
+        margin: 0 auto;
+        padding-top: 16px;
+      }
+      .brand {
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+      .brand-mark {
+        flex: none;
+        width: 40px;
+        height: 40px;
+      }
+      .brand-tile {
+        fill: var(--accent);
+      }
+      .brand-stem,
+      .brand-branch {
+        fill: none;
+        stroke: var(--accent-fg);
+        stroke-width: 2.5;
+        stroke-linecap: round;
+      }
+      .brand-node {
+        fill: var(--info-bg);
+        stroke: var(--accent-fg);
+        stroke-width: 1.5;
+      }
+      .brand-text {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+      }
+      .brand-name {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        font-size: 26px;
+        font-weight: 800;
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+      }
+      .brand-tag {
+        padding: 1px 8px;
+        border: 1px solid var(--info-border);
+        border-radius: 999px;
+        background: var(--info-bg);
+        color: var(--fg);
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0;
+      }
+      .brand-line {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .install {
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        min-height: 36px;
+        padding: 6px 14px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 15px;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .install:hover {
+        border-color: var(--accent);
+        background: var(--info-bg);
       }
       button {
         font: inherit;
         color: inherit;
         cursor: pointer;
       }
+      a:focus-visible,
       button:focus-visible,
       input:focus-visible,
       .term-log:focus-visible {
         outline: 2px solid var(--accent);
         outline-offset: 2px;
       }
-      #controls {
-        max-width: 960px;
-        margin: 0 auto;
-        padding: 8px 16px;
-        display: grid;
-        gap: 12px;
-      }
-      .ctl-row {
+      #entries {
         display: flex;
-        flex-wrap: wrap;
         align-items: flex-end;
-        gap: 12px 20px;
+        gap: 12px;
+        max-width: 960px;
+        margin: 0 auto 16px;
       }
-      .ctl-group {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
+      #entries[hidden] {
+        display: none;
+      }
+      .entry-block {
+        display: grid;
         gap: 6px;
+        min-width: 0;
       }
-      .ctl-label {
-        width: 100%;
+      .entry-starts {
+        flex: 1 1 auto;
+      }
+      .entry-helpers {
+        flex: 0 1 180px;
+      }
+      .entry-label {
         color: var(--muted);
         font-size: 14px;
       }
-      .ctl-start,
-      .ctl-helper,
+      .entry-helpers .entry-label {
+        text-align: right;
+      }
+      .entry-row {
+        display: grid;
+        grid-auto-columns: minmax(0, 1fr);
+        grid-auto-flow: column;
+        gap: 10px;
+      }
+      .entry {
+        position: relative;
+        display: grid;
+        align-content: start;
+        gap: 4px;
+        min-height: 84px;
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        text-align: left;
+        transition:
+          border-color 150ms,
+          box-shadow 150ms;
+      }
+      .entry:hover {
+        border-color: var(--info-border);
+      }
+      .entry-cmd {
+        padding-right: 16px;
+        color: var(--accent);
+        font-family: var(--font-code);
+        font-size: 14px;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+      }
+      .entry-hint {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.35;
+      }
+      .entry[aria-pressed="true"] {
+        border-color: var(--accent);
+        background: var(--info-bg);
+        box-shadow: 0 0 0 1px var(--accent);
+      }
+      .entry[aria-pressed="true"] .entry-hint {
+        color: var(--fg);
+      }
+      .entry[aria-pressed="true"]::after {
+        content: "";
+        position: absolute;
+        top: 14px;
+        right: 12px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      .entry-helper {
+        min-height: 0;
+        padding: 8px 12px;
+        border-style: dashed;
+        border-radius: 18px;
+        background: transparent;
+      }
+      #controls {
+        position: relative;
+        z-index: 3;
+        grid-row: 2;
+        grid-column: 2;
+        display: grid;
+        gap: 10px;
+        min-width: 0;
+        margin: 14px calc(var(--tuck) + 12px) 0;
+      }
+      .ctl-playback {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px 16px;
+        margin-top: 6px;
+      }
+      .ctl-buttons,
+      .ctl-speeds {
+        display: flex;
+        align-items: center;
+      }
+      .ctl-buttons {
+        gap: 8px;
+      }
       .ctl-play,
       .ctl-restart,
       .ctl-trail-skill {
@@ -114,42 +280,20 @@
         background: var(--surface);
         font-size: 15px;
       }
-      .ctl-start {
-        background: var(--accent);
-        border-color: var(--accent);
-        color: var(--accent-fg);
-        font-weight: 600;
-      }
-      .ctl-start[aria-pressed="true"],
-      .ctl-helper[aria-pressed="true"] {
-        box-shadow:
-          0 0 0 2px var(--bg),
-          0 0 0 4px var(--accent);
-      }
-      .ctl-helper {
-        color: var(--muted);
-        border-style: dashed;
-      }
-      .ctl-playback {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: flex-end;
-        gap: 6px;
-        margin-left: auto;
-      }
       .ctl-play {
         min-width: 104px;
+        border-color: var(--accent);
+        background: var(--accent);
+        color: var(--accent-fg);
+        font-weight: 600;
       }
       .ctl-play:disabled {
         cursor: default;
         opacity: 0.5;
       }
-      .ctl-speeds {
-        gap: 0;
-      }
       .ctl-speed {
         min-height: 36px;
-        padding: 6px 10px;
+        padding: 6px 12px;
         border: 1px solid var(--border);
         background: var(--surface);
         font-size: 14px;
@@ -157,7 +301,7 @@
       .ctl-speed + .ctl-speed {
         border-left: none;
       }
-      .ctl-speeds .ctl-label + .ctl-speed {
+      .ctl-speed:first-child {
         border-radius: 6px 0 0 6px;
       }
       .ctl-speed:last-child {
@@ -168,13 +312,11 @@
         border-color: var(--info-border);
         font-weight: 600;
       }
-      .ctl-progress {
-        align-items: center;
-      }
       .ctl-trail {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
+        min-height: 28px;
         margin: 0;
         padding: 0;
         list-style: none;
@@ -199,8 +341,7 @@
       }
       .ctl-scrub {
         position: relative;
-        flex: 1 1 240px;
-        min-width: 200px;
+        padding-bottom: 8px;
       }
       .ctl-scrubber {
         display: block;
@@ -212,7 +353,7 @@
         position: absolute;
         left: 8px;
         right: 8px;
-        top: 100%;
+        bottom: 0;
         height: 8px;
         pointer-events: none;
       }
@@ -488,6 +629,7 @@
         position: relative;
         display: grid;
         grid-template-columns: minmax(180px, 1fr) minmax(440px, 800px) minmax(180px, 1fr);
+        grid-template-rows: auto auto 1fr;
         align-items: start;
       }
       .cards {
@@ -500,7 +642,7 @@
       .cards-right {
         position: relative;
         z-index: 1;
-        grid-row: 1;
+        grid-row: 1 / 4;
         padding-top: 40px;
       }
       .cards-left {
@@ -898,8 +1040,37 @@
           grid-template-columns: minmax(0, 1fr);
         }
         #terminal,
-        #finale {
+        #finale,
+        #controls {
           grid-column: 1;
+        }
+        #controls {
+          margin: 14px 0 0;
+        }
+        #entries {
+          margin: 0 -16px 12px;
+          padding: 0 16px 4px;
+          overflow-x: auto;
+          scroll-snap-type: x proximity;
+          scroll-padding: 0 16px;
+          overscroll-behavior-x: contain;
+          scrollbar-width: thin;
+        }
+        .entry-starts,
+        .entry-helpers {
+          flex: none;
+        }
+        .entry-helpers .entry-label {
+          text-align: left;
+        }
+        .entry-row {
+          grid-auto-columns: 200px;
+        }
+        .entry-helpers .entry-row {
+          grid-auto-columns: 170px;
+        }
+        .entry {
+          scroll-snap-align: start;
         }
         .cards-left,
         .cards-right,
@@ -969,7 +1140,22 @@
           --rise: 12px;
         }
       }
+      @media (max-width: 479px) {
+        .brand-mark {
+          width: 34px;
+          height: 34px;
+        }
+        .brand-name {
+          font-size: 22px;
+        }
+        .brand-tag {
+          display: none;
+        }
+      }
       @media (prefers-reduced-motion: reduce) {
+        .entry {
+          transition: none;
+        }
         .spin,
         .term-caret,
         .card-enter,
@@ -981,11 +1167,23 @@
   </head>
   <body>
     <header>
-      <strong>Graft</strong>
-      <a id="install" href="https://github.com/pleb/graft#install">Install Graft</a>
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+          <rect class="brand-tile" width="32" height="32" rx="8" />
+          <path class="brand-stem" d="M11 7 V25" />
+          <path class="brand-branch" d="M11 19 C11 13 21 15 21 10" />
+          <circle class="brand-node" cx="11" cy="25" r="2.5" />
+          <circle class="brand-node" cx="21" cy="9" r="2.5" />
+        </svg>
+        <div class="brand-text">
+          <strong class="brand-name">Graft <span class="brand-tag">simulator</span></strong>
+          <span class="brand-line">Plan, implement, ship. Watch a session play out.</span>
+        </div>
+      </div>
+      <a id="install" class="install" href="https://github.com/pleb/graft#install">Install Graft</a>
     </header>
-    <nav id="controls" aria-label="Simulator controls"></nav>
     <main id="stage">
+      <nav id="entries" aria-label="Pick where to start"></nav>
       <p id="caption" aria-live="polite" hidden></p>
       <div id="board">
         <div
@@ -995,6 +1193,7 @@
           role="region"
         ></div>
         <section id="terminal" aria-label="Simulated terminal"></section>
+        <div id="controls" role="group" aria-label="Playback"></div>
         <div
           id="cards-right"
           class="cards cards-right"
