@@ -1,9 +1,9 @@
 // Follows skills/yolo/SKILL.md: execute's run (9) with Questions (15-17: the request is clear, so no
 // clarify question, no Go or Plan more question, and the agent answers every round itself), Start
 // (29-31: run start, the ignore probe, a clean tree with nothing to sort), Recording decisions
-// (38-39: `(agent <run start>)` lines, no plan commits as the plan is untracked), Manual checks (49,
-// Defer with no question), Screenshots (53-63), PR (67-68: a ready PR with the screenshot attached),
-// Restore the stash (73, nothing stashed) and Report (77-82).
+// (39-40: `(agent <run start>)` lines, no plan commits as the plan is untracked), Manual checks (51,
+// Defer with no question), Screenshots (55-65), PR (69-70: a ready PR with the screenshot attached),
+// Restore the stash (75, nothing stashed) and Report (81-86).
 // Execute's part follows skills/execute/SKILL.md: Start (15-18, no PR request in the arguments),
 // Plan phase (22-31: plan's rounds answered by the agent, then in Finish's place the full pass
 // Review and finalise runs (27), finalised (30), no finalise report or hand-off (31)) and
@@ -13,10 +13,10 @@
 // solution (47-65, no clarify question), Write the plan (69-115, no PR milestone as execute 25
 // says), Review (130-136) and the full pass Finish recommends (150-152).
 // Orchestrate phase follows skills/orchestrate/SKILL.md, condensed as execute.ts condenses it: Start
-// (17, its root and settings already known), Branch (45-51), Execute (55-58, Defer from yolo 49),
+// (17, its root and settings already known), Branch (45-51), Execute (55-58, Defer from yolo 51),
 // Commit and review (62-66), Each pass (72-74), Clean up (76-79), Final checks (81-90), yolo's
 // Screenshots step, Raise a PR (92-98, a worker following skills/pr/SKILL.md 112-114 with
-// `ready-state` and the screenshot from yolo 68), Finish the plan (108-118, left in place) and
+// `ready-state` and the screenshot from yolo 70), Finish the plan (108-118, left in place) and
 // Report (120-130).
 import type { Scenario } from "../events.ts";
 
@@ -119,7 +119,12 @@ const scenario: Scenario = {
       args: "git -C /home/acme/notes-api check-ignore -q .claude/graft/.probe.md",
       result: "(no output, exit 0)",
     },
-    { type: "tool", name: "Bash", args: "git status --porcelain", result: "(no output)" },
+    {
+      type: "tool",
+      name: "Bash",
+      args: "git -C /home/acme/notes-api status --porcelain --untracked-files=all",
+      result: "(no output)",
+    },
     {
       type: "say",
       text: `Run started ${RUN}. .claude/graft/ is ignored and the tree is clean, so nothing to include or stash. No PR request in the arguments; yolo raises a ready PR anyway.`,
@@ -419,6 +424,19 @@ const scenario: Scenario = {
     {
       type: "tool",
       name: "Bash",
+      args: "git branch --show-current",
+      result: "add-rate-limiting",
+    },
+    { type: "tool", name: "Bash", args: "git status --porcelain", result: "(no output)" },
+    {
+      type: "tool",
+      name: "Bash",
+      args: "git rev-parse HEAD",
+      result: "9c41e07d2b5a8f3e1c6d4a0b7e9f2c5d8a1b3e6f",
+    },
+    {
+      type: "tool",
+      name: "Bash",
       args: "git worktree list",
       result: "/home/acme/notes-api  9c41e07 [add-rate-limiting]",
     },
@@ -433,7 +451,19 @@ const scenario: Scenario = {
       id: "yolo-worker-shots",
       report: `Started the server from the working tree, sent 100 requests, then opened /notes in a browser and captured the 429 reply with its Retry-After. Wrote ${SHOT} and stopped the server.`,
     },
+    {
+      type: "tool",
+      name: "Bash",
+      args: "git branch --show-current",
+      result: "add-rate-limiting",
+    },
     { type: "tool", name: "Bash", args: "git status --porcelain", result: "(no output)" },
+    {
+      type: "tool",
+      name: "Bash",
+      args: "git rev-parse HEAD",
+      result: "9c41e07d2b5a8f3e1c6d4a0b7e9f2c5d8a1b3e6f",
+    },
     {
       type: "tool",
       name: "Bash",
@@ -453,7 +483,7 @@ const scenario: Scenario = {
     },
     {
       type: "say",
-      text: "The tree and HEAD match the record, so there is nothing to restore. The screenshot is approved.",
+      text: "The branch, tree, HEAD and worktrees match the record, so there is nothing to restore. The screenshot is approved.",
     },
     { type: "chapter", id: "yolo-pr", title: "Raise a PR" },
     {

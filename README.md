@@ -78,7 +78,7 @@ Plans and then orchestrates in one session, with no `/clear` in between.
 /graft:yolo [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr guidance]
 ```
 
-Runs `/graft:execute` and makes the calls you would usually make. It asks only when the request is unclear, and ends in a ready PR, with screenshots when it can capture them. It commits uncommitted changes related to the work. It stashes the rest and restores them when the run ends.
+Runs `/graft:execute` and makes the calls you would usually make. It asks only when the request is unclear, and ends in a ready PR, with screenshots when it can capture them. It commits uncommitted changes related to the work. It stashes the unrelated ones and, once the PR is raised, restores them when they apply cleanly; otherwise Report names the stash left.
 
 ### Diff
 

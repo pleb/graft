@@ -28,21 +28,23 @@ Once execute's `## Start` has found the repo, and before anything else reads the
 
 1. Record the run start with `date '+%Y-%m-%d %H:%M'`.
 2. Run `git -C <root> check-ignore -q .claude/graft/.probe.md`, even when `.claude/graft/` exists. When it is not ignored, add `/.claude/graft/` to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names.
-3. Sort each path `git status --porcelain` lists, leaving out `.claude/graft/`, `.claude/plans/` and the work's plan file:
-   - A path that looks like a secret (`.env*` other than `*.example`, `*.sample` and `*.template`; key and credential files) is never committed. Untracked, add it to `info/exclude` and leave it in place. Tracked and modified, stash it.
-   - A path related to the work is included. Once orchestrate's `## Branch` has run, and before the first milestone, commit the included paths in a commit of their own. The first review range starts before that commit.
-   - Stash the unrelated paths with `git stash push --include-untracked -- <paths>`, and keep the stash's commit SHA (`git rev-parse stash@{0}`).
+3. Sort each path `git -C <root> status --porcelain --untracked-files=all` lists, leaving out `.claude/graft/`, `.claude/plans/` and the work's plan file. Add the untracked paths left out to `info/exclude`.
+   - A path that looks like a secret (`.env*` other than `*.example`, `*.sample` and `*.template`; key and credential files) is never committed. Listed as `??`, add it to `info/exclude` and leave it in place. Otherwise (tracked, modified or staged), stash it.
+   - A path related to the work is included. Once orchestrate's `## Branch` has run, and before the first milestone, stage only the included paths with `git -C <root> add -- <paths>` and commit them in a commit of their own. The first review range starts before that commit.
+   - Stash the unrelated paths.
+4. Stash every path the sort stashes in one `git -C <root> stash push --include-untracked -- <paths>`. Run `git rev-parse -q --verify stash@{0}` before and after it. When the push created an entry, keep its SHA (the value after). Otherwise there is no stash to restore.
 
 ## Recording decisions
 
 - Record each decision you make without asking in the plan's `## Decisions`, marked `(agent <run start>)`. Write decisions made before the plan exists once it does.
-- When `git ls-files --error-unmatch <plan>` succeeds, commit your plan edits (the plan phase's, `status: finalised` and the `(agent)` lines) in commits of their own, in the repo's commit style: before the first milestone, before `## Final checks`, and just before `## Raise a PR`. Commit and push decisions made after the PR is raised to the PR's branch.
+- When `git ls-files --error-unmatch <plan>` succeeds, commit your plan edits (the plan phase's, `status: finalised` and the `(agent)` lines) in commits of their own, in the repo's commit style, never on the default branch: once orchestrate's `## Branch` has run and before the first milestone, before `## Final checks`, and just before `## Raise a PR`. Commit and push decisions made after the PR is raised to the PR's branch.
 
 ## Stops
 
 - Stop only when you cannot go on, such as missing credentials or a failure a fix does not clear. A stop goes to Report and raises no PR.
 - A check the environment cannot run is not a stop. List it in Report.
-- When a reviewer agent fails or is missing, go on without it and say so in Report.
+- When a rescue reviewer (`codex:codex-rescue`, `pidex:pidex-rescue`) fails or is missing, go on without it and say so in Report.
+- When a `graft:reviewer` or `graft:adversarial-reviewer` fails, run it again once. A second failure is a stop.
 
 ## Manual checks
 
@@ -53,13 +55,13 @@ The Manual check mode is Defer, whatever `orchestrate.manualChecks` says. Never 
 Run this step between orchestrate's `## Final checks` and `## Raise a PR`. No screenshots is not a failure.
 
 1. Skip the step, saying why in Report, when `gh --version` is below 2.99.0, or when the host of `gh repo view --json url` is neither `github.com` nor a host ending in `.ghe.com`.
-2. Record `git status --porcelain`, `HEAD` and `git worktree list`.
+2. Record `git branch --show-current`, `git status --porcelain`, `git rev-parse HEAD` and `git worktree list`.
 3. Send a `graft:worker`. Its brief:
    - Decide whether the branch changes something visible that you can launch and capture, with a browser automation tool or a project skill that launches the app.
    - Capture the changed screens on the branch, after the change only. Decide where to launch the app (the working tree or a temporary worktree) and which services to run.
    - Write the images to a temporary folder outside the repo, and report their absolute paths, or why you captured none.
    - Never commit. Stop every process you start, and remove any worktree you add.
-4. Restore the tree. Restore each tracked path the step changed with `git restore --staged --worktree -- <path>`, and remove each untracked path that was not listed before with `git clean -fd -- <path>`, never with `-x`. Leave every path the record lists alone. When `HEAD` or the worktree list differs from the record, run `git reset --keep <recorded HEAD>`, remove the extra worktrees and drop the screenshots.
+4. Restore the tree. Restore each tracked path the step changed with `git -C <root> restore --staged --worktree -- <path>`, and remove each untracked path that was not listed before with `git -C <root> clean -fd -- <path>`, never with `-x`. Leave every path the record lists alone. Then, when the branch or `HEAD` differs from the record, run `git switch <recorded branch>` (`git switch --detach <recorded HEAD>` when no branch was recorded), then `git reset --keep <recorded HEAD>`. When the branch, `HEAD` or the worktree list differs from the record, remove the extra worktrees and drop the screenshots.
 5. Send a `graft:publish-reader` with every screenshot's absolute path. Approve only the images it reports as read in full with no findings. Drop the flagged and unread ones and name them in Report.
 
 ## PR
@@ -70,14 +72,16 @@ Run this step between orchestrate's `## Final checks` and `## Raise a PR`. No sc
 
 ## Restore the stash
 
-Once the PR is raised, or at a stop when `git status --porcelain` prints nothing, run `git stash apply <sha>`, then drop that entry (`git stash list --format='%gd %H'` names it). On a conflict, run `git reset --merge` and leave the stash. At a stop with a dirty tree, apply nothing.
+Once the PR is raised, or at a stop when `git status --porcelain` prints nothing, run `git stash apply --index <sha>`. When it fails for a reason other than a conflict, run `git stash apply <sha>`. Once applied, drop that entry (`git stash list --format='%gd %H'` names it). At a stop with a dirty tree, apply nothing.
+
+On a conflict, run `git reset --merge`. When the stash holds untracked files, remove each file `git -C <root> ls-tree -r --name-only <sha>^3` lists that was not present before the apply, and keep the stash.
 
 ## Report
 
 Before orchestrate's `## Finish the plan` moves or deletes the plan, read the `(agent <run start>)` decisions. Report adds:
 
 - Every decision you made without asking.
-- The dirty-tree paths you included, stashed or excluded.
+- The dirty-tree paths you included, stashed or added to `info/exclude` (the paths left out of the sort among them).
 - Whether screenshots were attached, or why not.
 - Any stash left, by SHA.
 
