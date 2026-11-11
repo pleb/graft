@@ -19,13 +19,14 @@ To install Graft on another machine, or again after `/graft:uninstall`, run the 
 
 ## How it works
 
-Graft has three levels to start from, depending on the size of the work and how much you already know:
+Graft has four levels to start from, depending on the size of the work and how much you already know:
 
 - `/graft:research` when the question is still open and you want facts before deciding.
 - `/graft:plan` when you know what you want and need a plan to build it.
 - `/graft:execute` when the work is small enough to plan and build in one session.
+- `/graft:yolo` when you want execute's run with the agent making the calls, ending in a ready PR.
 
-![Graft's flow: /graft:research, /graft:plan and /graft:execute are where you begin. /graft:research works with you, a researcher, an experimenter and an adversarial reviewer to write a research report, which /graft:plan takes as context. /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:execute runs plan and then orchestrate in one session. /graft:diff publishes a Claude Code artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
+![Graft's flow: /graft:research, /graft:plan, /graft:execute and /graft:yolo are where you begin. /graft:research works with you, a researcher, an experimenter and an adversarial reviewer to write a research report, which /graft:plan takes as context. /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:execute runs plan and then orchestrate in one session with you deciding. /graft:yolo runs the same with the agent deciding, ending in a ready PR with screenshots. /graft:diff publishes a Claude Code artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
 
 ### Research
 
@@ -71,6 +72,14 @@ Implements a ready plan, milestone by milestone.
 
 Plans and then orchestrates in one session, with no `/clear` in between.
 
+### Yolo
+
+```text
+/graft:yolo [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr guidance]
+```
+
+Runs `/graft:execute` with the agent making the calls you would usually make, asking only when the request is unclear, and ends in a ready PR with screenshots attached when it can capture them.
+
 ### Diff
 
 ```text
@@ -106,7 +115,7 @@ Pushes the branch and opens a PR when you're ready to ship the changes.
 
 Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps your mods when it brings in upstream changes.
 
-`/graft:tune` finds corrections you keep making to plan, orchestrate and execute runs and turns the ones you pick into mods.
+`/graft:tune` finds corrections you keep making to plan, orchestrate, execute and yolo runs and turns the ones you pick into mods.
 
 ![How your copy of Graft stays current: /graft:update merges the latest Graft from pleb/graft into your clone at ~/.my-graft, keeping your mods. /graft:modify commits a mod to the clone, recorded in MODS.md. /graft:tune finds corrections you keep making and hands the ones you pick to /graft:modify. The clone pushes to your private <login>/my-graft repo, and your other machines pull from it. Claude Code loads Graft from the clone, and /reload-plugins picks up changes. Graft tells you in Claude Code when /graft:update is due.](./docs/update.svg)
 
