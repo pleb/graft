@@ -31,9 +31,31 @@ const HINTS: Record<string, string> = {
   research: "Question still open? Get the facts first.",
   plan: "Know what you want? Plan it, then build.",
   execute: "Small, clear task? Plan and build in one go.",
-  review: "Review a PR or your changes.",
+};
+// The known helpers in their order, each with the question its link answers.
+const HELPER_LEADS: Record<string, string> = {
+  review: "Have a PR already?",
 };
 const SPEED_LABELS: Record<Speed, string> = { slow: "Slow", medium: "Medium", fast: "Fast" };
+const SVG_NS = "http://www.w3.org/2000/svg";
+type Shape = [tag: string, attributes: Record<string, string>];
+// A turtle for slow and a rabbit for fast, as filled shapes on a 24 by 24 grid.
+const SPEED_ICONS: Partial<Record<Speed, Shape[]>> = {
+  slow: [
+    ["path", { d: "M2 17.5a8.5 8.5 0 0 1 17 0z" }],
+    ["circle", { cx: "20", cy: "13", r: "2.7" }],
+    ["rect", { x: "3.8", y: "16", width: "3.4", height: "4.5", rx: "1.4" }],
+    ["rect", { x: "13.6", y: "16", width: "3.4", height: "4.5", rx: "1.4" }],
+  ],
+  fast: [
+    ["ellipse", { cx: "10", cy: "16", rx: "7", ry: "5" }],
+    ["circle", { cx: "17", cy: "11.5", r: "3.6" }],
+    ["ellipse", { cx: "15.2", cy: "5.4", rx: "1.4", ry: "4", transform: "rotate(-14 15.2 5.4)" }],
+    ["ellipse", { cx: "18.6", cy: "5.6", rx: "1.4", ry: "4", transform: "rotate(14 18.6 5.6)" }],
+    ["circle", { cx: "2.8", cy: "14.6", r: "1.8" }],
+    ["rect", { x: "13", y: "18.5", width: "6", height: "2.5", rx: "1.25" }],
+  ],
+};
 
 export function loadSpeed(): Speed {
   try {
@@ -64,9 +86,8 @@ function group(label: string, className: string, children: HTMLElement[]): HTMLE
   return node;
 }
 
-// The known entry points in their order, then any others by title.
-function ordered(scenarios: Scenario[], kind: Scenario["kind"]): Scenario[] {
-  const known = Object.keys(HINTS);
+// The known scenarios in their order, then any others.
+function ordered(scenarios: Scenario[], kind: Scenario["kind"], known: string[]): Scenario[] {
   const rank = (scenario: Scenario): number => {
     const at = known.indexOf(scenario.id);
     return at === -1 ? known.length : at;
@@ -74,14 +95,47 @@ function ordered(scenarios: Scenario[], kind: Scenario["kind"]): Scenario[] {
   return scenarios.filter((scenario) => scenario.kind === kind).sort((a, b) => rank(a) - rank(b));
 }
 
-function entryCard(scenario: Scenario, className: string, onClick: () => void): HTMLButtonElement {
-  const node = button(className, "", onClick);
+function entryCard(scenario: Scenario, onClick: () => void): HTMLButtonElement {
+  const node = button("entry", "", onClick);
   node.dataset.id = scenario.id;
   node.append(
     element("span", "entry-cmd", `/graft:${skillName(scenario)}`),
     element("span", "entry-hint", HINTS[scenario.id] ?? scenario.title),
   );
   return node;
+}
+
+function helperLink(scenario: Scenario, onClick: () => void): HTMLButtonElement {
+  const lead = HELPER_LEADS[scenario.id];
+  const node = button(
+    "entry-link",
+    lead === undefined ? scenario.title : `Watch /graft:${skillName(scenario)}`,
+    onClick,
+  );
+  node.dataset.id = scenario.id;
+  return node;
+}
+
+function helperLine(link: HTMLButtonElement): HTMLElement {
+  const node = element("p", "entry-more");
+  const lead = HELPER_LEADS[link.dataset.id ?? ""];
+  if (lead !== undefined) node.append(`${lead} `);
+  node.append(link);
+  return node;
+}
+
+function speedIcon(shapes: Shape[]): SVGSVGElement {
+  const icon = document.createElementNS(SVG_NS, "svg");
+  icon.setAttribute("class", "ctl-speed-icon");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("aria-hidden", "true");
+  icon.setAttribute("focusable", "false");
+  for (const [tag, attributes] of shapes) {
+    const shape = document.createElementNS(SVG_NS, tag);
+    for (const [name, value] of Object.entries(attributes)) shape.setAttribute(name, value);
+    icon.append(shape);
+  }
+  return icon;
 }
 
 function editable(target: EventTarget | null): boolean {
@@ -98,29 +152,27 @@ export function initControls(
   speed: Speed,
   handlers: ControlHandlers,
 ): void {
-  const card = (className: string) => (scenario: Scenario) =>
-    entryCard(scenario, className, () => handlers.start(scenario.id));
-  const primary = ordered(scenarios, "start").map(card("entry entry-start"));
-  const helpers = ordered(scenarios, "helper").map(card("entry entry-helper"));
+  const primary = ordered(scenarios, "start", Object.keys(HINTS)).map((scenario) =>
+    entryCard(scenario, () => handlers.start(scenario.id)),
+  );
+  const helpers = ordered(scenarios, "helper", Object.keys(HELPER_LEADS)).map((scenario) =>
+    helperLink(scenario, () => handlers.start(scenario.id)),
+  );
   const blocks: HTMLElement[] = [];
-  if (primary.length > 0) {
-    const block = element("div", "entry-block entry-starts");
-    block.append(
+  if (primary.length > 0)
+    blocks.push(
       element("span", "entry-label", "Pick where to start"),
       group("Pick where to start", "entry-row", primary),
     );
-    blocks.push(block);
-  }
-  if (helpers.length > 0) {
-    const block = element("div", "entry-block entry-helpers");
-    block.append(element("span", "entry-label", "Helper"), group("Helper", "entry-row", helpers));
-    blocks.push(block);
-  }
+  blocks.push(...helpers.map(helperLine));
   entries.replaceChildren(...blocks);
   entries.hidden = blocks.length === 0;
 
   const speeds = (Object.keys(SPEED_LABELS) as Speed[]).map((value) => {
-    const node = button("ctl-speed", SPEED_LABELS[value], () => handlers.speed(value));
+    const node = button("ctl-speed", "", () => handlers.speed(value));
+    const shapes = SPEED_ICONS[value];
+    if (shapes) node.append(speedIcon(shapes));
+    node.append(SPEED_LABELS[value]);
     node.dataset.speed = value;
     node.setAttribute("aria-pressed", String(value === speed));
     return node;
