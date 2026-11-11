@@ -1,8 +1,7 @@
 // Follows skills/review/SKILL.md: Target (17-31, a PR number), Prepare a PR (35-45), Review
 // (49-54), Synthesis (58-78), Print (82-87), Follow-ups (91-93, Post all on a PR target) and Post
-// (114-145). Post runs skills/review/pr.ts, which opens one review at the PR's head, adds each
-// finding on a diff line as an inline comment, and submits it with the summary as its body
-// (pr.ts 296-347, pr-lib.ts 268-326); each inline comment is a `pr.comment` here.
+// (114-145). Post runs skills/review/pr.ts (296-347, pr-lib.ts 268-326), which submits one review
+// with each finding as an inline comment; each inline comment is a `pr.comment` here.
 import type { Scenario } from "../events.ts";
 
 const URL = "https://github.com/acme/notes-api/pull/42";

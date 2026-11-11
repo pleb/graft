@@ -323,7 +323,6 @@ function clamp(value: number, low: number, high: number): number {
   return Math.min(Math.max(value, low), Math.max(low, high));
 }
 
-// Redraws every line from the current layout.
 function drawWires(dom: StageDom): void {
   dom.wires.replaceChildren();
   const state = dom.state;

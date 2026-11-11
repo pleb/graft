@@ -1,6 +1,6 @@
 // Checks that the scenarios still name what the skills name: skills, agents, settings, fixed
 // question labels, Graft paths and footers, git and gh commands, `node ${CLAUDE_SKILL_DIR}` script
-// commands, and hand-off commands. They catch renamed or removed names, labels and commands, not
+// commands, and hand-off commands. The checks catch renamed or removed names, labels and commands, not
 // changed order, conditions or defaults, and not other commands or what a script prints.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -85,7 +85,6 @@ function tokens(command: string): string[] {
 
 const PLACEHOLDER = "<>";
 
-// Commands the scenarios are checked against: git, gh and `node ${CLAUDE_SKILL_DIR}/...` scripts.
 const CHECKED_COMMAND = /^(git\s|gh\s|node \$\{CLAUDE_SKILL_DIR\}\/)/;
 
 // Checked commands in a skill's code spans and fenced lines, tokenised, with each `<placeholder>`

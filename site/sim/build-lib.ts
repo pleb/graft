@@ -255,7 +255,8 @@ export function scriptJson(value: unknown): string {
 
 const IMPORT = /^[ \t]*import\s+([^;"']*?)\s*from\s*(["'])([^"']*)\2[ \t]*;?/gm;
 const SIBLING = /^\.\/[^/]+\.ts$/;
-// Player files must not hold template or string lines that start with import or export.
+// These regexes are line-based, so player files must not hold string or template lines that start
+// with import or export.
 const EXPORT_DECLARATION =
   /^([ \t]*)export\s+(?=(?:async\s+)?function\b|const\b|let\b|var\b|class\b)/gm;
 const LEFTOVER = /^[ \t]*(import|export)\b.*$/m;
