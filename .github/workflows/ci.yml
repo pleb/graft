@@ -30,3 +30,7 @@ jobs:
         run: npm install -g @anthropic-ai/claude-code
 
       - run: npm run check
+
+      - run: npm run test:site
+
+      - run: npm run build:site -- --out "$RUNNER_TEMP/site"

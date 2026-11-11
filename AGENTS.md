@@ -13,3 +13,5 @@ The `README.md` explains how graft works and what it does.
 Name Vitest tests `*.spec.ts`. `*.test.ts` and `*.test.tsx` are for `claude plugin test`, which runs every such file under the repo.
 
 When this clone's `origin` is `pleb/graft` (`git remote get-url origin`), test changes to skills and agents as `CONTRIBUTING.md` describes.
+
+When this clone's `origin` is `pleb/graft` and a change alters what a scenario in `site/sim/scenarios/` shows, update the scenario in the same change and make `npm run test:site` pass.
