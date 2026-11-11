@@ -10,7 +10,7 @@
         --bg: #f6f8fa;
         --surface: #ffffff;
         --fg: #1f2328;
-        --muted: #6e7781;
+        --muted: #656d76;
         --border: #d0d7de;
         --accent: #0969da;
         --accent-fg: #ffffff;
@@ -126,8 +126,20 @@
         color: var(--muted);
         font-size: 14px;
       }
-      .install {
+      .install-box {
         flex: none;
+        display: grid;
+        justify-items: end;
+        gap: 4px;
+        max-width: 13rem;
+      }
+      .install-note {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.3;
+        text-align: right;
+      }
+      .install {
         display: inline-flex;
         align-items: center;
         min-height: 36px;
@@ -188,7 +200,7 @@
         padding: 10px 14px;
         border: 1px solid var(--border);
         border-radius: 8px;
-        background: var(--bg);
+        background: var(--surface);
         text-align: left;
         transition:
           border-color 150ms,
@@ -1169,6 +1181,9 @@
         .brand-tag {
           display: none;
         }
+        .install-box {
+          max-width: 8rem;
+        }
       }
       @media (prefers-reduced-motion: reduce) {
         .entry {
@@ -1198,10 +1213,19 @@
           <span class="brand-line">Plan, implement, ship. Watch a session play out.</span>
         </div>
       </div>
-      <a id="install" class="install" href="https://github.com/pleb/graft#install">Install Graft</a>
+      <div class="install-box">
+        <a
+          id="install"
+          class="install"
+          href="https://github.com/pleb/graft#install"
+          aria-describedby="install-note"
+          >Install Graft</a
+        >
+        <span id="install-note" class="install-note">Team copy? Use its README.</span>
+      </div>
     </header>
     <main id="stage">
-      <nav id="entries" aria-label="Pick where to start"></nav>
+      <nav id="entries" aria-label="Scenarios"></nav>
       <p id="caption" aria-live="polite" hidden></p>
       <div id="board">
         <div

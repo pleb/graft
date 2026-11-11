@@ -11,9 +11,9 @@ type FinaleDom = {
 
 let finaleDom: FinaleDom | undefined;
 
-const INSTALL_LINE =
+export const INSTALL_LINE =
   "Claude, install Graft https://raw.githubusercontent.com/pleb/graft/main/agent-install.md";
-const INSTALL_URL = "https://github.com/pleb/graft#install";
+export const INSTALL_URL = "https://github.com/pleb/graft#install";
 
 function link(text: string, href: string, className?: string): HTMLAnchorElement {
   const node = element("a", className, text) as HTMLAnchorElement;

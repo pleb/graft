@@ -34,7 +34,7 @@ const HINTS: Record<string, string> = {
 };
 // The known helpers in their order, each with the question its link answers.
 const HELPER_LEADS: Record<string, string> = {
-  review: "Have a PR already?",
+  review: "Need to review a PR?",
 };
 const SPEED_LABELS: Record<Speed, string> = { slow: "Slow", medium: "Medium", fast: "Fast" };
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -60,7 +60,7 @@ const SPEED_ICONS: Partial<Record<Speed, Shape[]>> = {
 export function loadSpeed(): Speed {
   try {
     const saved = localStorage.getItem(SPEED_KEY);
-    if (saved !== null && saved in SPEEDS) return saved as Speed;
+    if (saved !== null && Object.hasOwn(SPEEDS, saved)) return saved as Speed;
   } catch {}
   return "medium";
 }
@@ -159,11 +159,15 @@ export function initControls(
     helperLink(scenario, () => handlers.start(scenario.id)),
   );
   const blocks: HTMLElement[] = [];
-  if (primary.length > 0)
-    blocks.push(
-      element("span", "entry-label", "Pick where to start"),
-      group("Pick where to start", "entry-row", primary),
-    );
+  if (primary.length > 0) {
+    const label = element("span", "entry-label", "Pick where to start");
+    label.id = "entry-label";
+    const row = element("div", "entry-row");
+    row.setAttribute("role", "group");
+    row.setAttribute("aria-labelledby", label.id);
+    row.append(...primary);
+    blocks.push(label, row);
+  }
   blocks.push(...helpers.map(helperLine));
   entries.replaceChildren(...blocks);
   entries.hidden = blocks.length === 0;
