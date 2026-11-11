@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 1021" width="830" height="1021" role="img" aria-labelledby="flow-title flow-desc">
   <title id="flow-title">How Graft's flow works</title>
-  <desc id="flow-desc">/graft:research, /graft:plan, /graft:execute and /graft:yolo carry a start tab: they are where you begin. /graft:research on top, then three steps from left to right, and two rows below them. /graft:research: you steer, researcher finds facts, experimenter runs experiments, and adversarial-reviewer challenges the findings; it writes .claude/graft/research/&lt;name&gt;/report.md, which /graft:plan takes as context. /graft:plan: you answer questions, researcher finds facts, and reviewer and adversarial-reviewer review; it writes .claude/graft/plans/&lt;name&gt;.md. /graft:orchestrate: for each milestone, worker implements and then the change is committed, with reviewer and adversarial-reviewer reviewing beside the loop; then comment-editor and docs-editor clean up; it produces commits on a branch. /graft:pr: push and open a PR; it produces a PR. Below plan and orchestrate, one block holds /graft:execute and /graft:yolo, which both run plan and then orchestrate in one session: in /graft:execute you decide, and in /graft:yolo the agent decides and produces a ready PR with screenshots. Below that, /graft:diff publishes a Claude Code artifact of the commits on a branch for you to review and comment on, then Claude acts on your feedback. A key at the bottom shows that the start tab marks where you begin.</desc>
+  <desc id="flow-desc">/graft:research, /graft:plan and /graft:execute carry a start tab: they are where you begin. /graft:research on top, then three steps from left to right, and two rows below them. /graft:research: you steer, researcher finds facts, experimenter runs experiments, and adversarial-reviewer challenges the findings; it writes .claude/graft/research/&lt;name&gt;/report.md, which /graft:plan takes as context. /graft:plan: you answer questions, researcher finds facts, and reviewer and adversarial-reviewer review; it writes .claude/graft/plans/&lt;name&gt;.md. /graft:orchestrate: for each milestone, worker implements and then the change is committed, with reviewer and adversarial-reviewer reviewing beside the loop; then comment-editor and docs-editor clean up; it produces commits on a branch. /graft:pr: push and open a PR; it produces a PR. Below plan and orchestrate, one block holds /graft:execute and /graft:yolo, which both run plan and then orchestrate in one session: in /graft:execute you decide, and in /graft:yolo the agent decides and produces a ready PR with screenshots. Below that, /graft:diff publishes a Claude Code artifact of the commits on a branch for you to review and comment on, then Claude acts on your feedback. A key at the bottom shows that the start tab marks where you begin.</desc>
   <style>
     text { font-size: 14px; fill: #1f2328; text-anchor: middle; }
     .sans { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
@@ -181,9 +181,7 @@
       </g>
       <g>
         <rect x="319" y="405" width="296" height="34" rx="6" fill="#0969da"/>
-        <text x="479" y="427" class="mono head">/graft:yolo</text>
-        <rect x="325" y="411" width="50" height="22" rx="11" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
-        <text x="350" y="427" class="sans">start</text>
+        <text x="467" y="427" class="mono head">/graft:yolo</text>
       </g>
       <g>
         <rect x="153" y="455" width="320" height="34" rx="17" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
