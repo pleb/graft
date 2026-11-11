@@ -1,6 +1,7 @@
 // Checks that the scenarios still name what the skills name: skills, agents, settings, fixed
-// question labels, Graft paths and footers, git and gh commands, and hand-off commands. They catch
-// renamed or removed names, labels and commands, not changed order, conditions or defaults.
+// question labels, Graft paths and footers, git and gh commands, `node ${CLAUDE_SKILL_DIR}` script
+// commands, and hand-off commands. They catch renamed or removed names, labels and commands, not
+// changed order, conditions or defaults, and not other commands or what a script prints.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -84,7 +85,10 @@ function tokens(command: string): string[] {
 
 const PLACEHOLDER = "<>";
 
-// git and gh commands in a skill's code spans and fenced lines, tokenised, with each `<placeholder>`
+// Commands the scenarios are checked against: git, gh and `node ${CLAUDE_SKILL_DIR}/...` scripts.
+const CHECKED_COMMAND = /^(git\s|gh\s|node \$\{CLAUDE_SKILL_DIR\}\/)/;
+
+// Checked commands in a skill's code spans and fenced lines, tokenised, with each `<placeholder>`
 // and `${CLAUDE_SKILL_DIR}` turned into a wildcard.
 function skillCommands(markdown: string): string[][] {
   const found: string[] = [];
@@ -99,7 +103,7 @@ function skillCommands(markdown: string): string[][] {
     }
   }
   return found
-    .filter((command) => /^(git|gh)\s/.test(command))
+    .filter((command) => CHECKED_COMMAND.test(command))
     .map((command) =>
       tokens(
         command.replace(/<[^<>]*>/g, PLACEHOLDER).replaceAll("${CLAUDE_SKILL_DIR}", PLACEHOLDER),
@@ -210,10 +214,10 @@ describe("scenario drift", () => {
       expect([...new Set(problems)]).toEqual([]);
     });
 
-    it("runs git and gh commands as its skills write them", () => {
+    it("runs git, gh and skill script commands as its skills write them", () => {
       const commands = skillCommands(`${skills}\n${delegatedSections(skills)}`);
       const unmatched = eventsOf(scenario, "tool")
-        .filter((tool) => tool.name === "Bash" && /^(git|gh)\s/.test(tool.args))
+        .filter((tool) => tool.name === "Bash" && CHECKED_COMMAND.test(tool.args))
         .map((tool) => tool.args)
         .filter((args) => !commands.some((command) => matchesCommand(tokens(args), command)));
       expect(unmatched).toEqual([]);

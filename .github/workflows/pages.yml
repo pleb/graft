@@ -5,24 +5,20 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: {}
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: deploy
-    # Only pleb/graft publishes the simulator; users' private copies skip it.
-    if: github.repository == 'pleb/graft'
+  build:
+    name: build
+    # Only pleb/graft's main branch publishes the simulator; users' private copies and other branches skip it.
+    if: github.repository == 'pleb/graft' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -41,5 +37,18 @@ jobs:
         with:
           path: site/dist
 
+  deploy:
+    name: deploy
+    needs: build
+    # Only pleb/graft's main branch publishes the simulator; users' private copies and other branches skip it.
+    if: github.repository == 'pleb/graft' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

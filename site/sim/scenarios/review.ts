@@ -47,7 +47,7 @@ const scenario: Scenario = {
       type: "tool",
       name: "Bash",
       args: "node ${CLAUDE_SKILL_DIR}/pr.ts view 42",
-      result: `{"url":"${URL}","number":42,"state":"OPEN","title":"Rate limit the notes API","headRefName":"rate-limit-notes","baseRefName":"main","prior":[]}`,
+      result: `{"url":"${URL}","repo":"acme/notes-api","number":42,"state":"OPEN","title":"Rate limit the notes API","body":"Caps each client at 60 requests a minute.","headRefName":"rate-limit-notes","headRefOid":"7d03b5f...","baseRefName":"main","baseRefOid":"9f2c1e0...","prior":[]}`,
     },
     {
       type: "tool",
