@@ -1,4 +1,4 @@
-import type { Choice, Event, Question, Repo, Scenario } from "../events.ts";
+import type { Choice, Edit, Event, Question, Repo, Scenario, SeedCommit } from "../events.ts";
 
 export type SimData = { scenarios: Scenario[]; repo: Repo };
 
@@ -30,6 +30,45 @@ export type AgentRow = { id: string; agent: string; description: string; done: b
 
 export type Pending = { at: number; choices: Choice[]; chosen?: string };
 
+// A terminal line by index; `clears` counts the `/clear`s before it, so an older one is gone.
+export type Anchor = { line: number; clears: number };
+
+// `key` is a file path, an agent id, `commit:<id>` or `pr:<number>`; `links` name other cards.
+export type Card = { key: string; anchor?: Anchor; links: string[] } & (
+  | { kind: "file"; path: string; status?: string; excerpt: string[] }
+  | {
+      kind: "agent";
+      agent: string;
+      description: string;
+      done: boolean;
+      report?: string;
+      // The key of the first agent of the parallel group it runs in.
+      group: string;
+    }
+  | { kind: "commit"; id: string; subject: string }
+  | {
+      kind: "pr";
+      number: number;
+      title: string;
+      branch: string;
+      base: string;
+      draft: boolean;
+      commits: SeedCommit[];
+      body?: string;
+      comments: string[];
+      seeded: boolean;
+    }
+);
+
+export type StageState = {
+  // In the order they appeared.
+  cards: Card[];
+  files: Record<string, string>;
+  clears: number;
+  lastAgent?: string;
+  lastCommit?: string;
+};
+
 export type TermState = {
   lines: Line[];
   agents: AgentRow[];
@@ -38,6 +77,7 @@ export type TermState = {
   // A hand-off waiting in the input box.
   handoff?: Pending;
   ended: boolean;
+  stage: StageState;
 };
 
 export type Speed = "slow" | "medium" | "fast";
@@ -139,8 +179,154 @@ export function marks(byId: Map<string, Scenario>, steps: Step[]): Mark[] {
   return found;
 }
 
-export function emptyTerm(): TermState {
-  return { lines: [], agents: [], caption: "", busy: false, ended: false };
+export function emptyTerm(repo?: Repo): TermState {
+  return {
+    lines: [],
+    agents: [],
+    caption: "",
+    busy: false,
+    ended: false,
+    stage: { cards: [], files: { ...repo?.files }, clears: 0 },
+  };
+}
+
+export function applyEdits(text: string, edits: Edit[]): string {
+  return edits.reduce((result, edit) => result.replace(edit.find, () => edit.replace), text);
+}
+
+const EXCERPT = 4;
+
+function splitFrontMatter(content: string): { status?: string; body: string } {
+  const match = content.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (!match) return { body: content };
+  const status = match[1].match(/^status:\s*(.+)$/m)?.[1].trim();
+  return { status, body: content.slice(match[0].length) };
+}
+
+// The lines of the last edit that land in the body, or else the body's first lines.
+function excerpt(body: string, edits: Edit[]): string[] {
+  const lines = body.split("\n");
+  for (const edit of [...edits].reverse()) {
+    const first = edit.replace.split("\n").find((line) => line.trim() !== "");
+    const at = first === undefined ? -1 : lines.findIndex((line) => line.includes(first));
+    if (at !== -1) return lines.slice(at, at + EXCERPT).filter((line) => line.trim() !== "");
+  }
+  return lines.filter((line) => line.trim() !== "").slice(0, EXCERPT);
+}
+
+function fileCard(path: string, content: string, edits: Edit[], anchor: Anchor): Card {
+  const { status, body } = splitFrontMatter(content);
+  return {
+    key: path,
+    anchor,
+    links: [],
+    kind: "file",
+    path,
+    status,
+    excerpt: excerpt(body, edits),
+  };
+}
+
+function putCard(stage: StageState, card: Card): Card[] {
+  const at = stage.cards.findIndex((existing) => existing.key === card.key);
+  if (at === -1) return [...stage.cards, card];
+  return stage.cards.map((existing, index) => (index === at ? card : existing));
+}
+
+function findCard(stage: StageState, key: string): Card | undefined {
+  return stage.cards.find((card) => card.key === key);
+}
+
+// Cards, links and file contents after `event`; `anchor` is the terminal line it shows on.
+export function applyStage(stage: StageState, event: PlayEvent, anchor: Anchor): StageState {
+  switch (event.type) {
+    case "clear":
+      return { ...stage, clears: stage.clears + 1 };
+    case "file.create":
+    case "file.modify": {
+      const edits = event.type === "file.modify" ? event.edits : [];
+      const content =
+        event.type === "file.create"
+          ? event.content
+          : applyEdits(stage.files[event.path] ?? "", event.edits);
+      const files = { ...stage.files, [event.path]: content };
+      return {
+        ...stage,
+        files,
+        cards: putCard(stage, fileCard(event.path, content, edits, anchor)),
+      };
+    }
+    case "agent.start": {
+      const from = event.from !== undefined && findCard(stage, event.from) ? event.from : undefined;
+      const last = stage.lastAgent === undefined ? undefined : findCard(stage, stage.lastAgent);
+      const parallel = last?.kind === "agent" && !last.done && last.links[0] === from;
+      const card: Card = {
+        key: event.id,
+        anchor: from === undefined ? anchor : undefined,
+        links: from === undefined ? [] : [from],
+        kind: "agent",
+        agent: event.agent,
+        description: event.description,
+        done: false,
+        group: parallel ? last.group : event.id,
+      };
+      return { ...stage, cards: putCard(stage, card), lastAgent: event.id };
+    }
+    case "agent.done": {
+      const card = findCard(stage, event.id);
+      if (card?.kind !== "agent") return stage;
+      return { ...stage, cards: putCard(stage, { ...card, done: true, report: event.report }) };
+    }
+    case "git.commit": {
+      const by = (event.by ?? []).filter((id) => findCard(stage, id));
+      const previous = stage.lastCommit === undefined ? [] : [stage.lastCommit];
+      const links = [...by, ...previous];
+      const card: Card = {
+        key: `commit:${event.id}`,
+        anchor: by.length === 0 ? anchor : undefined,
+        links,
+        kind: "commit",
+        id: event.id,
+        subject: event.subject,
+      };
+      return { ...stage, cards: putCard(stage, card), lastCommit: card.key };
+    }
+    case "pr.seed":
+    case "pr.open": {
+      const seeded = event.type === "pr.seed";
+      const commits: SeedCommit[] = seeded
+        ? event.commits
+        : event.commits.flatMap((id) => {
+            const card = findCard(stage, `commit:${id}`);
+            return card?.kind === "commit" ? [{ id, subject: card.subject }] : [];
+          });
+      const last = seeded ? undefined : commits.at(-1);
+      const card: Card = {
+        key: `pr:${event.number}`,
+        anchor,
+        links: last === undefined ? [] : [`commit:${last.id}`],
+        kind: "pr",
+        number: event.number,
+        title: event.title,
+        branch: event.branch,
+        base: event.base,
+        draft: event.draft,
+        commits,
+        body: seeded ? undefined : event.body,
+        comments: [],
+        seeded,
+      };
+      return { ...stage, cards: putCard(stage, card) };
+    }
+    case "pr.comment": {
+      const card = findCard(stage, `pr:${event.number}`);
+      if (card?.kind !== "pr") return stage;
+      const comments = [...card.comments, event.text];
+      return { ...stage, cards: putCard(stage, { ...card, comments }) };
+    }
+    default:
+      return stage;
+  }
 }
 
 // Returns a new state; unchanged lines keep their identity.
@@ -206,11 +392,15 @@ export function applyStep(term: TermState, step: Step): TermState {
       next.ended = true;
       break;
   }
+  next.stage = applyStage(term.stage, event, {
+    line: next.lines.length - 1,
+    clears: term.stage.clears,
+  });
   return next;
 }
 
-export function replay(steps: Step[], position: number): TermState {
-  let term = emptyTerm();
+export function replay(steps: Step[], position: number, repo?: Repo): TermState {
+  let term = emptyTerm(repo);
   for (const step of steps.slice(0, position)) term = applyStep(term, step);
   return term;
 }
@@ -288,7 +478,7 @@ export function createPlayback(data: SimData, clock: Clock, view: View, speed: S
     path: [],
     steps: [],
     position: 0,
-    term: emptyTerm(),
+    term: emptyTerm(data.repo),
     playing: false,
     speed,
     generation: 0,
@@ -392,7 +582,7 @@ async function loop(playback: Playback): Promise<void> {
 function jump(playback: Playback, position: number): void {
   invalidate(playback);
   playback.position = Math.max(0, Math.min(position, playback.steps.length));
-  playback.term = replay(playback.steps, playback.position);
+  playback.term = replay(playback.steps, playback.position, playback.repo);
   playback.running = undefined;
   playback.view.reset(playback);
   playback.view.changed(playback);
@@ -427,4 +617,153 @@ export function choose(playback: Playback, at: number, next: string): void {
   if (handoff === -1) return;
   playback.playing = true;
   jump(playback, handoff + 1);
+}
+
+export type RecapLine = { skill: string; text: string };
+
+export type Finale = {
+  kind: "pr" | "review";
+  pr?: Extract<Card, { kind: "pr" }>;
+  recap: RecapLine[];
+  questions: number;
+  agents: number;
+  commits: number;
+};
+
+function plural(count: number, word: string): string {
+  return `${count} ${word}${count === 1 ? "" : "s"}`;
+}
+
+function listed(parts: string[]): string {
+  if (parts.length <= 1) return parts.join("");
+  return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
+}
+
+export function basename(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
+}
+
+type Tally = {
+  branch?: string;
+  wrote: string[];
+  updated: string[];
+  marked: string[];
+  questions: number;
+  roles: Map<string, number>;
+  commits: number;
+  opened?: string;
+  seeded?: string;
+  comments: Map<number, number>;
+};
+
+function sentence(tally: Tally): string {
+  const parts: string[] = [];
+  if (tally.seeded) parts.push(tally.seeded);
+  if (tally.questions > 0) parts.push(`answered ${plural(tally.questions, "question")}`);
+  if (tally.wrote.length > 0) parts.push(`wrote ${listed(tally.wrote.map(basename))}`);
+  const updated = tally.updated.filter((path) => !tally.wrote.includes(path));
+  if (updated.length > 2) parts.push(`updated ${plural(updated.length, "file")}`);
+  else if (updated.length > 0) parts.push(`updated ${listed(updated.map(basename))}`);
+  for (const marked of tally.marked) parts.push(marked);
+  if (tally.branch) parts.push(`made branch ${tally.branch}`);
+  if (tally.roles.size > 0)
+    parts.push(`ran ${listed([...tally.roles].map(([role, count]) => plural(count, role)))}`);
+  if (tally.commits > 0) parts.push(`made ${plural(tally.commits, "commit")}`);
+  if (tally.opened) parts.push(tally.opened);
+  for (const [number, count] of tally.comments)
+    parts.push(`posted a review on PR #${number} with ${plural(count, "comment")}`);
+  const text = listed(parts) || "handed off";
+  return `${text[0].toUpperCase()}${text.slice(1)}.`;
+}
+
+// The PR and recap a path's `end` shows, from the steps before `position`.
+export function finale(
+  byId: Map<string, Scenario>,
+  steps: Step[],
+  position: number,
+  repo?: Repo,
+): Finale {
+  const tallies: { scenario: string; tally: Tally }[] = [];
+  let term = emptyTerm(repo);
+  let kind: Finale["kind"] = "pr";
+  let number: number | undefined;
+  let questions = 0;
+  let agents = 0;
+  let commits = 0;
+  for (const step of steps.slice(0, position)) {
+    const before = term.stage;
+    term = applyStep(term, step);
+    if (tallies.length <= step.at)
+      tallies.push({
+        scenario: step.scenario,
+        tally: {
+          wrote: [],
+          updated: [],
+          marked: [],
+          questions: 0,
+          roles: new Map(),
+          commits: 0,
+          comments: new Map(),
+        },
+      });
+    const tally = tallies.at(-1)!.tally;
+    const event = step.event;
+    switch (event.type) {
+      case "ask":
+        tally.questions += event.questions.length;
+        questions += event.questions.length;
+        break;
+      case "agent.start":
+        tally.roles.set(event.agent, (tally.roles.get(event.agent) ?? 0) + 1);
+        agents++;
+        break;
+      case "git.branch":
+        tally.branch = event.name;
+        break;
+      case "git.commit":
+        tally.commits++;
+        commits++;
+        break;
+      case "file.create":
+        tally.wrote.push(event.path);
+        break;
+      case "file.modify": {
+        if (!tally.updated.includes(event.path)) tally.updated.push(event.path);
+        const was = findCard(before, event.path);
+        const now = findCard(term.stage, event.path);
+        if (
+          now?.kind === "file" &&
+          now.status &&
+          (was?.kind !== "file" || was.status !== now.status)
+        )
+          tally.marked.push(`marked ${basename(event.path)} ${now.status}`);
+        break;
+      }
+      case "pr.seed":
+        tally.seeded = `picked up PR #${event.number}`;
+        break;
+      case "pr.open":
+        tally.opened = `opened ${event.draft ? "draft " : ""}PR #${event.number}`;
+        kind = "pr";
+        number = event.number;
+        break;
+      case "pr.comment":
+        tally.comments.set(event.number, (tally.comments.get(event.number) ?? 0) + 1);
+        kind = "review";
+        number = event.number;
+        break;
+    }
+  }
+  const pr = number === undefined ? undefined : findCard(term.stage, `pr:${number}`);
+  return {
+    kind,
+    pr: pr?.kind === "pr" ? pr : undefined,
+    recap: tallies.map(({ scenario, tally }) => {
+      const found = byId.get(scenario);
+      return { skill: found ? skillName(found) : scenario, text: sentence(tally) };
+    }),
+    questions,
+    agents,
+    commits,
+  };
 }

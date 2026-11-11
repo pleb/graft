@@ -7,6 +7,7 @@ import startScenario from "../fixtures/start.ts";
 import {
   applyStep,
   choose,
+  finale,
   createPlayback,
   emptyTerm,
   formatHash,
@@ -18,7 +19,7 @@ import {
   startPath,
   timeline,
 } from "../player/core.ts";
-import type { Clock, Playback, Run, Step, View } from "../player/core.ts";
+import type { Card, Clock, Playback, Run, Step, View } from "../player/core.ts";
 
 const FIXTURES = [startScenario, continueScenario, helperScenario];
 
@@ -102,11 +103,11 @@ describe("replay", () => {
     expect(playback.position).toBe(playback.steps.length);
     expect(view.commits).toHaveLength(playback.steps.length);
 
-    let stepped = emptyTerm();
+    let stepped = emptyTerm(repo);
     for (const [index, { step, position }] of view.commits.entries()) {
       stepped = applyStep(stepped, step);
       expect(position).toBe(index + 1);
-      expect(replay(playback.steps, position)).toEqual(stepped);
+      expect(replay(playback.steps, position, repo)).toEqual(stepped);
     }
     expect(playback.term).toEqual(stepped);
   });
@@ -130,7 +131,7 @@ describe("seek", () => {
       expect(playback.path).toEqual(["start", "continue"]);
       expect(playback.steps).toEqual(steps);
       expect(playback.position).toBe(position);
-      expect(playback.term).toEqual(replay(steps, position));
+      expect(playback.term).toEqual(replay(steps, position, repo));
     }
   });
 
@@ -331,5 +332,194 @@ describe("speed", () => {
     setPlaying(playback, true);
     await vi.advanceTimersByTimeAsync(400);
     expect(view.commits).toHaveLength(1);
+  });
+});
+
+function stageAt(path: string[], until: (step: Step) => boolean, scenarios = FIXTURES) {
+  const steps = timeline(new Map(scenarios.map((s) => [s.id, s])), path);
+  const index = steps.findIndex(until);
+  return replay(steps, index === -1 ? steps.length : index + 1, repo).stage;
+}
+
+function card(cards: Card[], key: string): Card | undefined {
+  return cards.find((found) => found.key === key);
+}
+
+const PLAN = ".claude/graft/plans/add-rate-limiting.md";
+
+describe("stage cards", () => {
+  it("make a file card on create with its status and first lines", () => {
+    const stage = stageAt(["start"], (step) => step.event.type === "file.create");
+    expect(card(stage.cards, PLAN)).toMatchObject({
+      kind: "file",
+      status: "draft",
+      excerpt: ["# Add rate limiting"],
+      anchor: { line: 3, clears: 0 },
+    });
+  });
+
+  it("update a file card on edits, from the repo's content for a repo file", () => {
+    const stage = stageAt(["start"], (step) => step.event.type === "agent.done");
+    expect(card(stage.cards, PLAN)).toMatchObject({ status: "finalised" });
+    expect(card(stage.cards, "README.md")).toMatchObject({
+      kind: "file",
+      excerpt: ["A small notes API.", "Set RATE_LIMIT to cap requests."],
+    });
+    expect(stage.files["README.md"]).toBe(
+      "# notes-api\n\nA small notes API.\n\nSet RATE_LIMIT to cap requests.\n",
+    );
+  });
+
+  it("make agent cards from their from card, stacking parallel ones, and mark them done", () => {
+    const running = stageAt(
+      ["start"],
+      (step) => step.event.type === "file.modify" && step.event.path === "README.md",
+    );
+    expect(card(running.cards, "w1")).toMatchObject({
+      kind: "agent",
+      done: false,
+      links: [PLAN],
+      group: "w1",
+    });
+    expect(card(running.cards, "w1")?.anchor).toBeUndefined();
+    expect(card(running.cards, "w2")).toMatchObject({ done: false, group: "w1" });
+
+    const done = stageAt(["start"], (step) => step.event.type === "git.commit");
+    expect(card(done.cards, "w1")).toMatchObject({ done: true, report: "Added the limiter." });
+    expect(card(done.cards, "w2")).toMatchObject({ done: true });
+  });
+
+  it("start a lone agent from the terminal line that spawned it", () => {
+    const scenarios = [
+      scenario("s", "start", [
+        { type: "prompt", text: "/graft:plan x" },
+        { type: "agent.start", id: "a", agent: "researcher", description: "Look" },
+        { type: "agent.done", id: "a" },
+        { type: "agent.start", id: "b", agent: "reviewer", description: "Check" },
+        { type: "end" },
+      ]),
+    ];
+    const stage = stageAt(["s"], () => false, scenarios);
+    expect(card(stage.cards, "a")).toMatchObject({ links: [], anchor: { line: 1 }, group: "a" });
+    expect(card(stage.cards, "b")).toMatchObject({ anchor: { line: 3 }, group: "b" });
+  });
+
+  it("link a commit to its agents and chain commits toward the PR card", () => {
+    const scenarios = [
+      scenario("s", "start", [
+        { type: "prompt", text: "/graft:orchestrate x" },
+        { type: "agent.start", id: "w", agent: "worker", description: "One" },
+        { type: "agent.done", id: "w" },
+        { type: "git.commit", id: "c1", subject: "First", by: ["w"] },
+        { type: "git.commit", id: "c2", subject: "Second" },
+        {
+          type: "pr.open",
+          number: 9,
+          title: "T",
+          branch: "b",
+          base: "main",
+          draft: true,
+          commits: ["c1", "c2"],
+          body: "Body",
+        },
+        { type: "end" },
+      ]),
+    ];
+    const stage = stageAt(["s"], () => false, scenarios);
+    expect(card(stage.cards, "commit:c1")).toMatchObject({ links: ["w"], anchor: undefined });
+    expect(card(stage.cards, "commit:c2")).toMatchObject({ links: ["commit:c1"] });
+    expect(card(stage.cards, "commit:c2")?.anchor).toBeDefined();
+    expect(card(stage.cards, "pr:9")).toMatchObject({
+      kind: "pr",
+      links: ["commit:c2"],
+      seeded: false,
+      commits: [
+        { id: "c1", subject: "First" },
+        { id: "c2", subject: "Second" },
+      ],
+      body: "Body",
+    });
+  });
+
+  it("open the PR card from the continue scenario, after the start's cards", () => {
+    const stage = stageAt(["start", "continue"], () => false);
+    expect(stage.cards.map((found) => found.key)).toEqual([
+      PLAN,
+      "w1",
+      "w2",
+      "README.md",
+      "commit:c1",
+      "pr:7",
+    ]);
+    expect(card(stage.cards, "pr:7")).toMatchObject({
+      draft: true,
+      links: ["commit:c1"],
+      commits: [{ id: "c1", subject: "Add rate limiting" }],
+    });
+  });
+
+  it("seed a PR card, start an agent from pr:<n> and attach the comment", () => {
+    const stage = stageAt(["helper"], () => false);
+    expect(card(stage.cards, "pr:42")).toMatchObject({
+      kind: "pr",
+      seeded: true,
+      commits: [{ id: "a1b2c3d", subject: "Add rate limiting" }],
+      comments: ["The limiter resets on restart."],
+    });
+    expect(card(stage.cards, "r1")).toMatchObject({ links: ["pr:42"], anchor: undefined });
+  });
+
+  it("re-anchor older cards after /clear", () => {
+    const stage = stageAt(["start", "continue"], () => false);
+    expect(stage.clears).toBe(1);
+    expect(card(stage.cards, PLAN)?.anchor?.clears).toBe(0);
+    expect(card(stage.cards, "pr:7")?.anchor).toEqual({ line: 2, clears: 1 });
+  });
+
+  it("drop the later scenarios' cards when the hand-off choice changes", async () => {
+    const scenarios = branching();
+    scenarios[1].events.splice(2, 0, { type: "file.create", path: "a.md", content: "A" });
+    scenarios[2].events.splice(2, 0, { type: "file.create", path: "b.md", content: "B" });
+    const { playback } = setup(scenarios);
+    startPath(playback, ["s", "a"], true);
+    await vi.runAllTimersAsync();
+    expect(playback.term.stage.cards.map((found) => found.key)).toEqual(["a.md"]);
+
+    seek(playback, 1);
+    expect(playback.term.stage.cards).toEqual([]);
+    choose(playback, 0, "b");
+    await vi.runAllTimersAsync();
+    expect(playback.term.stage.cards.map((found) => found.key)).toEqual(["b.md"]);
+  });
+});
+
+describe("finale", () => {
+  it("recaps each skill on a PR path", () => {
+    const byId = new Map(FIXTURES.map((s) => [s.id, s]));
+    const steps = timeline(byId, ["start", "continue"]);
+    const result = finale(byId, steps, steps.length, repo);
+    expect(result).toMatchObject({ kind: "pr", questions: 1, agents: 2, commits: 1 });
+    expect(result.pr?.number).toBe(7);
+    expect(result.recap).toEqual([
+      {
+        skill: "plan",
+        text: "Answered 1 question, wrote add-rate-limiting.md, updated README.md, marked add-rate-limiting.md finalised, made branch add-rate-limiting, ran 2 workers and made 1 commit.",
+      },
+      { skill: "pr", text: "Opened draft PR #7." },
+    ]);
+  });
+
+  it("shows a review on a path ending in pr.comment", () => {
+    const byId = new Map(FIXTURES.map((s) => [s.id, s]));
+    const steps = timeline(byId, ["helper"]);
+    const result = finale(byId, steps, steps.length, repo);
+    expect(result.kind).toBe("review");
+    expect(result.pr?.comments).toEqual(["The limiter resets on restart."]);
+    expect(result.recap).toEqual([
+      {
+        skill: "review",
+        text: "Picked up PR #42, ran 1 reviewer and posted a review on PR #42 with 1 comment.",
+      },
+    ]);
   });
 });

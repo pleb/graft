@@ -20,6 +20,7 @@
         --note-border: #d4a72c;
         --done-bg: #dafbe1;
         --done-border: #4ac26b;
+        --wire: #54aeff;
         --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
         --font-code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       }
@@ -38,6 +39,7 @@
           --note-border: #9e6a03;
           --done-bg: #12261e;
           --done-border: #2ea043;
+          --wire: #388bfd;
         }
       }
       * {
@@ -226,7 +228,7 @@
         background: var(--accent);
       }
       #stage {
-        max-width: 960px;
+        max-width: 1440px;
         margin: 0 auto;
         padding: 8px 16px 24px;
       }
@@ -246,8 +248,12 @@
         --term-green: #3fb950;
         --term-yellow: #d4a72c;
         --term-pick: #121d2f;
-        max-width: 820px;
-        margin: 0 auto;
+        position: relative;
+        z-index: 3;
+        grid-row: 1;
+        grid-column: 2;
+        align-self: start;
+        width: 100%;
         overflow: hidden;
         border: 1px solid var(--border);
         border-radius: 10px;
@@ -477,9 +483,458 @@
         background: var(--term-blue);
         color: var(--term-bg);
       }
+      #board {
+        --tuck: 28px;
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(180px, 1fr) minmax(440px, 800px) minmax(180px, 1fr);
+        align-items: start;
+      }
+      .cards {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        min-width: 0;
+      }
+      .cards-left,
+      .cards-right {
+        position: relative;
+        z-index: 1;
+        grid-row: 1;
+        padding-top: 40px;
+      }
+      .cards-left {
+        grid-column: 1;
+        align-items: flex-end;
+        margin-right: calc(-1 * var(--tuck));
+        padding-left: 28px;
+      }
+      .cards-right {
+        grid-column: 3;
+        align-items: flex-start;
+        margin-left: calc(-1 * var(--tuck));
+        padding-right: 28px;
+      }
+      .cards-left > *,
+      .cards-right > * {
+        width: min(100%, 320px);
+      }
+      #wires {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        overflow: visible;
+        pointer-events: none;
+      }
+      .wire {
+        fill: none;
+        stroke: var(--wire);
+        stroke-width: 2;
+      }
+      .wire-link {
+        stroke-dasharray: 5 4;
+      }
+      .wire-dot {
+        fill: var(--wire);
+      }
+      .card {
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        box-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
+        font-size: 14px;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+      }
+      .cards-left .card {
+        padding-right: calc(var(--tuck) + 20px);
+      }
+      .cards-right .card {
+        padding-left: calc(var(--tuck) + 20px);
+      }
+      .card-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 2px;
+        color: var(--muted);
+      }
+      .card-kind {
+        font-size: 14px;
+      }
+      .card-sha {
+        font-family: var(--font-code);
+      }
+      .card-title {
+        font-weight: 600;
+      }
+      .card-sub {
+        color: var(--muted);
+      }
+      .card-file .card-sub {
+        font-family: var(--font-code);
+      }
+      .card-lines {
+        margin-top: 6px;
+        padding: 6px 8px;
+        border-radius: 4px;
+        background: var(--bg);
+        font-family: var(--font-code);
+      }
+      .card-line {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .card-report {
+        display: -webkit-box;
+        margin-top: 6px;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+        line-clamp: 3;
+        color: var(--muted);
+      }
+      .card-badge {
+        padding: 0 8px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        color: var(--fg);
+        font-size: 14px;
+      }
+      .badge-draft {
+        background: var(--note-bg);
+        border-color: var(--note-border);
+      }
+      .badge-done {
+        background: var(--done-bg);
+        border-color: var(--done-border);
+      }
+      .badge-running {
+        background: var(--info-bg);
+        border-color: var(--info-border);
+      }
+      .card-busy {
+        border-color: var(--info-border);
+      }
+      .card-pr {
+        border-color: var(--accent);
+      }
+      .card-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 8px;
+        border: 1px dashed var(--border);
+        border-radius: 10px;
+      }
+      .card-stack-label {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .cards-left .card-stack {
+        padding-right: 0;
+        border-right: none;
+        border-radius: 10px 0 0 10px;
+      }
+      .cards-right .card-stack {
+        padding-left: 0;
+        border-left: none;
+        border-radius: 0 10px 10px 0;
+      }
+      .cards-left .card-stack-label {
+        padding-right: calc(var(--tuck) + 20px);
+        text-align: right;
+      }
+      .cards-right .card-stack-label {
+        padding-left: calc(var(--tuck) + 20px);
+      }
+      .card-enter {
+        animation: card-in 400ms ease-out;
+      }
+      .cards-left .card-enter {
+        --from: 16px;
+      }
+      .cards-right .card-enter {
+        --from: -16px;
+      }
+      @keyframes card-in {
+        from {
+          opacity: 0;
+          transform: translateX(var(--from, 0)) translateY(var(--rise, 0));
+        }
+      }
+      .card-update {
+        animation: card-pulse 700ms ease-out;
+      }
+      @keyframes card-pulse {
+        from {
+          box-shadow: 0 0 0 3px var(--info-border);
+        }
+      }
+      #timeline {
+        display: none;
+      }
+      #finale {
+        position: relative;
+        z-index: 4;
+        grid-row: 1;
+        grid-column: 2;
+        min-height: 100%;
+        padding: 20px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--bg);
+        box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+      }
+      #finale[hidden] {
+        display: none;
+      }
+      .finale-inner {
+        display: grid;
+        gap: 20px;
+        max-width: 640px;
+        margin: 0 auto;
+      }
+      .finale-pr {
+        padding: 16px 18px;
+        border: 2px solid var(--accent);
+        border-radius: 10px;
+        background: var(--surface);
+        box-shadow: 0 6px 20px rgb(0 0 0 / 0.14);
+      }
+      .finale-pr-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+      }
+      .finale-pr-title {
+        margin: 6px 0;
+        font-size: 22px;
+      }
+      .finale-pr-branch code,
+      .finale-pr-commits code,
+      .finale-install-line,
+      .finale-skill {
+        font-family: var(--font-code);
+        font-size: 14px;
+      }
+      .finale-pr-branch code {
+        padding: 1px 6px;
+        border-radius: 4px;
+        background: var(--info-bg);
+      }
+      .finale-pr-body {
+        margin-top: 10px;
+        padding-top: 4px;
+        border-top: 1px solid var(--border);
+      }
+      .finale-pr-body p {
+        margin: 8px 0 0;
+        white-space: pre-wrap;
+      }
+      .finale-pr-commits {
+        display: grid;
+        gap: 4px;
+        margin: 12px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+      .finale-pr-commits li {
+        display: flex;
+        gap: 10px;
+      }
+      .finale-pr-commits code {
+        color: var(--muted);
+      }
+      .finale-review {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--accent);
+        border-radius: 6px;
+      }
+      .finale-review-head {
+        font-weight: 600;
+      }
+      .finale-review-comments {
+        margin: 6px 0 0;
+        padding-left: 20px;
+      }
+      .finale-recap h2 {
+        margin: 0 0 8px;
+        font-size: 18px;
+      }
+      .finale-totals {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 0 0 10px;
+        padding: 0;
+        list-style: none;
+      }
+      .finale-totals li {
+        padding: 2px 10px;
+        border: 1px solid var(--info-border);
+        border-radius: 999px;
+        background: var(--info-bg);
+        font-size: 14px;
+      }
+      .finale-lines {
+        display: grid;
+        gap: 6px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .finale-lines li {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px 12px;
+      }
+      .finale-lines li > span {
+        flex: 1 1 260px;
+      }
+      .finale-skill {
+        min-width: 10ch;
+        color: var(--accent);
+      }
+      .finale-install {
+        display: grid;
+        gap: 10px;
+        padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+      }
+      .finale-install-line {
+        padding: 6px 8px;
+        border-radius: 4px;
+        background: var(--bg);
+        overflow-wrap: anywhere;
+      }
+      .finale-install-row,
+      .finale-again {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 14px;
+      }
+      .finale-copy {
+        min-height: 40px;
+        padding: 6px 16px;
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        background: var(--accent);
+        color: var(--accent-fg);
+        font-weight: 600;
+      }
+      .finale-status,
+      .finale-note,
+      .finale-again-label {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .finale-note {
+        margin: 0;
+      }
+      .finale-start {
+        display: inline-flex;
+        align-items: center;
+        min-height: 36px;
+        padding: 4px 14px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--surface);
+        text-decoration: none;
+      }
+      .foot {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 4px 18px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      @media (max-width: 899px) {
+        #board {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        #terminal,
+        #finale {
+          grid-column: 1;
+        }
+        .cards-left,
+        .cards-right,
+        #wires {
+          display: none;
+        }
+        #timeline {
+          --spine: 11px;
+          position: relative;
+          display: flex;
+          gap: 12px;
+          padding: 16px 0 0 30px;
+        }
+        #timeline::before {
+          content: "";
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: var(--spine);
+          border-left: 2px solid var(--wire);
+        }
+        #timeline > * {
+          position: relative;
+        }
+        #timeline > *::before {
+          content: "";
+          position: absolute;
+          top: 16px;
+          left: calc(var(--spine) - 30px - 4px);
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: var(--wire);
+        }
+        #timeline .card-stack {
+          gap: 8px;
+          padding: 0 0 0 18px;
+          border: none;
+          border-left: 2px solid var(--wire);
+          border-radius: 0;
+        }
+        #timeline .card-stack::before {
+          top: 0;
+          left: calc(var(--spine) - 30px);
+          width: 30px;
+          height: 2px;
+          border-radius: 0;
+        }
+        #timeline .card-stack > .card {
+          position: relative;
+        }
+        #timeline .card-stack > .card::before {
+          content: "";
+          position: absolute;
+          top: 20px;
+          left: -20px;
+          width: 18px;
+          border-top: 2px solid var(--wire);
+        }
+        .card-enter {
+          --rise: 12px;
+        }
+      }
       @media (prefers-reduced-motion: reduce) {
         .spin,
-        .term-caret {
+        .term-caret,
+        .card-enter,
+        .card-update {
           animation: none;
         }
       }
@@ -493,12 +948,33 @@
     <nav id="controls" aria-label="Simulator controls"></nav>
     <main id="stage">
       <p id="caption" aria-live="polite" hidden></p>
-      <section id="terminal" aria-label="Simulated terminal"></section>
+      <div id="board">
+        <div
+          id="cards-left"
+          class="cards cards-left"
+          aria-label="Cards left of the terminal"
+          role="region"
+        ></div>
+        <section id="terminal" aria-label="Simulated terminal"></section>
+        <div
+          id="cards-right"
+          class="cards cards-right"
+          aria-label="Cards right of the terminal"
+          role="region"
+        ></div>
+        <svg id="wires" aria-hidden="true" focusable="false"></svg>
+        <section id="finale" aria-label="Finale" hidden></section>
+      </div>
+      <div id="timeline" class="cards" aria-label="Cards" role="region"></div>
     </main>
-    <section id="finale" hidden></section>
     <footer>
-      A demo of Graft from <a href="https://github.com/pleb/graft">pleb/graft</a>, built from
-      __SIM_COMMIT__. Not affiliated with Anthropic. Agent reports are illustrative.
+      <ul class="foot">
+        <li>A demo of Graft from <a href="https://github.com/pleb/graft">pleb/graft</a></li>
+        <li>Not affiliated with Anthropic</li>
+        <li>Agent reports are illustrative</li>
+        <li>Built from __SIM_COMMIT__</li>
+        <li><a href="https://github.com/pleb/graft">View the repo on GitHub</a></li>
+      </ul>
     </footer>
     <script type="application/json" id="sim-data">
       __SIM_DATA__
