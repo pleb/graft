@@ -1,4 +1,4 @@
-import { basename } from "./core.ts";
+import { basename, chips } from "./core.ts";
 import type { Card, Playback, StageState } from "./core.ts";
 import { element } from "./terminal.ts";
 
@@ -10,7 +10,8 @@ type StageDom = {
   timeline: HTMLElement;
   wires: SVGSVGElement;
   narrow: MediaQueryList;
-  nodes: Map<string, { card: Card; node: HTMLElement }>;
+  nodes: Map<string, { card: Card; chip: boolean; node: HTMLElement }>;
+  chips: Set<string>;
   stacks: Map<string, HTMLElement>;
   // The unit order and layout last placed, to skip moving nodes that stay put.
   placed: string;
@@ -30,7 +31,50 @@ function badge(text: string, tone: string): HTMLElement {
   return element("span", `card-badge badge-${tone}`, text);
 }
 
-function fillCard(node: HTMLElement, card: Card): void {
+function role(agent: string): string {
+  return agent.replace(/^graft:/, "");
+}
+
+// One line: kind, name and status.
+function fillChip(node: HTMLElement, card: Card): void {
+  const parts: HTMLElement[] = [];
+  switch (card.kind) {
+    case "file":
+      parts.push(
+        element("span", "card-kind", "File"),
+        element("span", "chip-name", basename(card.path)),
+      );
+      if (card.status) parts.push(badge(card.status, card.status === "draft" ? "draft" : "done"));
+      break;
+    case "agent":
+      parts.push(
+        element("span", "card-kind", "Agent"),
+        element("span", "chip-name", role(card.agent)),
+        badge(card.done ? "done" : "running", card.done ? "done" : "running"),
+      );
+      break;
+    case "commit":
+      parts.push(element("code", "card-sha", card.id), element("span", "chip-name", card.subject));
+      break;
+    case "pr":
+      parts.push(
+        element("span", "card-kind", `PR #${card.number}`),
+        element("span", "chip-name", card.title),
+      );
+      if (card.draft) parts.push(badge("draft", "draft"));
+      break;
+  }
+  node.replaceChildren(...parts);
+  node.className = `card card-chip card-${card.kind}`;
+  node.title = parts.map((part) => part.textContent).join(" ");
+}
+
+function fillCard(node: HTMLElement, card: Card, chip: boolean): void {
+  if (chip || card.kind === "commit") {
+    fillChip(node, card);
+    return;
+  }
+  node.removeAttribute("title");
   const head = element("div", "card-head");
   const parts: HTMLElement[] = [head];
   switch (card.kind) {
@@ -51,14 +95,10 @@ function fillCard(node: HTMLElement, card: Card): void {
         badge(card.done ? "done" : "running", card.done ? "done" : "running"),
       );
       parts.push(
-        element("div", "card-title", `graft:${card.agent.replace(/^graft:/, "")}`),
+        element("div", "card-title", `graft:${role(card.agent)}`),
         element("div", "card-sub", card.description),
       );
       if (card.done && card.report) parts.push(element("div", "card-report", card.report));
-      break;
-    case "commit":
-      head.append(element("span", "card-kind", "Commit"), element("code", "card-sha", card.id));
-      parts.push(element("div", "card-title", card.subject));
       break;
     case "pr": {
       head.append(element("span", "card-kind", `Pull request #${card.number}`));
@@ -90,19 +130,20 @@ function fillCard(node: HTMLElement, card: Card): void {
   if (card.kind === "agent" && !card.done) node.classList.add("card-busy");
 }
 
-// Parallel agents share one unit; every other card is its own.
+// Parallel agents share one unit, and so do all commits; every other card is its own.
 function units(cards: Card[]): Card[][] {
   const found: Card[][] = [];
   const groups = new Map<string, Card[]>();
   for (const card of cards) {
-    if (card.kind === "agent") {
-      const group = groups.get(card.group);
+    if (card.kind === "agent" || card.kind === "commit") {
+      const key = card.kind === "agent" ? card.group : "commits";
+      const group = groups.get(key);
       if (group) {
         group.push(card);
         continue;
       }
-      groups.set(card.group, [card]);
-      found.push(groups.get(card.group)!);
+      groups.set(key, [card]);
+      found.push(groups.get(key)!);
       continue;
     }
     found.push([card]);
@@ -134,6 +175,7 @@ export function initStage(): void {
     wires,
     narrow: window.matchMedia("(max-width: 899px)"),
     nodes: new Map(),
+    chips: new Set(),
     stacks: new Map(),
     placed: "",
     position: 0,
@@ -154,28 +196,60 @@ export function initStage(): void {
   void document.fonts?.ready.then(scheduleWires);
 }
 
+function isCommits(unit: Card[]): boolean {
+  return unit[0].kind === "commit";
+}
+
+// A parallel group whose agents are all chips folds into one chip.
+function folded(dom: StageDom, unit: Card[]): boolean {
+  return unit.length > 1 && unit.every((card) => dom.chips.has(card.key));
+}
+
 function stackNode(dom: StageDom, unit: Card[]): HTMLElement {
   const key = unit[0].key;
   let stack = dom.stacks.get(key);
   if (!stack) {
-    stack = element("div", "card-stack");
+    stack = element("div");
     stack.setAttribute("role", "group");
-    stack.setAttribute("aria-label", "Agents running in parallel");
-    stack.append(element("div", "card-stack-label", "In parallel"));
     dom.stacks.set(key, stack);
     observe(dom, stack);
   }
-  stack.replaceChildren(stack.firstChild!, ...unit.map((card) => dom.nodes.get(card.key)!.node));
+  if (folded(dom, unit)) {
+    const roles = new Map<string, number>();
+    for (const card of unit)
+      if (card.kind === "agent") {
+        const name = role(card.agent);
+        roles.set(name, (roles.get(name) ?? 0) + 1);
+      }
+    const names = [...roles].map(([name, count]) => (count > 1 ? `${name} ×${count}` : name));
+    const name = element("span", "chip-name", names.join(", "));
+    stack.className = "card card-chip card-agent";
+    stack.setAttribute("aria-label", "Agents that ran in parallel");
+    stack.title = `Agents ${names.join(", ")} done`;
+    stack.replaceChildren(element("span", "card-kind", "Agents"), name, badge("done", "done"));
+    return stack;
+  }
+  const commits = isCommits(unit);
+  stack.className = commits ? "card-stack card-commits" : "card-stack";
+  stack.setAttribute("aria-label", commits ? "Commits" : "Agents running in parallel");
+  stack.removeAttribute("title");
+  stack.replaceChildren(
+    element("div", "card-stack-label", commits ? "Commits" : "In parallel"),
+    ...unit.map((card) => dom.nodes.get(card.key)!.node),
+  );
   return stack;
 }
 
 function place(dom: StageDom, state: StageState): void {
   const found = units(state.cards);
   const narrow = dom.narrow.matches;
-  const signature = `${narrow}|${found.map((unit) => unit.map((card) => card.key).join(",")).join("|")}`;
+  const signature = `${narrow}|${found
+    .map((unit) => `${unit.map((card) => card.key).join(",")}${folded(dom, unit) ? "-" : ""}`)
+    .join("|")}`;
   if (signature === dom.placed) return;
   dom.placed = signature;
-  const keep = new Set(found.filter((unit) => unit.length > 1).map((unit) => unit[0].key));
+  const stacked = (unit: Card[]): boolean => unit.length > 1 || isCommits(unit);
+  const keep = new Set(found.filter(stacked).map((unit) => unit[0].key));
   for (const [key, stack] of dom.stacks)
     if (!keep.has(key)) {
       dom.observer?.unobserve(stack);
@@ -183,7 +257,7 @@ function place(dom: StageDom, state: StageState): void {
       dom.stacks.delete(key);
     }
   const nodes = found.map((unit) =>
-    unit.length > 1 ? stackNode(dom, unit) : dom.nodes.get(unit[0].key)!.node,
+    stacked(unit) ? stackNode(dom, unit) : dom.nodes.get(unit[0].key)!.node,
   );
   if (narrow) {
     dom.left.replaceChildren();
@@ -192,8 +266,8 @@ function place(dom: StageDom, state: StageState): void {
     return;
   }
   dom.timeline.replaceChildren();
-  dom.left.replaceChildren(...nodes.filter((_node, index) => index % 2 === 0));
-  dom.right.replaceChildren(...nodes.filter((_node, index) => index % 2 === 1));
+  dom.left.replaceChildren(...nodes.filter((_node, index) => found[index][0].side !== "right"));
+  dom.right.replaceChildren(...nodes.filter((_node, index) => found[index][0].side === "right"));
 }
 
 // Called after every reset and every applied step.
@@ -204,6 +278,7 @@ export function renderStage(playback: Playback): void {
   const stepped = playback.position === dom.position + 1;
   dom.position = playback.position;
   dom.state = state;
+  dom.chips = chips(state);
   const keys = new Set(state.cards.map((card) => card.key));
   for (const [key, { node }] of dom.nodes)
     if (!keys.has(key)) {
@@ -213,13 +288,14 @@ export function renderStage(playback: Playback): void {
     }
   for (const card of state.cards) {
     const known = dom.nodes.get(card.key);
-    if (known?.card === card) continue;
+    const chip = dom.chips.has(card.key);
+    if (known?.card === card && known.chip === chip) continue;
     const node = known?.node ?? element("article");
-    fillCard(node, card);
+    fillCard(node, card, chip);
     node.dataset.card = card.key;
-    if (stepped) node.classList.add(known ? "card-update" : "card-enter");
+    if (stepped && known?.card !== card) node.classList.add(known ? "card-update" : "card-enter");
     if (!known) observe(dom, node);
-    dom.nodes.set(card.key, { card, node });
+    dom.nodes.set(card.key, { card, chip, node });
   }
   place(dom, state);
   scheduleWires();
@@ -267,12 +343,12 @@ function drawWires(dom: StageDom): void {
     const left = dom.left.contains(node);
     const rect = node.getBoundingClientRect();
     const edge = left ? term.left - LANE : term.right + LANE;
-    places.set(key, { left, rect, lane: local(edge, rect.top + 18) });
+    places.set(key, { left, rect, lane: local(edge, rect.top + Math.min(18, rect.height / 2)) });
   }
 
   for (const card of state.cards) {
     const at = places.get(card.key);
-    if (!at) continue;
+    if (!at || dom.chips.has(card.key)) continue;
     if (card.anchor) {
       const line = card.anchor.clears === state.clears ? lines?.[card.anchor.line] : undefined;
       let y = term.top + 18;
@@ -293,12 +369,22 @@ function drawWires(dom: StageDom): void {
     }
     for (const key of card.links) {
       const other = places.get(key);
-      if (!other) continue;
+      if (!other || dom.chips.has(key)) continue;
+      if (card.kind === "commit" && key.startsWith("commit:")) {
+        // Rows of one stack: a straight line down their outer edge.
+        const x = at.left ? at.rect.left - LANE : at.rect.right + LANE;
+        const from = local(x, other.rect.top + other.rect.height / 2);
+        const to = local(x, at.rect.top + at.rect.height / 2);
+        path(dom, `M ${from.x} ${from.y} L ${to.x} ${to.y}`, "wire wire-link");
+        dot(dom, from);
+        dot(dom, to);
+        continue;
+      }
       if (other.left === at.left) {
         // Same side: a bracket round the cards' outer edges.
         const side = at.left ? -1 : 1;
         const edge = (place: Place): Point =>
-          local(at.left ? place.rect.left : place.rect.right, place.rect.top + 18);
+          local(at.left ? place.rect.left : place.rect.right, place.lane.y + board.top);
         const from = edge(other);
         const to = edge(at);
         const reach = Math.min(28, 12 + Math.abs(to.y - from.y) / 8);
@@ -311,13 +397,14 @@ function drawWires(dom: StageDom): void {
         dot(dom, from);
         dot(dom, to);
       } else {
-        // Opposite sides: the line passes behind the terminal.
+        // Opposite sides: down the lanes and across behind the terminal.
         const from = other.lane;
         const to = at.lane;
-        const middle = (from.x + to.x) / 2;
+        const top = term.top - board.top + 12;
+        const across = clamp((from.y + to.y) / 2, top, top + term.height - 24);
         path(
           dom,
-          `M ${from.x} ${from.y} C ${middle} ${from.y} ${middle} ${to.y} ${to.x} ${to.y}`,
+          `M ${from.x} ${from.y} L ${from.x} ${across} L ${to.x} ${across} L ${to.x} ${to.y}`,
           "wire wire-link",
         );
         dot(dom, from);

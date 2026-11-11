@@ -6,6 +6,7 @@ import repo from "../fixtures/repo.ts";
 import startScenario from "../fixtures/start.ts";
 import {
   applyStep,
+  chips,
   choose,
   finale,
   createPlayback,
@@ -493,6 +494,107 @@ describe("stage cards", () => {
   });
 });
 
+describe("chips", () => {
+  // s runs a file, a pair of agents from it, their commits and a lone agent; t follows s.
+  function staged(): Scenario[] {
+    return [
+      scenario("s", "start", [
+        { type: "prompt", text: "/graft:orchestrate x" },
+        { type: "file.create", path: "plan.md", content: "# Plan" },
+        { type: "agent.start", id: "w1", agent: "graft:worker", description: "A", from: "plan.md" },
+        { type: "agent.start", id: "w2", agent: "graft:worker", description: "B", from: "plan.md" },
+        { type: "agent.done", id: "w1" },
+        { type: "agent.done", id: "w2" },
+        { type: "git.commit", id: "c1", subject: "A", by: ["w1"] },
+        { type: "git.commit", id: "c2", subject: "B", by: ["w2"] },
+        { type: "agent.start", id: "r", agent: "graft:reviewer", description: "Review" },
+        { type: "agent.done", id: "r" },
+        { type: "handoff", text: "Next", choices: [{ command: "/graft:t", next: "t" }] },
+      ]),
+      scenario("t", "continue", [
+        { type: "prompt", text: "/graft:t" },
+        {
+          type: "agent.start",
+          id: "u",
+          agent: "graft:worker",
+          description: "Use",
+          from: "plan.md",
+        },
+        { type: "end" },
+      ]),
+    ];
+  }
+
+  function chipsAt(path: string[], until: (step: Step) => boolean): string[] {
+    return [...chips(stageAt(path, until, staged()))].sort();
+  }
+
+  it("keep a finished group full until a card that does not link to it appears", () => {
+    expect(chipsAt(["s"], (step) => step.event.type === "agent.done")).toEqual([]);
+    const committed = (step: Step) => step.event.type === "git.commit" && step.event.id === "c2";
+    expect(chipsAt(["s"], committed)).toEqual([]);
+    const reviewing = (step: Step) => step.event.type === "agent.start" && step.event.id === "r";
+    expect(chipsAt(["s"], reviewing)).toEqual(["w1", "w2"]);
+    expect(chipsAt(["s"], () => false)).toEqual(["w1", "w2"]);
+  });
+
+  it("shrink the earlier scenarios' cards, keeping a file the current scenario links to", () => {
+    const prompted = (step: Step) => step.event.type === "prompt" && step.scenario === "t";
+    expect(chipsAt(["s", "t"], prompted)).toEqual(["plan.md", "r", "w1", "w2"]);
+    expect(chipsAt(["s", "t"], () => false)).toEqual(["r", "w1", "w2"]);
+    const stage = stageAt(["s", "t"], () => false, staged());
+    expect(
+      stage.cards
+        .filter((found) => found.kind === "commit")
+        .every((found) => !chips(stage).has(found.key)),
+    ).toBe(true);
+  });
+
+  it("are the same after replay as after stepping", () => {
+    const steps = timeline(new Map(staged().map((s) => [s.id, s])), ["s", "t"]);
+    let stepped = emptyTerm(repo);
+    steps.forEach((step, index) => {
+      stepped = applyStep(stepped, step);
+      expect(chips(replay(steps, index + 1, repo).stage)).toEqual(chips(stepped.stage));
+    });
+  });
+
+  it("put every commit on one side and balance the other cards", () => {
+    const stage = stageAt(["s", "t"], () => false, staged());
+    const sides = new Set(
+      stage.cards.filter((found) => found.kind === "commit").map((found) => found.side),
+    );
+    expect(sides.size).toBe(1);
+    expect(card(stage.cards, "w2")?.side).toBe(card(stage.cards, "w1")?.side);
+    expect(card(stage.cards, "w1")?.side).not.toBe(card(stage.cards, "plan.md")?.side);
+  });
+});
+
+describe("background agents", () => {
+  it("drop finished rows when the next agent starts, keeping running ones", () => {
+    const scenarios = [
+      scenario("s", "start", [
+        { type: "prompt", text: "/graft:plan x" },
+        { type: "agent.start", id: "a", agent: "worker", description: "A" },
+        { type: "agent.start", id: "b", agent: "worker", description: "B" },
+        { type: "agent.done", id: "a" },
+        { type: "agent.start", id: "c", agent: "worker", description: "C" },
+        { type: "agent.done", id: "b" },
+        { type: "agent.done", id: "c" },
+        { type: "chapter", id: "next", title: "Next" },
+        { type: "end" },
+      ]),
+    ];
+    const steps = timeline(new Map(scenarios.map((s) => [s.id, s])), ["s"]);
+    const rows = (position: number) =>
+      replay(steps, position, repo).agents.map((row) => `${row.id}${row.done ? "+" : ""}`);
+    expect(rows(4)).toEqual(["a+", "b"]);
+    expect(rows(5)).toEqual(["b", "c"]);
+    expect(rows(7)).toEqual(["b+", "c+"]);
+    expect(rows(8)).toEqual([]);
+  });
+});
+
 describe("finale", () => {
   it("recaps each skill on a PR path", () => {
     const byId = new Map(FIXTURES.map((s) => [s.id, s]));
@@ -507,6 +609,26 @@ describe("finale", () => {
       },
       { skill: "pr", text: "Opened draft PR #7." },
     ]);
+  });
+
+  it("names agents by their bare role", () => {
+    const scenarios = [
+      scenario("s", "start", [
+        { type: "prompt", text: "/graft:orchestrate x" },
+        { type: "agent.start", id: "a", agent: "graft:worker", description: "A" },
+        { type: "agent.start", id: "b", agent: "worker", description: "B" },
+        { type: "agent.start", id: "c", agent: "graft:comment-editor", description: "C" },
+        { type: "agent.done", id: "a" },
+        { type: "agent.done", id: "b" },
+        { type: "agent.done", id: "c" },
+        { type: "end" },
+      ]),
+    ];
+    const byId = new Map(scenarios.map((s) => [s.id, s]));
+    const steps = timeline(byId, ["s"]);
+    expect(finale(byId, steps, steps.length, repo).recap[0].text).toBe(
+      "Ran 2 workers and 1 comment-editor.",
+    );
   });
 
   it("shows a review on a path ending in pr.comment", () => {

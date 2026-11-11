@@ -651,6 +651,33 @@
       .cards-right .card-stack-label {
         padding-left: calc(var(--tuck) + 20px);
       }
+      .card-chip {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        white-space: nowrap;
+      }
+      .card-chip > * {
+        flex: none;
+      }
+      .card-chip .card-kind {
+        color: var(--muted);
+      }
+      .card-chip .chip-name {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 600;
+      }
+      .card-commit .chip-name {
+        font-weight: 400;
+      }
+      .card-commits {
+        gap: 6px;
+      }
       .card-enter {
         animation: card-in 400ms ease-out;
       }
@@ -860,6 +887,12 @@
         padding: 0;
         list-style: none;
       }
+      @media (max-width: 1199px) {
+        .card-report {
+          -webkit-line-clamp: 2;
+          line-clamp: 2;
+        }
+      }
       @media (max-width: 899px) {
         #board {
           grid-template-columns: minmax(0, 1fr);
@@ -918,6 +951,9 @@
         #timeline .card-stack > .card {
           position: relative;
         }
+        #timeline .card-commits > .card::before {
+          display: none;
+        }
         #timeline .card-stack > .card::before {
           content: "";
           position: absolute;
@@ -925,6 +961,9 @@
           left: -20px;
           width: 18px;
           border-top: 2px solid var(--wire);
+        }
+        #timeline .card-stack > .card-chip::before {
+          top: 14px;
         }
         .card-enter {
           --rise: 12px;

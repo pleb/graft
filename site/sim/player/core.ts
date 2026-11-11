@@ -33,8 +33,19 @@ export type Pending = { at: number; choices: Choice[]; chosen?: string };
 // A terminal line by index; `clears` counts the `/clear`s before it, so an older one is gone.
 export type Anchor = { line: number; clears: number };
 
+export type Side = "left" | "right";
+
 // `key` is a file path, an agent id, `commit:<id>` or `pr:<number>`; `links` name other cards.
-export type Card = { key: string; anchor?: Anchor; links: string[] } & (
+// `at` is the path index of the scenario that last changed the card; `seq` its order of appearance.
+export type Card = {
+  key: string;
+  anchor?: Anchor;
+  links: string[];
+  at: number;
+  seq: number;
+  // Set when the card first appears.
+  side?: Side;
+} & (
   | { kind: "file"; path: string; status?: string; excerpt: string[] }
   | {
       kind: "agent";
@@ -44,6 +55,8 @@ export type Card = { key: string; anchor?: Anchor; links: string[] } & (
       report?: string;
       // The key of the first agent of the parallel group it runs in.
       group: string;
+      // How many cards had appeared when it finished.
+      doneSeq?: number;
     }
   | { kind: "commit"; id: string; subject: string }
   | {
@@ -65,6 +78,10 @@ export type StageState = {
   cards: Card[];
   files: Record<string, string>;
   clears: number;
+  // The path index of the scenario playing.
+  at: number;
+  // How many cards have appeared.
+  seq: number;
   lastAgent?: string;
   lastCommit?: string;
 };
@@ -186,7 +203,7 @@ export function emptyTerm(repo?: Repo): TermState {
     caption: "",
     busy: false,
     ended: false,
-    stage: { cards: [], files: { ...repo?.files }, clears: 0 },
+    stage: { cards: [], files: { ...repo?.files }, clears: 0, at: 0, seq: 0 },
   };
 }
 
@@ -214,12 +231,20 @@ function excerpt(body: string, edits: Edit[]): string[] {
   return lines.filter((line) => line.trim() !== "").slice(0, EXCERPT);
 }
 
-function fileCard(path: string, content: string, edits: Edit[], anchor: Anchor): Card {
+function fileCard(
+  stage: StageState,
+  path: string,
+  content: string,
+  edits: Edit[],
+  anchor: Anchor,
+): Card {
   const { status, body } = splitFrontMatter(content);
   return {
     key: path,
     anchor,
     links: [],
+    at: stage.at,
+    seq: findCard(stage, path)?.seq ?? stage.seq,
     kind: "file",
     path,
     status,
@@ -227,10 +252,42 @@ function fileCard(path: string, content: string, edits: Edit[], anchor: Anchor):
   };
 }
 
-function putCard(stage: StageState, card: Card): Card[] {
+// Rough heights in half chips, to balance the two sides.
+const CHIP = 2;
+const WEIGHT: Record<Card["kind"], number> = { file: 8, agent: 7, commit: 3, pr: 8 };
+
+// A card joins its parallel group's or the commits' side; any other goes to the lighter side.
+function sideFor(stage: StageState, card: Card): Side {
+  const joins =
+    card.kind === "agent"
+      ? findCard(stage, card.group)
+      : card.kind === "commit"
+        ? stage.cards.find((existing) => existing.kind === "commit")
+        : undefined;
+  if (joins?.side) return joins.side;
+  // As they will be once the card appears.
+  const small = chips({ ...stage, cards: [...stage.cards, card], seq: stage.seq + 1 });
+  const load = { left: 0, right: 0 };
+  for (const existing of stage.cards) {
+    if (!existing.side) continue;
+    const folded =
+      existing.kind === "agent" && existing.group !== existing.key && small.has(existing.group);
+    if (!folded) load[existing.side] += small.has(existing.key) ? CHIP : WEIGHT[existing.kind];
+  }
+  return load.right < load.left ? "right" : "left";
+}
+
+function putCard(stage: StageState, card: Card): StageState {
   const at = stage.cards.findIndex((existing) => existing.key === card.key);
-  if (at === -1) return [...stage.cards, card];
-  return stage.cards.map((existing, index) => (index === at ? card : existing));
+  if (at === -1) {
+    const placed = { ...card, side: sideFor(stage, card) };
+    return { ...stage, cards: [...stage.cards, placed], seq: stage.seq + 1 };
+  }
+  const kept = { ...card, side: stage.cards[at].side };
+  return {
+    ...stage,
+    cards: stage.cards.map((existing, index) => (index === at ? kept : existing)),
+  };
 }
 
 function findCard(stage: StageState, key: string): Card | undefined {
@@ -250,11 +307,7 @@ export function applyStage(stage: StageState, event: PlayEvent, anchor: Anchor):
           ? event.content
           : applyEdits(stage.files[event.path] ?? "", event.edits);
       const files = { ...stage.files, [event.path]: content };
-      return {
-        ...stage,
-        files,
-        cards: putCard(stage, fileCard(event.path, content, edits, anchor)),
-      };
+      return putCard({ ...stage, files }, fileCard(stage, event.path, content, edits, anchor));
     }
     case "agent.start": {
       const from = event.from !== undefined && findCard(stage, event.from) ? event.from : undefined;
@@ -264,18 +317,20 @@ export function applyStage(stage: StageState, event: PlayEvent, anchor: Anchor):
         key: event.id,
         anchor: from === undefined ? anchor : undefined,
         links: from === undefined ? [] : [from],
+        at: stage.at,
+        seq: stage.seq,
         kind: "agent",
         agent: event.agent,
         description: event.description,
         done: false,
         group: parallel ? last.group : event.id,
       };
-      return { ...stage, cards: putCard(stage, card), lastAgent: event.id };
+      return { ...putCard(stage, card), lastAgent: event.id };
     }
     case "agent.done": {
       const card = findCard(stage, event.id);
       if (card?.kind !== "agent") return stage;
-      return { ...stage, cards: putCard(stage, { ...card, done: true, report: event.report }) };
+      return putCard(stage, { ...card, done: true, report: event.report, doneSeq: stage.seq });
     }
     case "git.commit": {
       const by = (event.by ?? []).filter((id) => findCard(stage, id));
@@ -285,11 +340,13 @@ export function applyStage(stage: StageState, event: PlayEvent, anchor: Anchor):
         key: `commit:${event.id}`,
         anchor: by.length === 0 ? anchor : undefined,
         links,
+        at: stage.at,
+        seq: stage.seq,
         kind: "commit",
         id: event.id,
         subject: event.subject,
       };
-      return { ...stage, cards: putCard(stage, card), lastCommit: card.key };
+      return { ...putCard(stage, card), lastCommit: card.key };
     }
     case "pr.seed":
     case "pr.open": {
@@ -305,6 +362,8 @@ export function applyStage(stage: StageState, event: PlayEvent, anchor: Anchor):
         key: `pr:${event.number}`,
         anchor,
         links: last === undefined ? [] : [`commit:${last.id}`],
+        at: stage.at,
+        seq: stage.seq,
         kind: "pr",
         number: event.number,
         title: event.title,
@@ -316,17 +375,47 @@ export function applyStage(stage: StageState, event: PlayEvent, anchor: Anchor):
         comments: [],
         seeded,
       };
-      return { ...stage, cards: putCard(stage, card) };
+      return putCard(stage, card);
     }
     case "pr.comment": {
       const card = findCard(stage, `pr:${event.number}`);
       if (card?.kind !== "pr") return stage;
       const comments = [...card.comments, event.text];
-      return { ...stage, cards: putCard(stage, { ...card, comments }) };
+      return putCard(stage, { ...card, comments, at: stage.at });
     }
     default:
       return stage;
   }
+}
+
+// Keys of the cards shown as one-line chips: cards from earlier scenarios on the walked path, and
+// finished agent groups once a card that does not link to them appears. A file card stays full
+// while a card of the current scenario links to it; PR and commit cards never become chips.
+export function chips(stage: StageState): Set<string> {
+  const linked = new Set(
+    stage.cards.filter((card) => card.at === stage.at).flatMap((card) => card.links),
+  );
+  const groups = new Map<string, Extract<Card, { kind: "agent" }>[]>();
+  for (const card of stage.cards)
+    if (card.kind === "agent") groups.set(card.group, [...(groups.get(card.group) ?? []), card]);
+  const settled = (group: Extract<Card, { kind: "agent" }>[]): boolean => {
+    if (!group.every((card) => card.done)) return false;
+    const since = Math.max(...group.map((card) => card.doneSeq ?? 0));
+    const members = new Set(group.map((card) => card.key));
+    return stage.cards.some(
+      (card) => card.seq >= since && !card.links.some((key) => members.has(key)),
+    );
+  };
+  const found = new Set<string>();
+  for (const card of stage.cards) {
+    const earlier = card.at < stage.at;
+    if (
+      (card.kind === "file" && earlier && !linked.has(card.key)) ||
+      (card.kind === "agent" && (earlier || settled(groups.get(card.group)!)))
+    )
+      found.add(card.key);
+  }
+  return found;
 }
 
 // Returns a new state; unchanged lines keep their identity.
@@ -349,6 +438,7 @@ export function applyStep(term: TermState, step: Step): TermState {
       break;
     case "chapter":
       add({ kind: "chapter", title: event.title });
+      next.agents = term.agents.filter((agent) => !agent.done);
       break;
     case "caption":
       next.caption = event.text;
@@ -365,7 +455,7 @@ export function applyStep(term: TermState, step: Step): TermState {
     case "agent.start":
       add({ kind: "agent", agent: event.agent, description: event.description });
       next.agents = [
-        ...term.agents,
+        ...term.agents.filter((agent) => !agent.done),
         { id: event.id, agent: event.agent, description: event.description, done: false },
       ];
       break;
@@ -392,7 +482,8 @@ export function applyStep(term: TermState, step: Step): TermState {
       next.ended = true;
       break;
   }
-  next.stage = applyStage(term.stage, event, {
+  const stage = term.stage.at === step.at ? term.stage : { ...term.stage, at: step.at };
+  next.stage = applyStage(stage, event, {
     line: next.lines.length - 1,
     clears: term.stage.clears,
   });
@@ -713,10 +804,12 @@ export function finale(
         tally.questions += event.questions.length;
         questions += event.questions.length;
         break;
-      case "agent.start":
-        tally.roles.set(event.agent, (tally.roles.get(event.agent) ?? 0) + 1);
+      case "agent.start": {
+        const role = event.agent.replace(/^graft:/, "");
+        tally.roles.set(role, (tally.roles.get(role) ?? 0) + 1);
         agents++;
         break;
+      }
       case "git.branch":
         tally.branch = event.name;
         break;
