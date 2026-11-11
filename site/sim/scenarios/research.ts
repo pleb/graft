@@ -230,9 +230,12 @@ const scenario: Scenario = {
     },
     {
       type: "handoff",
-      text: "Next step: /clear, then /graft:plan add-rate-limiting.",
+      text: "Next step: /clear, then /graft:plan add-rate-limiting or /graft:execute add-rate-limiting.",
       clear: true,
-      choices: [{ command: "/graft:plan add-rate-limiting", next: "plan" }],
+      choices: [
+        { command: "/graft:plan add-rate-limiting", next: "plan" },
+        { command: "/graft:execute add-rate-limiting open a pr", next: "execute" },
+      ],
     },
   ],
 };
