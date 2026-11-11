@@ -2,7 +2,7 @@
 
 A minimal software engineering flow for Claude Code (plan → implement → ship) that lives in your own private copy.
 
-[![Try the simulator: /graft:plan add rate limiting is typed in a terminal and writes a plan with 3 milestones, /graft:orchestrate runs two workers side by side, and /graft:pr opens a draft PR.](./docs/teaser.svg)](https://pleb.github.io/graft/)
+[Try the simulator](https://pleb.github.io/graft/) to watch Graft run a session in your browser.
 
 > [!NOTE]
 > These docs are minimal on purpose. Graft's skills and agents are short Markdown files written for people to read, so they describe themselves. Start with [plan](./skills/plan/SKILL.md), [orchestrate](./skills/orchestrate/SKILL.md) and [pr](./skills/pr/SKILL.md).
