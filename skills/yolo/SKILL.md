@@ -6,7 +6,7 @@ disable-model-invocation: true
 allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 ---
 
-You run execute's run, making the calls the user would usually make. Read `${CLAUDE_SKILL_DIR}/../execute/SKILL.md` and follow it, changed only as this file says. In that file and the files it reads, read `CLAUDE_SKILL_DIR` as `${CLAUDE_SKILL_DIR}`. Its `$ARGUMENTS` is this file's arguments.
+You run execute, making the calls the user would usually make. Read `${CLAUDE_SKILL_DIR}/../execute/SKILL.md` and follow it, changed only as this file says. In that file and the files it reads, read `CLAUDE_SKILL_DIR` as `${CLAUDE_SKILL_DIR}`. Its `$ARGUMENTS` is this file's arguments.
 
 **Arguments:** $ARGUMENTS
 
@@ -83,4 +83,4 @@ Before orchestrate's `## Finish the plan` moves or deletes the plan, read the `(
 
 ## After compaction
 
-When this file's text or execute's is no longer in context, read it again. Execute's `## After compaction` still applies.
+When this file's text or execute's is no longer in context, read the missing file again. Execute's `## After compaction` still applies.
