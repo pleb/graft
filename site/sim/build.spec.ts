@@ -411,19 +411,17 @@ describe("linkPlayer", () => {
 describe("renderPage", () => {
   it("fills each placeholder once", () => {
     const page = renderPage(
-      "<p>__SIM_COMMIT__</p>__SIM_DATA__\n__SIM_PLAYER__",
+      "__SIM_DATA__\n__SIM_PLAYER__",
       { scenarios: [], repo: { name: "", files: { "a.md": "__SIM_PLAYER__" } } },
       "<script></script>",
-      "0123456789abcdef",
     );
-    expect(page).toContain('/commit/0123456789abcdef">0123456</a>');
     expect(page).toContain('"a.md":"__SIM_PLAYER__"');
     expect(page.split("<script></script>")).toHaveLength(2);
   });
 
   it("fails when a placeholder is missing", () => {
-    expect(() =>
-      renderPage("__SIM_DATA__ __SIM_PLAYER__", { scenarios: [], repo: REPO }, "", undefined),
-    ).toThrow(/__SIM_COMMIT__ once/);
+    expect(() => renderPage("__SIM_DATA__", { scenarios: [], repo: REPO }, "")).toThrow(
+      /__SIM_PLAYER__ once/,
+    );
   });
 });

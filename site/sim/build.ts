@@ -7,7 +7,7 @@ import { BuildError, check, linkPlayer, loadScenarios, renderPage } from "./buil
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 // Dependency order: each file imports only from files before it.
 const PLAYER = ["core.ts", "terminal.ts", "stage.ts", "finale.ts", "controls.ts", "main.ts"];
-const USAGE = "Usage: node site/sim/build.ts [--scenarios <dir>] [--out <dir>] [--commit <sha>]";
+const USAGE = "Usage: node site/sim/build.ts [--scenarios <dir>] [--out <dir>]";
 
 function fail(message: string): never {
   console.error(message);
@@ -21,7 +21,6 @@ async function main(): Promise<void> {
       options: {
         scenarios: { type: "string" },
         out: { type: "string" },
-        commit: { type: "string" },
       },
     }));
   } catch {
@@ -37,7 +36,7 @@ async function main(): Promise<void> {
       PLAYER.map((name) => ({ name, text: readFileSync(join(HERE, "player", name), "utf8") })),
     );
     const template = readFileSync(join(HERE, "template.html"), "utf8");
-    const page = renderPage(template, loaded, player, values.commit);
+    const page = renderPage(template, loaded, player);
     mkdirSync(out, { recursive: true });
     writeFileSync(join(out, "index.html"), page);
     console.log(`Wrote ${join(out, "index.html")} (${loaded.scenarios.length} scenarios)`);

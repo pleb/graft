@@ -13,7 +13,6 @@ export type PlayerFile = { name: string; text: string };
 
 const REPO_FILE = "repo.ts";
 const EMPTY_REPO: Repo = { name: "", files: {} };
-const REPO_URL = "https://github.com/pleb/graft";
 
 async function defaultExport(path: string): Promise<unknown> {
   const module = (await import(pathToFileURL(path).href)) as { default?: unknown };
@@ -340,21 +339,9 @@ export function linkPlayer(files: PlayerFile[]): string {
   return `<script>\n${body}\n</script>`;
 }
 
-function commitHtml(commit: string | undefined): string {
-  if (commit === undefined) return "a local build";
-  if (!/^[0-9a-f]{7,40}$/i.test(commit)) throw new BuildError(`${commit} is not a commit sha`);
-  return `<a href="${REPO_URL}/commit/${commit}">${commit.slice(0, 7)}</a>`;
-}
-
-export function renderPage(
-  template: string,
-  loaded: Loaded,
-  player: string,
-  commit: string | undefined,
-): string {
+export function renderPage(template: string, loaded: Loaded, player: string): string {
   const values: Record<string, string> = {
     __SIM_DATA__: scriptJson(loaded),
-    __SIM_COMMIT__: commitHtml(commit),
     __SIM_PLAYER__: player,
   };
   for (const placeholder of Object.keys(values))
