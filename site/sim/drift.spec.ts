@@ -20,12 +20,14 @@ const OWNER: Record<string, string> = {
   orchestrate: "orchestrate",
   pr: "pr",
   execute: "execute",
+  yolo: "yolo",
   review: "review",
 };
 
-// Skills whose SKILL.md a skill reads and follows: execute's Plan phase and Orchestrate phase, and
-// orchestrate's Raise a PR worker.
+// Skills whose SKILL.md a skill reads and follows: yolo's run of execute, execute's Plan phase and
+// Orchestrate phase, and orchestrate's Raise a PR worker.
 const FOLLOWS: Record<string, string[]> = {
+  yolo: ["execute"],
   execute: ["plan", "orchestrate"],
   orchestrate: ["pr"],
 };

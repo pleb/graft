@@ -31,6 +31,7 @@ const HINTS: Record<string, string> = {
   research: "Question still open? Get the facts first.",
   plan: "Know what you want? Plan it, then build.",
   execute: "Small, clear task? Plan and build in one go.",
+  yolo: "Clear task, no questions? Build it through to a ready PR.",
 };
 // The known helpers in their order, each with the question its link answers.
 const HELPER_LEADS: Record<string, string> = {

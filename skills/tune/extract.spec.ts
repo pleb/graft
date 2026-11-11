@@ -358,6 +358,13 @@ function executeLines(cwd: string): Line[] {
   ];
 }
 
+function yoloLines(cwd: string): Line[] {
+  return [
+    command("/graft:yolo", "ship-it", 3, "yolo-cmd", { cwd }),
+    typed("Use the cache", 2, "yolo-msg"),
+  ];
+}
+
 function warningLines(): Line[] {
   return [
     command("/graft:plan", "warn", 1, "warn-cmd"),
@@ -1104,6 +1111,20 @@ describe("buildReport", () => {
     ]);
     expect(candidates.map(({ uuid, run }) => ({ uuid, run }))).toEqual([
       { uuid: "exec-msg", run: "execute#1" },
+    ]);
+  });
+
+  it("records a yolo run as an execute run", async () => {
+    const root = tempDir("tune-yolo-");
+    mkdirSync(join(root, ".git"));
+    mkdirSync(join(root, ".claude", "plans"), { recursive: true });
+    writeFileSync(join(root, ".claude", "plans", "ship-it.md"), "");
+    const { runs, candidates } = await report([transcript("yolo", yoloLines(root))]);
+    expect(runs).toMatchObject([
+      { id: "yolo#1", skill: "/graft:yolo", args: "ship-it", planFiles: [] },
+    ]);
+    expect(candidates.map(({ uuid, run }) => ({ uuid, run }))).toEqual([
+      { uuid: "yolo-msg", run: "yolo#1" },
     ]);
   });
 });

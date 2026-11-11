@@ -1,12 +1,12 @@
 ---
 name: tune
-description: Finds corrections you keep making to plan, orchestrate and execute runs and the agents they launch, and turns the ones you pick into mods in your Graft repo.
+description: Finds corrections you keep making to plan, orchestrate, execute and yolo runs and the agents they launch, and turns the ones you pick into mods in your Graft repo.
 argument-hint: "[guidance] [window: 14 days (default) | <n> days]"
 disable-model-invocation: true
 allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/extract.ts *)
 ---
 
-You find the corrections the user keeps making to `/graft:plan`, `/graft:orchestrate` and `/graft:execute` runs, including the agents they launch, and turn the ones the user picks into mods in `~/.my-graft`.
+You find the corrections the user keeps making to `/graft:plan`, `/graft:orchestrate`, `/graft:execute` and `/graft:yolo` runs, including the agents they launch, and turn the ones the user picks into mods in `~/.my-graft`.
 
 Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its section `## Ask the user`.
 
@@ -36,19 +36,19 @@ Show the user the lines after `Wrote`, including any `Warning:` line (a likely t
 
 ## Analyse
 
-Send one `graft:researcher` the candidates file and the clone, with every path absolute (expand `~/.my-graft`): the clone's current `skills/common.md`, `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/execute/SKILL.md`, `skills/pr/SKILL.md`, `agents/*.md` and, when they exist, `MODS.md` and `INTERSTOCK-MODS.md`. Its brief carries the user's guidance and these rules:
+Send one `graft:researcher` the candidates file and the clone, with every path absolute (expand `~/.my-graft`): the clone's current `skills/common.md`, `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/execute/SKILL.md`, `skills/yolo/SKILL.md`, `skills/pr/SKILL.md`, `agents/*.md` and, when they exist, `MODS.md` and `INTERSTOCK-MODS.md`. Its brief carries the user's guidance and these rules:
 
 - **Guidance**: apply the user's guidance first (for example, skip the runs it excludes).
 - **Evidence**: the candidates file is the only evidence. Do not open transcripts.
 - **Corrections**: a correction is a free-text answer or per-option note on a question, a typed or queued message, a rejected tool call, or an interrupt. Picking a listed option is a decision, not a correction. A correction counts only when it is about how a skill or agent worked, not about the task's content. Drop corrections that:
   - only apply to one repo (a project convention rather than Graft's process);
-  - are about how a skill other than plan, orchestrate, execute or pr worked.
+  - are about how a skill other than plan, orchestrate, execute, yolo or pr worked.
 - **Tasks**: a task is a repo plus its plan, from each run's `planFiles`.
   - Runs that share a plan file they write, edit or take as an argument (`write`, `edit`, `multiedit`, `argument`) are one task. So a plan run and the orchestrate run of the same plan are one task.
   - A run with none of those belongs to the task of the plan it reads, when it reads one. When it reads several or none, it is a task of its own.
   - A run with `copyOf` counts as the run it copies.
 - **Recurrence**: keep a correction only when the same correction appears in at least 2 different tasks from at least 2 sessions. Each kept correction is a finding.
-- **Target file**: pick it from each run's agent launches, the correction's time and its `skill` (the skill typed most recently, when not the run's own). The target is `skills/common.md` (rules plan, orchestrate and pr share), `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/execute/SKILL.md`, `skills/pr/SKILL.md` (the worker that raises a PR follows it) or an `agents/*.md` file. In an execute run, everything before the first question `skills/orchestrate/SKILL.md` asks or the first `graft:worker` launch, whichever comes first, is plan phase; a run with neither is all plan phase.
+- **Target file**: pick it from each run's agent launches, the correction's time and its `skill` (the skill typed most recently, when not the run's own). The target is `skills/common.md` (rules plan, orchestrate and pr share), `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/execute/SKILL.md`, `skills/yolo/SKILL.md`, `skills/pr/SKILL.md` (the worker that raises a PR follows it) or an `agents/*.md` file. In an execute or yolo run, everything before the first question `skills/orchestrate/SKILL.md` asks or the first `graft:worker` launch, whichever comes first, is plan phase; a run with neither is all plan phase.
 - **Coverage**: read the history of the target file and of `skills/common.md`.
 
   ```bash

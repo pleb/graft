@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 933" width="830" height="933" role="img" aria-labelledby="flow-title flow-desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 1021" width="830" height="1021" role="img" aria-labelledby="flow-title flow-desc">
   <title id="flow-title">How Graft's flow works</title>
-  <desc id="flow-desc">/graft:research, /graft:plan and /graft:execute carry a start tab: they are where you begin. /graft:research on top, then three steps from left to right, and two rows below them. /graft:research: you steer, researcher finds facts, experimenter runs experiments, and adversarial-reviewer challenges the findings; it writes .claude/graft/research/&lt;name&gt;/report.md, which /graft:plan takes as context. /graft:plan: you answer questions, researcher finds facts, and reviewer and adversarial-reviewer review; it writes .claude/graft/plans/&lt;name&gt;.md. /graft:orchestrate: for each milestone, worker implements and then the change is committed, with reviewer and adversarial-reviewer reviewing beside the loop; then comment-editor and docs-editor clean up; it produces commits on a branch. /graft:pr: push and open a PR; it produces a PR. Below plan and orchestrate, /graft:execute runs plan and then orchestrate in one session. Below that, /graft:diff publishes a Claude Code artifact of the commits on a branch for you to review and comment on, then Claude acts on your feedback. A key at the bottom shows that the start tab marks where you begin.</desc>
+  <desc id="flow-desc">/graft:research, /graft:plan and /graft:execute carry a start tab: they are where you begin. /graft:research on top, then three steps from left to right, and two rows below them. /graft:research: you steer, researcher finds facts, experimenter runs experiments, and adversarial-reviewer challenges the findings; it writes .claude/graft/research/&lt;name&gt;/report.md, which /graft:plan takes as context. /graft:plan: you answer questions, researcher finds facts, and reviewer and adversarial-reviewer review; it writes .claude/graft/plans/&lt;name&gt;.md. /graft:orchestrate: for each milestone, worker implements and then the change is committed, with reviewer and adversarial-reviewer reviewing beside the loop; then comment-editor and docs-editor clean up; it produces commits on a branch. /graft:pr: push and open a PR; it produces a PR. Below plan and orchestrate, one block holds /graft:execute and /graft:yolo, which both run plan and then orchestrate in one session: in /graft:execute you decide, and in /graft:yolo the agent decides and produces a ready PR with screenshots. Below that, /graft:diff publishes a Claude Code artifact of the commits on a branch for you to review and comment on, then Claude acts on your feedback. A key at the bottom shows that the start tab marks where you begin.</desc>
   <style>
     text { font-size: 14px; fill: #1f2328; text-anchor: middle; }
     .sans { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
@@ -172,48 +172,64 @@
     <path class="arrow" d="M459,395 V377" marker-end="url(#arrowhead)"/>
 
     <g>
-      <rect x="1" y="395" width="624" height="104" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
+      <rect x="1" y="395" width="624" height="192" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
       <g>
-        <rect x="11" y="405" width="604" height="34" rx="6" fill="#0969da"/>
-        <text x="313" y="427" class="mono head">/graft:execute</text>
+        <rect x="11" y="405" width="296" height="34" rx="6" fill="#0969da"/>
+        <text x="171" y="427" class="mono head">/graft:execute</text>
         <rect x="17" y="411" width="50" height="22" rx="11" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
         <text x="42" y="427" class="sans">start</text>
+      </g>
+      <g>
+        <rect x="319" y="405" width="296" height="34" rx="6" fill="#0969da"/>
+        <text x="467" y="427" class="mono head">/graft:yolo</text>
       </g>
       <g>
         <rect x="153" y="455" width="320" height="34" rx="17" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
         <text x="313" y="477" class="sans">plan, then orchestrate, in one session</text>
       </g>
+      <g>
+        <rect x="17" y="499" width="284" height="34" rx="17" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
+        <text x="159" y="521" class="sans">you · decide</text>
+      </g>
+      <g>
+        <rect x="325" y="499" width="284" height="34" rx="17" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+        <text x="467" y="521" class="sans">agent · decides</text>
+      </g>
+      <g>
+        <rect x="319" y="543" width="296" height="34" rx="6" fill="#dafbe1" stroke="#4ac26b" stroke-width="1"/>
+        <text x="467" y="565" class="sans">ready PR with screenshots</text>
+      </g>
     </g>
 
-    <path class="arrow" d="M644,361 V517" marker-end="url(#arrowhead)"/>
+    <path class="arrow" d="M644,361 V605" marker-end="url(#arrowhead)"/>
 
     <g>
-      <rect x="250" y="523" width="418" height="104" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
+      <rect x="250" y="611" width="418" height="104" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
       <g>
-        <rect x="260" y="533" width="398" height="34" rx="6" fill="#0969da"/>
-        <text x="459" y="555" class="mono head">/graft:diff</text>
+        <rect x="260" y="621" width="398" height="34" rx="6" fill="#0969da"/>
+        <text x="459" y="643" class="mono head">/graft:diff</text>
       </g>
       <g>
-        <rect x="260" y="583" width="96" height="34" rx="17" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
-        <text x="308" y="605" class="sans">publish</text>
+        <rect x="260" y="671" width="96" height="34" rx="17" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+        <text x="308" y="693" class="sans">publish</text>
       </g>
-      <path class="arrow" d="M356,600 H372" marker-end="url(#arrowhead)"/>
+      <path class="arrow" d="M356,688 H372" marker-end="url(#arrowhead)"/>
       <g>
-        <rect x="378" y="583" width="118" height="34" rx="17" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
-        <text x="437" y="605" class="sans">you · comment</text>
+        <rect x="378" y="671" width="118" height="34" rx="17" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
+        <text x="437" y="693" class="sans">you · comment</text>
       </g>
-      <path class="arrow" d="M496,600 H512" marker-end="url(#arrowhead)"/>
+      <path class="arrow" d="M496,688 H512" marker-end="url(#arrowhead)"/>
       <g>
-        <rect x="518" y="583" width="140" height="34" rx="17" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
-        <text x="588" y="605" class="sans">act on comments</text>
+        <rect x="518" y="671" width="140" height="34" rx="17" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+        <text x="588" y="693" class="sans">act on comments</text>
       </g>
     </g>
   </g>
 
   <g>
-    <rect x="1" y="895" width="190" height="36" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
-    <rect x="9" y="902" width="50" height="22" rx="11" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
-    <text x="34" y="918" class="sans">start</text>
-    <text x="69" y="918" class="sans key">where you begin</text>
+    <rect x="1" y="983" width="190" height="36" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
+    <rect x="9" y="990" width="50" height="22" rx="11" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
+    <text x="34" y="1006" class="sans">start</text>
+    <text x="69" y="1006" class="sans key">where you begin</text>
   </g>
 </svg>
