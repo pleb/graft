@@ -211,6 +211,15 @@ describe("check", () => {
     ).toEqual([]);
   });
 
+  it("fails when a handoff has no choices", () => {
+    expect(
+      mutated(({ start }) => {
+        const handoff = start.events.at(-1)!;
+        if (handoff.type === "handoff") handoff.choices = [];
+      }),
+    ).toEqual([expect.stringMatching(/handoff has no choices/)]);
+  });
+
   it("fails when a handoff names an unknown scenario", () => {
     expect(
       mutated(({ start }) => {
@@ -369,6 +378,26 @@ describe("linkPlayer", () => {
         file("main.ts", "let c = 1;\n"),
       ]),
     ).toThrow(/top-level name c/);
+  });
+
+  it("fails on a comma-separated top-level declaration", () => {
+    expect(() =>
+      linkPlayer([
+        file("core.ts", "export const a = 1, shared = 2;\n"),
+        file("main.ts", "export const shared = 3;\n"),
+      ]),
+    ).toThrow(/core.ts: declare one top-level name per statement/);
+    expect(() =>
+      linkPlayer([
+        file("core.ts", 'const a = f(1, [2, 3], { b: ",", c: `${"x"},` }); // ,\nlet c = 1;\n'),
+      ]),
+    ).not.toThrow();
+  });
+
+  it("fails when the linked player does not parse", () => {
+    expect(() => linkPlayer([file("core.ts", "await Promise.resolve();\n")])).toThrow(
+      /linked player does not parse/,
+    );
   });
 
   it("links the player stubs into a script that parses", () => {

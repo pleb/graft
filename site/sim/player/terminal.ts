@@ -196,6 +196,7 @@ export function renderTerm(term: TermState): void {
 }
 
 async function typeText(dom: TermDom, text: string, run: Run): Promise<boolean> {
+  if (dom.handoff) renderInput(dom, undefined);
   const typed = dom.input.querySelector(".term-typed");
   if (!typed) return run.live();
   if (dom.reduced) {

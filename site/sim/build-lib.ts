@@ -2,6 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import vm from "node:vm";
 import type { Event, Repo, Scenario } from "./events.ts";
 
 export class BuildError extends Error {}
@@ -199,6 +200,7 @@ export function check(scenarios: Scenario[], repo: Repo): string[] {
           break;
         case "handoff":
           if (position !== events.length - 1) failHere("handoff is not the last event");
+          if (event.choices.length === 0) failHere("handoff has no choices");
           break;
       }
     }
@@ -254,13 +256,33 @@ export function scriptJson(value: unknown): string {
 
 const IMPORT = /^[ \t]*import\s+([^;"']*?)\s*from\s*(["'])([^"']*)\2[ \t]*;?/gm;
 const SIBLING = /^\.\/[^/]+\.ts$/;
+// Player files must not hold template or string lines that start with import or export.
 const EXPORT_DECLARATION =
   /^([ \t]*)export\s+(?=(?:async\s+)?function\b|const\b|let\b|var\b|class\b)/gm;
 const LEFTOVER = /^[ \t]*(import|export)\b.*$/m;
 const IDENTIFIER = /[A-Za-z_$][\w$]*/g;
 
+// Whether the declaration from `start` has a comma outside brackets before its semicolon.
+function declaresSeveral(code: string, start: number): boolean {
+  let depth = 0;
+  for (let at = start; at < code.length; at++) {
+    const char = code[at];
+    if (char === '"' || char === "'" || char === "`") {
+      for (at++; at < code.length && code[at] !== char; at++) if (code[at] === "\\") at++;
+    } else if (code.startsWith("//", at))
+      at = code.indexOf("\n", at) === -1 ? code.length : code.indexOf("\n", at);
+    else if (code.startsWith("/*", at))
+      at = code.indexOf("*/", at) === -1 ? code.length : code.indexOf("*/", at) + 1;
+    else if ("([{".includes(char)) depth++;
+    else if (")]}".includes(char)) depth--;
+    else if (depth === 0 && char === ";") return false;
+    else if (depth === 0 && char === ",") return true;
+  }
+  return false;
+}
+
 // Declarations formatted at column 0 are the top-level ones.
-function topLevelNames(code: string): string[] {
+function topLevelNames(file: string, code: string): string[] {
   const names: string[] = [];
   for (const match of code.matchAll(
     /^(?:(?:async\s+)?function\*?\s*([A-Za-z_$][\w$]*)|class\s+([A-Za-z_$][\w$]*)|(?:const|let|var)\s+(\{[^}]*\}|\[[^\]]*\]|[A-Za-z_$][\w$]*))/gm,
@@ -271,6 +293,8 @@ function topLevelNames(code: string): string[] {
       continue;
     }
     const binding = match[3];
+    if (declaresSeveral(code, match.index + match[0].length))
+      throw new BuildError(`${file}: declare one top-level name per statement: ${match[0]}`);
     if (binding.startsWith("{") || binding.startsWith("[")) {
       // In `{ key: alias }` the alias is the bound name.
       const inner = binding.slice(1, -1).replace(/[A-Za-z_$][\w$]*\s*:/g, "");
@@ -297,7 +321,7 @@ export function linkPlayer(files: PlayerFile[]): string {
     const leftover = code.match(LEFTOVER);
     if (leftover)
       throw new BuildError(`${file.name}: leftover ${leftover[1]}: ${leftover[0].trim()}`);
-    for (const name of topLevelNames(code)) {
+    for (const name of topLevelNames(file.name, code)) {
       const owner = owners.get(name);
       if (owner !== undefined)
         throw new BuildError(`${file.name}: top-level name ${name} is also declared in ${owner}`);
@@ -308,6 +332,11 @@ export function linkPlayer(files: PlayerFile[]): string {
   const body = `(() => {\n"use strict";\n${parts.join("\n\n")}\n})();`;
   if (/<\/script|<!--/i.test(body))
     throw new BuildError("The player holds </script or <!--, which would end its script early");
+  try {
+    new vm.Script(body);
+  } catch (error) {
+    throw new BuildError(`The linked player does not parse: ${(error as Error).message}`);
+  }
   return `<script>\n${body}\n</script>`;
 }
 
