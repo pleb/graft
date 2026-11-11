@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Graft simulator</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f8fa;
+        --surface: #ffffff;
+        --fg: #1f2328;
+        --muted: #6e7781;
+        --border: #d0d7de;
+        --accent: #0969da;
+        --accent-fg: #ffffff;
+        --info-bg: #ddf4ff;
+        --info-border: #54aeff;
+        --note-bg: #fff8c5;
+        --note-border: #d4a72c;
+        --done-bg: #dafbe1;
+        --done-border: #4ac26b;
+        --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+        --font-code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d1117;
+          --surface: #161b22;
+          --fg: #e6edf3;
+          --muted: #8d96a0;
+          --border: #30363d;
+          --accent: #4493f8;
+          --accent-fg: #0d1117;
+          --info-bg: #121d2f;
+          --info-border: #1f6feb;
+          --note-bg: #272115;
+          --note-border: #9e6a03;
+          --done-bg: #12261e;
+          --done-border: #2ea043;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: var(--font-ui);
+      }
+      header,
+      footer {
+        padding: 12px 16px;
+      }
+      a {
+        color: var(--accent);
+      }
+      footer {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      #terminal {
+        font-family: var(--font-code);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>Graft</strong>
+      <a id="install" href="https://github.com/pleb/graft#install">Install Graft</a>
+    </header>
+    <nav id="controls" aria-label="Simulator controls"></nav>
+    <main id="stage">
+      <section id="terminal" role="log" aria-label="Terminal"></section>
+    </main>
+    <section id="finale" hidden></section>
+    <footer>
+      A demo of Graft from <a href="https://github.com/pleb/graft">pleb/graft</a>, built from
+      __SIM_COMMIT__. Not affiliated with Anthropic. Agent reports are illustrative.
+    </footer>
+    <script type="application/json" id="sim-data">
+      __SIM_DATA__
+    </script>
+    __SIM_PLAYER__
+  </body>
+</html>

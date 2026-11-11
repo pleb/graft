@@ -8,10 +8,12 @@
     "check:format": "oxfmt --check",
     "check:types": "tsc",
     "test": "vitest run",
+    "test:site": "vitest run --config site/vitest.site.config.ts",
     "test:plugin": "claude plugin test .",
     "check:plugin": "claude plugin validate --strict . && claude plugin validate --strict .claude-plugin/plugin.json && claude plugin validate --strict agents && claude plugin validate --strict skills",
     "start-graft-tester": "node scripts/graft-tester.ts start",
-    "stop-graft-tester": "node scripts/graft-tester.ts stop"
+    "stop-graft-tester": "node scripts/graft-tester.ts stop",
+    "build:site": "node site/sim/build.ts"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
