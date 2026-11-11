@@ -1,4 +1,4 @@
-import { finale, formatHash, skillName } from "./core.ts";
+import { finale, formatHash, prExcerpt, skillName } from "./core.ts";
 import type { Card, Finale, Playback } from "./core.ts";
 import { element } from "./terminal.ts";
 
@@ -25,17 +25,6 @@ function count(value: number, word: string): string {
   return `${value} ${word}${value === 1 ? "" : "s"}`;
 }
 
-// The body's first paragraph and its `... by Graft.` line.
-function bodyExcerpt(body: string): string[] {
-  const paragraphs = body
-    .split(/\n\s*\n/)
-    .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph !== "");
-  const graft = paragraphs.find((paragraph) => /by Graft\.?$/m.test(paragraph));
-  const first = paragraphs[0];
-  return [...new Set([first, graft].filter((part): part is string => part !== undefined))];
-}
-
 function prPanel(pr: Extract<Card, { kind: "pr" }>, review: boolean): HTMLElement {
   const panel = element("article", "finale-pr");
   panel.setAttribute("aria-label", `Pull request #${pr.number}`);
@@ -47,7 +36,7 @@ function prPanel(pr: Extract<Card, { kind: "pr" }>, review: boolean): HTMLElemen
   panel.append(head, element("h2", "finale-pr-title", pr.title), branch);
   if (pr.body !== undefined) {
     const body = element("div", "finale-pr-body");
-    body.append(...bodyExcerpt(pr.body).map((part) => element("p", undefined, part)));
+    body.append(...prExcerpt(pr.body).map((part) => element("p", undefined, part)));
     panel.append(body);
   }
   if (pr.commits.length > 0) {

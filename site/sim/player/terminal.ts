@@ -223,10 +223,14 @@ function askWidget(questions: Question[], current: number): [HTMLElement, HTMLEl
   const list = element("ol", "ask-options");
   const items = question.options.map((option, index) => {
     const item = element("li", "ask-option");
+    const marked =
+      question.recommended && index === 0 && !option.label.endsWith("(Recommended)")
+        ? `${option.label} (Recommended)`
+        : option.label;
     item.append(
       element("span", "ask-pointer"),
       element("span", "ask-number", `${index + 1}.`),
-      element("span", "ask-label", option.label),
+      element("span", "ask-label", marked),
     );
     if (option.description) item.append(element("span", "ask-desc", option.description));
     list.append(item);

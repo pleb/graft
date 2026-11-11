@@ -17,7 +17,7 @@ const scenario: Scenario = {
       base: "main",
       draft: true,
       commits: ["c1"],
-      body: "Adds a limiter.\n\nPlan by Graft.",
+      body: "## What\n\nAdds a `limiter` to the API.\n\n## Why\n\nOne client could slow it for everyone.\n\n_Graft: AI has reviewed and adversarially reviewed these changes._",
     },
     { type: "end" },
   ],

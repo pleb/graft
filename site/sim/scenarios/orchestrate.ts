@@ -91,7 +91,7 @@ const scenario: Scenario = {
       type: "agent.done",
       id: "worker-config",
       report:
-        "Added RATE_LIMIT_MAX and RATE_LIMIT_WINDOW_MS to src/config.js and the README table. node --test test/config.test.js passes.",
+        "Added RATE_LIMIT_MAX and RATE_LIMIT_WINDOW_MS to src/config.js with test/config.test.js, and to the README table. node --test test/config.test.js passes.",
     },
     {
       type: "file.modify",

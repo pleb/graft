@@ -41,7 +41,7 @@ Files: \`src/middleware/rate-limit.js\`, \`test/rate-limit.test.js\`.
 
 ### 2. Config and env docs
 
-Files: \`src/config.js\`, \`README.md\`.
+Files: \`src/config.js\`, \`test/config.test.js\`, \`README.md\`.
 
 ### 3. Wire into routes
 
@@ -208,9 +208,9 @@ const scenario: Scenario = {
             "Files: `src/middleware/rate-limit.js`, `test/rate-limit.test.js`.\n\n- `createRateLimiter({ max, windowMs })` counts requests per `req.ip` in a fixed window.\n\nVerification:\n\n- **Automated**: `node --test test/rate-limit.test.js`.\n",
         },
         {
-          find: "Files: `src/config.js`, `README.md`.\n",
+          find: "Files: `src/config.js`, `test/config.test.js`, `README.md`.\n",
           replace:
-            "Files: `src/config.js`, `README.md`.\n\n- `RATE_LIMIT_MAX` (100) and `RATE_LIMIT_WINDOW_MS` (60000), documented in the README's table.\n\nVerification:\n\n- **Automated**: `node --test test/config.test.js`.\n",
+            "Files: `src/config.js`, `test/config.test.js`, `README.md`.\n\n- `RATE_LIMIT_MAX` (100) and `RATE_LIMIT_WINDOW_MS` (60000), documented in the README's table.\n\nVerification:\n\n- **Automated**: `node --test test/config.test.js`.\n",
         },
         {
           find: "Files: `src/app.js`, `test/notes.test.js`.\n",

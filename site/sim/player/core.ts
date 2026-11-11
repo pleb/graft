@@ -767,6 +767,28 @@ function sentence(tally: Tally): string {
   return `${text[0].toUpperCase()}${text.slice(1)}.`;
 }
 
+const GRAFT_LINE = /^_?Graft:.*$/m;
+
+// A PR body's first prose paragraph and its Graft line, as plain text.
+export function prExcerpt(body: string): string[] {
+  const paragraphs = body
+    .split(/\n\s*\n/)
+    .map((paragraph) =>
+      paragraph
+        .split("\n")
+        .filter((line) => !/^#{1,6}\s/.test(line.trim()))
+        .join("\n")
+        .trim(),
+    )
+    .filter((paragraph) => paragraph !== "");
+  const first = paragraphs.find((paragraph) => !GRAFT_LINE.test(paragraph))?.replace(/\*\*|`/g, "");
+  const graft = body
+    .match(GRAFT_LINE)?.[0]
+    .trim()
+    .replace(/^_(.*)_$/, "$1");
+  return [first, graft].filter((part): part is string => part !== undefined);
+}
+
 // The PR and recap a path's `end` shows, from the steps before `position`.
 export function finale(
   byId: Map<string, Scenario>,

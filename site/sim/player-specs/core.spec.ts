@@ -13,6 +13,7 @@ import {
   emptyTerm,
   formatHash,
   parseHash,
+  prExcerpt,
   replay,
   seek,
   setPlaying,
@@ -643,5 +644,32 @@ describe("finale", () => {
         text: "Picked up PR #42, ran 1 reviewer and posted a review on PR #42 with 1 comment.",
       },
     ]);
+  });
+});
+
+describe("PR excerpt", () => {
+  it("shows the first prose paragraph and the Graft line of the continue fixture's PR", () => {
+    const byId = new Map(FIXTURES.map((s) => [s.id, s]));
+    const steps = timeline(byId, ["start", "continue"]);
+    const body = finale(byId, steps, steps.length, repo).pr?.body ?? "";
+    expect(prExcerpt(body)).toEqual([
+      "Adds a limiter to the API.",
+      "Graft: AI has reviewed and adversarially reviewed these changes.",
+    ]);
+  });
+
+  it("drops a heading that shares a paragraph with prose", () => {
+    expect(prExcerpt("## What\nAdds **a** limiter.\n\nGraft: reviewed.")).toEqual([
+      "Adds a limiter.",
+      "Graft: reviewed.",
+    ]);
+  });
+
+  it("shows only the prose when there is no Graft line", () => {
+    expect(prExcerpt("# Title\n\nAdds a limiter.\n\nMore.")).toEqual(["Adds a limiter."]);
+  });
+
+  it("shows the Graft line once when it is the only paragraph", () => {
+    expect(prExcerpt("_Graft: reviewed._")).toEqual(["Graft: reviewed."]);
   });
 });

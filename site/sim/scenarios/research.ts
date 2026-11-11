@@ -80,7 +80,7 @@ const scenario: Scenario = {
       type: "file.create",
       path: REPORT,
       content:
-        "---\nstatus: open\n---\n\n# Rate limiting for notes-api\n\n## Question\n\nHow should notes-api limit request rates? It feeds the plan for adding rate limiting.\n\n## Summary\n\n## Discoveries\n\n## Next step\n\n---\n\nResearch by Graft.\n",
+        "---\nstatus: open\n---\n\n# Rate limiting for notes-api\n\n## Question\n\nHow should notes-api limit request rates? It feeds the plan for adding rate limiting.\n\n- How do requests reach the /notes routes?\n- Should a library or a hand-rolled limiter count them?\n- What does a limited client get back?\n\n## Summary\n\n## Discoveries\n\n## Next step\n\n---\n\nResearch by Graft.\n",
     },
     { type: "say", text: `Wrote ${REPORT} with the question and its three sub-questions.` },
     { type: "chapter", id: "research-fan-out", title: "Fan out" },
