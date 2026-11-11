@@ -14,4 +14,4 @@ Name Vitest tests `*.spec.ts`. `*.test.ts` and `*.test.tsx` are for `claude plug
 
 When this clone's `origin` is `pleb/graft` (`git remote get-url origin`), test changes to skills and agents as `CONTRIBUTING.md` describes.
 
-When this clone's `origin` is `pleb/graft`, a change that alters what a scenario in `site/sim/scenarios/` or `docs/teaser.svg` shows updates them in the same change, and `npm run test:site` passes.
+When this clone's `origin` is `pleb/graft`, a change that alters what a scenario in `site/sim/scenarios/` or `docs/teaser.svg` shows updates them in the same change, and `npm run test:site` passes. `docs/teaser.svg` follows the graphic rules above.
