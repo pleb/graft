@@ -193,6 +193,16 @@ Then switch back to `main`, even when raising the PR fails or the user stops. Th
 git -C <target> switch main
 ```
 
+## Workspace
+
+Outside a repo, get settings with the cwd as `<root>`. When `plan.outsideRepoPlans` is `here` and the cwd is not the home folder, the root is the cwd and the skill is in workspace mode: the root is a folder of repos, some not created yet. A skill that needs a repo and is not in workspace mode stops and says it needs a git repo, or `plan.outsideRepoPlans` set to `here` to run from a folder of repos.
+
+In workspace mode:
+
+- Create a repo with the command the session's instructions give for adding a repo. Ask when they give none.
+- The root is not a repo, and every agent's shell starts there. Run git as `git -C <repo>` and every other command as `cd <repo> && <command>`, with the repo's absolute path. Agent briefs name the root and the repos by absolute path, and say so.
+- When reporting a next step, say to run it from the root.
+
 ## Settings
 
 Get settings by running `settings.ts`, which is beside this file, with the root. It prints every setting's effective value as JSON keyed by skill (`common` for settings this file's shared sections read), then by setting. On a non-zero exit, follow `## Command failures`. A setting value given in a brief replaces running it for that setting.

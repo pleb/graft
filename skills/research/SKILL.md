@@ -8,7 +8,7 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 
 You are the research lead. You investigate a question with the user and write down what you find. The user's answers steer where you dig; they settle no implementation decisions. You never implement.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## Check the Graft folder`, `## GitHub issue reference handling`, `## My Graft ignore probe` and `## Settings`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## Check the Graft folder`, `## GitHub issue reference handling`, `## My Graft ignore probe`, `## Workspace` and `## Settings`.
 
 **Arguments:** $ARGUMENTS
 
@@ -22,18 +22,14 @@ Find the root with `git rev-parse --show-toplevel`, then get settings once, pass
 node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 ```
 
-Outside a repo (non-zero exit), skip the ignore check. When `plan.outsideRepoPlans` is `here` and the cwd is not the home folder, the root is the cwd and `## Workspace` applies. Otherwise follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
+Outside a repo (non-zero exit), skip the ignore check. In common.md's workspace mode, `## Workspace` applies. Otherwise follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
 
 In a repo, or in each repo under the root as `## Workspace` says, list the `git worktree list --porcelain` entries under a `graft-research-` run directory, left by earlier runs. When there are any, ask which to remove, and run `git worktree remove --force <path>` on each the user picks.
 
 ## Workspace
 
-The root is a folder of repos, some not created yet.
-
-- When a repo the question needs is not under the root, ask whether to create it with the command the session's instructions give for adding a repo, then read it there.
-- Agent briefs name the root and the repos by absolute path. Run git as `git -C <repo>`.
+- When a repo the question needs is not under the root, ask whether to create it, then read it there.
 - Each experimenter works in one repo under the root. `## Experimenters` records a base OID per repo, and in a brief that repo is the root. The snapshot question is asked once per run and applies to each repo with uncommitted changes. After a wave, remove the run directory's worktrees with `git -C <repo>` in each repo that had an experimenter.
-- `## Finish` says to run the next step from the root.
 
 ## Outside a repo
 

@@ -8,7 +8,7 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 
 You are the coordinator. Agents do the work. You order it, write the briefs, judge the results, and commit.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## GitHub issue reference handling`, `## My Graft ignore probe` and `## Settings`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## GitHub issue reference handling`, `## My Graft ignore probe`, `## Workspace` and `## Settings`.
 
 **Arguments:** $ARGUMENTS
 
@@ -16,7 +16,7 @@ Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user
 
 The arguments may also ask for a PR, such as `open a pr` or `raise a ready pr that resolves #42`. The whole request, including any guidance for the PR and any issue it names, is for `## Raise a PR`, not the work.
 
-Find the root with `git rev-parse --show-toplevel`, then get settings. When it exits non-zero, get settings with the cwd as `<root>`: when `plan.outsideRepoPlans` is `here`, the root is the cwd and `## Workspace mode` applies; otherwise stop and say orchestrate needs a git repo, or `plan.outsideRepoPlans` set to `here` to run from a folder of repos.
+Find the root with `git rev-parse --show-toplevel`, then get settings. When it exits non-zero, follow common.md's `## Workspace`; in workspace mode, `## Workspace mode` applies.
 
 ```bash
 node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
@@ -24,13 +24,12 @@ node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 
 ## Workspace mode
 
-Applies when `## Start` finds no repo and `plan.outsideRepoPlans` is `here`. The root holds repos rather than being one. This section changes each section it names; everything else applies as written, and wherever another section says the repo, the branch or the PR, it means each repo's. After compaction, read this section again.
+Applies in common.md's workspace mode. This section changes each section it names; everything else applies as written, and wherever another section says the repo, the branch or the PR, it means each repo's. After compaction, read this section again.
 
-- **Repos**: those the plan's `## Repos` lists, plus any this run creates. With no `## Repos` (a task list), ask the user which repos under the root the work covers. Stop when there are none. Before Branch, create a listed repo that is missing with its recorded command. A milestone that needs a repo not yet listed creates it with the command the session's instructions give for adding a repo (ask when they give none), then Branch runs in it.
-- **Commands**: the root is not a repo, and every agent's shell starts there. Run git as `git -C <repo>` and every other command as `cd <repo> && <command>`, with the repo's absolute path, and say so in every brief.
+- **Repos**: those the plan's `## Repos` lists, plus any this run creates. With no `## Repos` (a task list), ask the user which repos under the root the work covers. Stop when there are none. Before Branch, create a listed repo that is missing with its recorded command. A milestone that needs a repo not yet listed creates it as common.md's `## Workspace` says, then Branch runs in it.
 - **Settings**: get settings for each repo too (`node ${CLAUDE_SKILL_DIR}/../settings.ts <repo>`). `common.reviewerModel` and `pr.state` come from the repo; the rest from the root.
 - **Branch**: run it in each repo. Save each Resolves issue on one repo's branch only: the repo the issue belongs to, else the one with the most of the work, asking when unclear. Save it as Related on the others.
-- **Execute**: briefs name the repos by absolute path. Commit a milestone in each repo it changed, staging only its files there.
+- **Execute**: commit a milestone in each repo it changed, staging only its files there.
 - **Each pass** and **Clean up**: ranges are per repo. Record each repo's HEAD when Execute starts, or when the repo is created; a repo's first range starts there. A brief lists each repo's absolute path with its range.
 - **Final checks**: run each repo's checks in that repo. The start-commit rerun puts every repo at its start commit (a temporary `git worktree` per repo, laid out as under the root), so a failure in an unchanged repo caused by another repo's change is the run's. `git status --porcelain` is empty in each repo; the root's own files are not checked.
 - **Raise a PR**: one worker per repo with commits on its branch, using that repo's `pr.state`. When there are several, raise them all, then send each worker again with the other PRs' URLs to link them.

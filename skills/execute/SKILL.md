@@ -12,7 +12,7 @@ You run plan's phase, then orchestrate's phase, in this session. Each phase foll
 
 ## Start
 
-- When `git rev-parse --show-toplevel` exits non-zero, get settings with `node ${CLAUDE_SKILL_DIR}/../settings.ts <cwd>`. Unless `plan.outsideRepoPlans` is `here`, stop and say execute needs a git repo, or `plan.outsideRepoPlans` set to `here` to run from a folder of repos.
+- When `git rev-parse --show-toplevel` exits non-zero, follow common.md's `## Workspace` (`${CLAUDE_SKILL_DIR}/../common.md`).
 - Take any PR request out of the arguments, as orchestrate's `## Start` does. Issues it names also go to plan. When it is unclear whether PR wording is part of the topic or a request, ask.
 - The rest (a topic, a plan name or path, issues, a reviewer model) is plan's arguments.
 - When plan's arguments name a plan whose `status` is `finalised` and name no revision, go to `## Orchestrate phase`. A plan name resolves as common.md's `## Find the work` rule 3 does.

@@ -8,7 +8,7 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 
 You are the planner. You settle the solution with the user and write it down. You never implement.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## Check the Graft folder`, `## GitHub issue reference handling`, `## My Graft ignore probe` and `## Settings`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## Check the Graft folder`, `## GitHub issue reference handling`, `## My Graft ignore probe`, `## Workspace` and `## Settings`.
 
 **Arguments:** $ARGUMENTS
 
@@ -22,14 +22,11 @@ Find the root with `git rev-parse --show-toplevel`, then get settings once, pass
 node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 ```
 
-Outside a repo (non-zero exit), skip the ignore check. When `plan.outsideRepoPlans` is `here` and the cwd is not the home folder, the root is the cwd and `## Workspace` applies. Otherwise follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
+Outside a repo (non-zero exit), skip the ignore check. In common.md's workspace mode, `## Workspace` applies. Otherwise follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
 
 ## Workspace
 
-The root is a folder of repos, some not created yet.
-
-- When a repo the work needs is not under the root, create it with the command the session's instructions give for adding a repo, then read it there. Ask when they give none. Creating a repo is not implementing.
-- Agent briefs name the root and the repos by absolute path.
+- When a repo the work needs is not under the root, create it, then read it there. Creating a repo is not implementing.
 - The plan's `## Repos` lists each repo the work changes, one line per repo: its path relative to the root, then the command that created it, or `existing`. Each milestone names the repos it changes.
 
 ## Outside a repo
@@ -163,4 +160,4 @@ Recommend Review and finalise when no full pass has run in this session, or when
 
 Review and finalise runs a full pass when none has run in this session. Otherwise it runs a delta pass over everything changed since the last pass started, fixes included, with reviewers picked as in Review. A decision the pass raises becomes an open question. Once it is answered, ask this question again, and the test above sets the recommendation.
 
-To finalise, set `status: finalised`, then report the plan path, a few lines of summary, and the next step: `/clear`, then `/graft:orchestrate <name>` (`/graft:orchestrate <path>` for a plan outside `.claude/graft/plans/`). In `## Workspace`, say to run the next step from the root. For a plan written from outside a repo otherwise, name it by full path and say to run the next step from inside the repo that holds the code. When the directory under `## Goal` is still not a repo, say orchestrate needs one (for example, `git init` it first). Do not implement.
+To finalise, set `status: finalised`, then report the plan path, a few lines of summary, and the next step: `/clear`, then `/graft:orchestrate <name>` (`/graft:orchestrate <path>` for a plan outside `.claude/graft/plans/`). For a plan written from outside a repo, outside `## Workspace`, name it by full path and say to run the next step from inside the repo that holds the code. When the directory under `## Goal` is still not a repo, say orchestrate needs one (for example, `git init` it first). Do not implement.

@@ -38,10 +38,10 @@ Once execute's `## Start` has found the repo, and before anything else reads the
 
 ## Workspace mode
 
-Applies when orchestrate's `## Workspace mode` does: the root is not a repo. This section changes each section it names. Where those sections run git at the root, run it as `git -C <repo>`, and every other command as `cd <repo> && <command>`, with the repo's absolute path. After compaction, read this section again.
+Applies in common.md's workspace mode, and runs each command in a repo as common.md's `## Workspace` says. This section changes each section it names. After compaction, read this section again.
 
 - **Start**: skip step 2; the plan lives at the root. Run steps 3 and 4 in each repo under the root that exists at Start, and in a repo created later once it is created, before its Branch step. Keep one stash SHA per repo.
-- **Screenshots**: run step 1's `gh repo view`, step 2's record and step 4's restore per repo, skipping the repos step 1 rules out. The worker's brief names the repos by absolute path and asks which repo each image shows. Attach a screenshot only to the PR of the repo whose change it shows.
+- **Screenshots**: run step 1's `gh repo view`, step 2's record and step 4's restore per repo, skipping the repos step 1 rules out. The worker's brief asks which repo each image shows. Attach a screenshot only to the PR of the repo whose change it shows.
 - **PR**: check an attach failure with `gh pr view` per repo.
 - **Restore the stash**: per repo, applying each repo's stash in that repo.
 - **Report**: the stashes, and the paths included, stashed or added to `info/exclude`, per repo.
