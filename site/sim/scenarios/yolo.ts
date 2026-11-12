@@ -11,8 +11,8 @@
 // Orchestrate phase (35).
 // Plan phase follows skills/plan/SKILL.md: Start (19-25), Find the work (35, a new topic), Check the
 // Graft folder (39, common.md 52-55: the probe passes, so no question), Understand (43), Settle the
-// solution (47-65, no clarify question), Write the plan (69-115, no PR milestone as execute 25
-// says), Review (130-136) and the full pass Finish recommends (150-152).
+// solution (47-66, no clarify question), Write the plan (70-116, no PR milestone as execute 25
+// says), Review (131-137) and the full pass Finish recommends (151-153).
 // Orchestrate phase follows skills/orchestrate/SKILL.md, condensed as execute.ts condenses it: Start
 // (17, its root and settings already known), Branch (45-51), Execute (55-59: milestone 3's Manual
 // check is agent-runnable, so no person-only check remains and there is no mode), Commit and review

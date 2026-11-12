@@ -59,6 +59,7 @@ Work in rounds. Each round is one `AskUserQuestion` call with up to `plan.questi
 - A clarify question has no previews. Any other single-select question with at most 6 options that compare concrete shapes (signatures, schemas, layouts, config) gives them a `preview`.
 - A question whose choices are not exclusive uses `multiSelect`. Previews are single-select only, so split a question that needs both.
 - State conventional defaults; do not ask them. Record each in `## Decisions`, marked `(default)`.
+- When `plan.clearQuestions` is `default`, do not ask a question that carries a recommendation, whether it comes from the clarify step, a round or a review. Record the recommended answer in `## Decisions`, marked `(default)`, and state it to the user in one line. Ask it anyway when it touches a risky part (as `## Review` defines one) or when its options differ only by preference: naming or wording only, such as a function name, a setting key, a button label or an error message's text. A behaviour choice that changes no contract (for example, export the filtered view or all rows) is not a preference.
 - Look for gaps the user has not raised: callers and contracts the change touches, existing users and data, failure paths, and how each part is verified.
 - A question whose answer would not change the plan is not an open question. Record it as a default or a risk.
 - When the user defers a question to implementation, record it in `## Decisions`, marked `(decided during implementation, milestone N)`. That closes it.

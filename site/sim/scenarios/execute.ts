@@ -4,8 +4,8 @@
 // or hand-off (31)) and Orchestrate phase (35).
 // Plan phase follows skills/plan/SKILL.md: Start (19-25), Find the work (35, research found or a
 // new topic), Check the Graft folder skipped as the folder exists (common.md 52), Understand (43),
-// Settle the solution (47-65, no clarify question), Write the plan (69-115, no PR milestone as
-// execute 25 says), Review (130-136) and the full pass Finish recommends (150-152).
+// Settle the solution (47-66, no clarify question), Write the plan (70-116, no PR milestone as
+// execute 25 says), Review (131-137) and the full pass Finish recommends (151-153).
 // Orchestrate phase follows skills/orchestrate/SKILL.md, condensed in orchestrate.ts's order: Start
 // (17, its root and settings already known), Branch (45-51), Execute (55-59, Defer as
 // orchestrate.manualChecks is ask and plan.manualChecksQuestion is orchestrate), Commit and review

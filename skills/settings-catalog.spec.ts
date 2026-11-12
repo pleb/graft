@@ -35,6 +35,7 @@ describe("parseCatalog", () => {
       "plan.questionsPerRound",
       "plan.manualChecksQuestion",
       "plan.finishQuestion",
+      "plan.clearQuestions",
       "research.artifact",
       "research.uncommittedChanges",
       "research.steer",
@@ -58,6 +59,7 @@ describe("parseCatalog", () => {
         defaultValue: "orchestrate",
       },
       { skill: "plan", name: "finishQuestion", values: ["skip"], defaultValue: "ask" },
+      { skill: "plan", name: "clearQuestions", values: ["default"], defaultValue: "ask" },
       { skill: "research", name: "artifact", values: ["true"], defaultValue: "false" },
       {
         skill: "research",
