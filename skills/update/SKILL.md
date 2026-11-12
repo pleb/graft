@@ -67,9 +67,21 @@ Merge Graft into the clone without committing.
 git -C <target> merge --no-ff --no-commit upstream/main
 ```
 
+Then mirror upstream's `site/`.
+
+```bash
+git -C <target> rm -rfq --ignore-unmatch -- site
+```
+
+Only when `git -C <target> cat-file -e upstream/main:site` succeeds, restore it from upstream.
+
+```bash
+git -C <target> restore --source=upstream/main --staged --worktree -- site
+```
+
 Merge, never rebase.
 
-For the rest of the update, follow `<target>/AGENTS.md` (paths relative to the clone) if it exists, resolving it first if it is conflicted.
+The target is an interstock when the registry is `INTERSTOCK-MODS.md`. For the rest of the update, follow `<target>/AGENTS.md` (paths relative to the clone) if it exists, resolving it first if it is conflicted. For an interstock, resolve a conflicted `<target>/interstock.md` next.
 
 For each conflicted file, list the mods that changed it.
 
@@ -78,6 +90,8 @@ git -C <target> log --no-merges --format=%s upstream/main..HEAD -- <file>
 ```
 
 This prints their Change names, and the registry gives their intent. Resolve the file so upstream's change lands and each mod's intent still holds. Ask when both cannot hold, when no mod explains the clone's side, or when upstream now does what a mod did (offer to drop the mod and its row). `auto` never skips these questions. Record the conflicted files and each decision the user makes.
+
+For an interstock, the clone's side is also explained where step 3 of the merged `interstock.md` alone explains it; take upstream's side there. A hunk that also carries a mod's content follows the mod rule above.
 
 To stop at any point before the commit, clear the merge and any fixes, including new files.
 
@@ -88,6 +102,26 @@ git -C <target> clean -fd
 
 This is safe because Sync required a clean tree. (`merge --abort` can refuse once a fix is on disk.)
 
+## Interstock compliance
+
+Run this step for an interstock. When the merged clone has no `interstock.md`, skip it.
+
+Apply the file changes in step 3 of `<target>/interstock.md`, reading `<dir>` as `<target>` and `<owner>/<repo>` as `<origin-repo>`. Never create the registry, commit or push here.
+
+For the install command's form, read the pre-merge install command under `## Install`.
+
+```bash
+git -C <target> show HEAD:README.md
+```
+
+When it names `<origin-repo>`, use its form. Otherwise read the repo's visibility; anything but `PUBLIC` is private.
+
+```bash
+gh repo view <origin-repo> --json visibility
+```
+
+Ask before a fix that would undo a registry mod's intent. Record each compliance fix.
+
 ## Review
 
 Run this step when the registry has at least one mod row. Stage everything.
@@ -96,7 +130,7 @@ Run this step when the registry has at least one mod row. Stage everything.
 git -C <target> add -A
 ```
 
-Run `graft:reviewer` and `graft:adversarial-reviewer` in parallel, both on `common.reviewerModel`, else Opus. The target is the staged merge against upstream, with `<target>` by absolute path and the conflicted files named. The intent is the registry rows, the Merge decisions, and that upstream's incoming changes land intact.
+Run `graft:reviewer` and `graft:adversarial-reviewer` in parallel, both on `common.reviewerModel`, else Opus. The target is the staged merge against upstream, with `<target>` by absolute path and the conflicted files named. The intent is the registry rows, the Merge decisions, and that upstream's incoming changes land intact. For an interstock, it also includes step 3 of the merged `interstock.md` and the compliance fixes. Tell the reviewers and the worker that `site/`, `npm run test:site` and type errors confined to `site/` are out of scope.
 
 ```bash
 git -C <target> diff --cached upstream/main
@@ -134,13 +168,14 @@ Then follow common.md's `## Publish the change` with the branch `graft/update-<Y
 > Merge this PR with a merge commit. Squash or rebase merging drops upstream's history, and the next `/graft:update` re-conflicts.
 ```
 
-- Require as listed items the incoming changes, each conflict resolution, and each review finding acted on with its fix.
+- Require as listed items the incoming changes, each conflict resolution, each compliance fix, and each review finding acted on with its fix.
 - When Review ran, keep the PR skill's Graft line; otherwise the Graft line is `_Graft: validated, not AI-reviewed._`.
 
 ## Report
 
 - What came in from upstream.
 - Each conflict and how it was resolved.
+- Each compliance fix, or that compliance was skipped because the merged clone has no `interstock.md`.
 - Mods revised or dropped, with their registry rows.
 - Review findings acted on, with their fixes.
 - For a shared stock, the PR URL and that it needs merging with a merge commit, not squash or rebase. When no PR was raised, the branch, with the PR guidance above (the Graft line chosen and the items filled in) as the arguments to pass to `/graft:pr`.
