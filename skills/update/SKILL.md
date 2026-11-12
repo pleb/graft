@@ -91,7 +91,7 @@ git -C <target> log --no-merges --format=%s upstream/main..HEAD -- <file>
 
 This prints their Change names, and the registry gives their intent. Resolve the file so upstream's change lands and each mod's intent still holds. Ask when both cannot hold, when no mod explains the clone's side, or when upstream now does what a mod did (offer to drop the mod and its row). `auto` never skips these questions. Record the conflicted files and each decision the user makes.
 
-For an interstock, step 3 of the merged `interstock.md` also explains the clone's side. Where it alone explains a hunk, take upstream's side. Where the hunk also carries a mod's content, resolve it as above.
+For an interstock, step 3 of the merged `interstock.md` also explains the clone's side. Where it alone explains a hunk, take upstream's side. Where the hunk also carries a mod's content, resolve it by the mod rule above.
 
 To stop at any point before the commit, clear the merge and any fixes, including new files.
 
