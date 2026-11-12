@@ -16,10 +16,10 @@
 // Orchestrate phase follows skills/orchestrate/SKILL.md, condensed as execute.ts condenses it: Start
 // (17, its root and settings already known), Branch (45-51), Execute (55-59: milestone 3's Manual
 // check is agent-runnable, so no person-only check remains and there is no mode), Commit and review
-// (63-69), Each pass (73-75), Clean up (77-80), Final checks (82-91), Agent checks (93-102, the 429
-// check passes first time), yolo's Screenshots step, Raise a PR (104-110, a worker following
+// (63-69), Each pass (73-75), Clean up (77-80), Final checks (82-91), Agent checks (93-103, the 429
+// check passes first time), yolo's Screenshots step, Raise a PR (105-111, a worker following
 // skills/pr/SKILL.md 112-114 with `ready-state` and the screenshot from yolo 71), Finish the plan
-// (120-130, left in place) and Report (132-143).
+// (121-131, left in place) and Report (133-144).
 import type { Scenario } from "../events.ts";
 
 const PLAN = ".claude/graft/plans/add-rate-limiting.md";

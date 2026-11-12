@@ -99,6 +99,7 @@ Run this step when `## Execute` sorted any check as agent-runnable. A PR milesto
 - Give each check up to three fix attempts. When it still fails, ask the user: **Go on** with it failing, or **Stop**. Stop goes to Report.
 - A check the worker reports as person-only goes to Report as deferred, whatever the mode.
 - Run this step again before pushing or going on after any later fix commit, such as a pause fix or a fix pushed to the PR's branch.
+- Once the PR is raised, push this step's fix commits to the PR's branch. When the checks still failing then differ from those the PR body flags, edit the body with `gh pr edit --body` to flag exactly those.
 - After the checks, `git status --porcelain` is empty. Report or ask about anything it lists.
 
 ## Raise a PR

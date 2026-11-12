@@ -133,7 +133,7 @@ Once a wave leaves no thread to follow, ask:
 - **Conclude**: `## Challenge`, then conclude.
 - **Continue researching**: ask the user what to dig into next.
 
-When `plan.finishQuestion` is `skip`, do not ask: conclude once the findings answer the question, state that in one line, and list any thread still open under `## Open threads`.
+When `plan.finishQuestion` is `skip`, do not ask: take **Conclude** once the findings answer the question, wholly or in part, state that in one line, and list what is still open under `## Open threads`.
 
 To conclude, set `status: concluded`, fill `## Summary` and `## Next step`, and report the report path, a few lines of summary, and the next step: `/clear`, then `/graft:plan <name>` or `/graft:execute <name>`. Name the report by its path instead when `<root>/.claude/graft/plans/<name>.md` or `<root>/.claude/plans/<name>.md` exists, or when the report is outside the repo; then say to run the next step from inside the repo that holds the code. Do not implement.
 
