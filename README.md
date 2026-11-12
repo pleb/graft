@@ -77,7 +77,7 @@ Plans and then orchestrates in one session, with no `/clear` in between.
 /graft:yolo [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr guidance]
 ```
 
-Runs `/graft:execute` and makes the calls you would usually make. After a first-use warning, it asks only when the request is unclear, and ends in a ready PR, with screenshots when it can capture them. It commits uncommitted changes related to the work. It stashes the unrelated ones and, once the PR is raised, restores them when they apply cleanly; otherwise Report names the stash left.
+Runs `/graft:execute` and makes the calls you would usually make. It asks only when the request is unclear, and ends in a ready PR, with screenshots when it can capture them. It commits uncommitted changes related to the work. It stashes the unrelated ones and, once the PR is raised, restores them when they apply cleanly; otherwise Report names the stash left.
 
 ### Diff
 
@@ -147,7 +147,6 @@ When the clone is behind, a notice says so and suggests `/graft:update` at the p
 | `orchestrate.finishedPlan`                                                             | `archive`, `delete`, `leave`                   | leave       | What `/graft:orchestrate` does with an untracked plan once every milestone is done: move it to `~/.my-graft/.claude/graft/plans/<repo>/<plan>.md` (`archive`), delete it (`delete`) or leave it in place (`leave`). Archives stay on this machine.                                                                                               |
 | `orchestrate.manualChecks`                                                             | `ask`, `defer`, `pause`                        | ask         | How `/graft:orchestrate` handles a plan's Manual checks: stop after each milestone that has them until you report the result (`pause`), list them in its report (`defer`) or ask at the start of the run (`ask`).                                                                                                                                |
 | `orchestrate.agentDoesManualChecks`                                                    | `false`, `true`                                | false       | Whether `/graft:orchestrate` runs the Manual checks an agent can run (browser, scripts, database) once the branch is finished, and leaves only those that need a person to the Manual check mode (`true`), or leaves every Manual check to you (`false`). Checks that write to a shared database or service run too.                             |
-| `yolo.acknowledged`                                                                    | `false`, `true`                                | false       | Whether `/graft:yolo` warns before its first run (`false`) or not (`true`). Choosing **Continue, don't warn again** at the warning sets `true`. Per-repo overrides do not apply.                                                                                                                                                                 |
 | `diff.comments`                                                                        | `auto`, `batch`                                | batch       | How `/graft:diff` handles your comments when the command names no mode: discuss them in their threads and change code when you send a go-ahead or press Finish review (`batch`), or apply each one as it arrives and republish (`auto`).                                                                                                         |
 | `diff.fileList`                                                                        | `flat`, `tree`                                 | flat        | The file list layout a new `/graft:diff` page starts in, until you switch it on the page (your browser then remembers your choice for that page).                                                                                                                                                                                                |
 | `pr.state`                                                                             | `draft`, `ready`                               | draft       | The state `/graft:pr` opens a new PR in when the command names none.                                                                                                                                                                                                                                                                             |
@@ -186,14 +185,13 @@ These settings remove questions Graft asks. Opting in trades questions for risk:
 - `plan.clearQuestions: default` removes the plan questions that have a clear recommendation.
 - `research.steer: auto` removes the question of which threads to follow after each research wave.
 - `common.routineQuestions: auto` removes routine questions, such as linking an issue, ignoring the Graft folder or setting up research worktrees.
-- `yolo.acknowledged: true` removes the warning before `/graft:yolo` runs.
 - `plan.outsideRepoPlans: always` or `never` removes the question of whether to save plans and research outside a repo.
 - `research.uncommittedChanges: always` or `never` removes the question of whether experiments run on your uncommitted changes.
 - `orchestrate.manualChecks: defer` or `pause` removes the question of how to handle a plan's Manual checks.
 - `update.mode: auto` removes the question before `/graft:update` merges.
 - `diff.comments: auto` removes the go-ahead `/graft:diff` waits for before changing code.
 
-For the fewest questions, use [`/graft:yolo`](#yolo).
+For the fewest questions, use [`/graft:yolo`](#yolo). It asks only when the request is unclear.
 
 ## Interstocks
 

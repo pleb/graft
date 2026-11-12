@@ -1,10 +1,10 @@
 // Follows skills/yolo/SKILL.md: execute's run (9) with Questions (15-17: the request is clear, so no
-// clarify question, no Go or Plan more question, and the agent answers every round itself), First-use
-// warning (27: `yolo.acknowledged` is already `true`, so no warning), Start (46-48: run start, the
-// ignore probe, a clean tree with nothing to sort), Recording decisions (56-57: `(agent <run start>)`
-// lines, no plan commits as the plan is untracked), Manual checks (69: the agent runs the
-// agent-runnable check, and Defer needs no question), Screenshots (73-83), PR (87-88: a ready PR with
-// the screenshot attached), Restore the stash (93, nothing stashed) and Report (99-105).
+// clarify question, no Go or Plan more question, and the agent answers every round itself), Start
+// (29-31: run start, the ignore probe, a clean tree with nothing to sort), Recording decisions
+// (39-40: `(agent <run start>)` lines, no plan commits as the plan is untracked), Manual checks (52:
+// the agent runs the agent-runnable check, and Defer needs no question), Screenshots (56-66), PR
+// (70-71: a ready PR with the screenshot attached), Restore the stash (76, nothing stashed) and
+// Report (82-88).
 // Execute's part follows skills/execute/SKILL.md: Start (15-18, no PR request in the arguments),
 // Plan phase (22-31: plan's rounds answered by the agent, then in Finish's place the full pass
 // Review and finalise runs (27), finalised (30), no finalise report or hand-off (31)) and
@@ -18,7 +18,7 @@
 // check is agent-runnable, so no person-only check remains and there is no mode), Commit and review
 // (63-69), Each pass (73-75), Clean up (77-80), Final checks (82-91), Agent checks (93-103, the 429
 // check passes first time), yolo's Screenshots step, Raise a PR (105-111, a worker following
-// skills/pr/SKILL.md 112-114 with `ready-state` and the screenshot from yolo 88), Finish the plan
+// skills/pr/SKILL.md 112-114 with `ready-state` and the screenshot from yolo 71), Finish the plan
 // (121-131, left in place) and Report (133-144).
 import type { Scenario } from "../events.ts";
 
@@ -101,19 +101,12 @@ const scenario: Scenario = {
     "orchestrate.manualChecks": "ask",
     "orchestrate.finishedPlan": "leave",
     "pr.state": "draft",
-    "yolo.acknowledged": "true",
   },
   events: [
     { type: "prompt", text: "/graft:yolo add rate limiting to the notes API" },
     {
       type: "caption",
       text: "Yolo runs execute, making the calls you would usually make, and ends in a ready PR with screenshots.",
-    },
-    {
-      type: "tool",
-      name: "Bash",
-      args: "node ${CLAUDE_SKILL_DIR}/../settings.ts .",
-      result: "yolo.acknowledged true, so no first-use warning",
     },
     {
       type: "tool",
