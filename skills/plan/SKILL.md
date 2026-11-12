@@ -16,13 +16,21 @@ Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user
 
 If plan mode is active, ask the user to leave it before starting: plan mode blocks edits.
 
-Find the root with `git rev-parse --show-toplevel`. Outside a repo (non-zero exit), skip the ignore check, and follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
-
-Get settings once, passing the cwd as `<root>` outside a repo.
+Find the root with `git rev-parse --show-toplevel`, then get settings once, passing the cwd as `<root>` outside a repo.
 
 ```bash
 node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 ```
+
+Outside a repo (non-zero exit), skip the ignore check. When `plan.outsideRepoPlans` is `here` and the cwd is not the home folder, the root is the cwd and `## Workspace` applies. Otherwise follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
+
+## Workspace
+
+The root is a folder of repos, some not created yet.
+
+- When a repo the work needs is not under the root, create it with the command the session's instructions give for adding a repo, then read it there. Ask when they give none. Creating a repo is not implementing.
+- Agent briefs name the root and the repos by absolute path.
+- The plan's `## Repos` lists each repo the work changes, one line per repo: its path relative to the root, then the command that created it, or `existing`. Each milestone names the repos it changes.
 
 ## Outside a repo
 
@@ -83,6 +91,8 @@ status: draft
 
 ## References
 
+## Repos
+
 ## Approach
 
 ## Decisions
@@ -107,6 +117,8 @@ Each milestone names the files and the change, and splits its verification into 
 Record every answer from a round, and every answer to a question a review raised, in `## Decisions` as one line, `- <question>: <answer> (you)`, with a short reason after the answer when it is not obvious, and remove the answered open question. Record the path the clarify step settles, not the clarify answer itself. `## Approach` does not restate a decision's rationale.
 
 Spend words on decisions, risks and contracts. Give routine changes a line.
+
+`## Repos` is written only in `## Workspace`.
 
 `## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, `- Related <URL>` for any other link, and `- Research <path>` for research the plan builds on. Read an issue or PR the conversation brings in, not only one in the arguments, as `## GitHub issue reference handling` describes. An issue References already lists keeps its line. Other issues supplied in the arguments are added as Resolves; other issues, PRs and links are added as Related. The user can move any line between the two.
 
@@ -151,4 +163,4 @@ Recommend Review and finalise when no full pass has run in this session, or when
 
 Review and finalise runs a full pass when none has run in this session. Otherwise it runs a delta pass over everything changed since the last pass started, fixes included, with reviewers picked as in Review. A decision the pass raises becomes an open question. Once it is answered, ask this question again, and the test above sets the recommendation.
 
-To finalise, set `status: finalised`, then report the plan path, a few lines of summary, and the next step: `/clear`, then `/graft:orchestrate <name>` (`/graft:orchestrate <path>` for a plan outside `.claude/graft/plans/`). For a plan written from outside a repo, name it by full path and say to run the next step from inside the repo that holds the code. When the directory under `## Goal` is still not a repo, say orchestrate needs one (for example, `git init` it first). Do not implement.
+To finalise, set `status: finalised`, then report the plan path, a few lines of summary, and the next step: `/clear`, then `/graft:orchestrate <name>` (`/graft:orchestrate <path>` for a plan outside `.claude/graft/plans/`). In `## Workspace`, say to run the next step from the root. For a plan written from outside a repo otherwise, name it by full path and say to run the next step from inside the repo that holds the code. When the directory under `## Goal` is still not a repo, say orchestrate needs one (for example, `git init` it first). Do not implement.

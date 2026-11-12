@@ -46,7 +46,12 @@ describe("parseCatalog", () => {
     ]);
     expect(catalog.settings).toMatchObject([
       { skill: "common", name: "reviewerModel", values: ["fable", "sonnet"], defaultValue: "opus" },
-      { skill: "plan", name: "outsideRepoPlans", values: ["always", "never"], defaultValue: "ask" },
+      {
+        skill: "plan",
+        name: "outsideRepoPlans",
+        values: ["always", "here", "never"],
+        defaultValue: "ask",
+      },
       { skill: "plan", name: "questionsPerRound", values: ["1", "2", "4"], defaultValue: "3" },
       {
         skill: "plan",

@@ -16,15 +16,26 @@ Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user
 
 If plan mode is active, ask the user to leave it before starting: plan mode blocks edits.
 
-Find the root with `git rev-parse --show-toplevel`. Outside a repo (non-zero exit), skip the ignore check, and follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
-
-Get settings once, passing the cwd as `<root>` outside a repo.
+Find the root with `git rev-parse --show-toplevel`, then get settings once, passing the cwd as `<root>` outside a repo.
 
 ```bash
 node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 ```
 
-In a repo, list the `git worktree list --porcelain` entries under a `graft-research-` run directory, left by earlier runs. When there are any, ask which to remove, and run `git worktree remove --force <path>` on each the user picks.
+Outside a repo (non-zero exit), skip the ignore check. When `plan.outsideRepoPlans` is `here` and the cwd is not the home folder, the root is the cwd and `## Workspace` applies. Otherwise follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
+
+In a repo, or in each repo under the root as `## Workspace` says, list the `git worktree list --porcelain` entries under a `graft-research-` run directory, left by earlier runs. When there are any, ask which to remove, and run `git worktree remove --force <path>` on each the user picks.
+
+## Workspace
+
+The root is a folder of repos, some not created yet.
+
+- When a repo the question needs is not under the root, ask whether to create it with the command the session's instructions give for adding a repo, then read it there.
+- Agent briefs name the root and the repos by absolute path. Run git as `git -C <repo>`.
+- Each experimenter works in one repo under the root. `## Experimenters` records a base OID per repo, and in a brief that repo is the root. The snapshot question is asked once per run and applies to each repo with uncommitted changes. After a wave, remove the run directory's worktrees with `git -C <repo>` in each repo that had an experimenter.
+- When the repos under the root are worktrees of clones that other sessions share, `git worktree list` shows their runs too. At Start, offer to remove only entries under this session's scratchpad or temp folder; list the rest without offering them.
+- When a repo depends on gitignored config (ports, `.env` files), a worktree in the run directory lacks it, so code it runs can reach another stack or service. Count that as an external effect to confirm.
+- `## Finish` says to run the next step from the root.
 
 ## Outside a repo
 
@@ -66,7 +77,7 @@ Each wave sends, in parallel:
 
 ## Experimenters
 
-Send experimenters only in a repo.
+Send experimenters only in a repo, or in a repo under the root in `## Workspace`.
 
 Before the first experimenter in a run:
 
@@ -131,7 +142,7 @@ Once a wave leaves no thread to follow, ask:
 - **Conclude**: `## Challenge`, then conclude.
 - **Continue researching**: ask the user what to dig into next.
 
-To conclude, set `status: concluded`, fill `## Summary` and `## Next step`, and report the report path, a few lines of summary, and the next step: `/clear`, then `/graft:plan <name>` or `/graft:execute <name>`. Name the report by its path instead when `<root>/.claude/graft/plans/<name>.md` or `<root>/.claude/plans/<name>.md` exists, or when the report is outside the repo; then say to run the next step from inside the repo that holds the code. Do not implement.
+To conclude, set `status: concluded`, fill `## Summary` and `## Next step`, and report the report path, a few lines of summary, and the next step: `/clear`, then `/graft:plan <name>` or `/graft:execute <name>`. Name the report by its path instead when `<root>/.claude/graft/plans/<name>.md` or `<root>/.claude/plans/<name>.md` exists, or, outside `## Workspace`, when the report is outside the repo; then say to run the next step from inside the repo that holds the code. Do not implement.
 
 ## Artifact
 
