@@ -17,12 +17,15 @@ gh repo create <owner>/<repo> --<public|private> --source <dir> --remote origin 
 
 ## 3. Make it the interstock
 
-In `<dir>/agent-install.md`, replace the `pleb/graft` references that say where to install from (`gh repo clone pleb/graft`, each `upstream` URL `https://github.com/pleb/graft.git`, the repo description) with `<owner>/<repo>`.
+An interstock clone has these properties. Make each one true in `<dir>`.
 
-In `<dir>/README.md`, replace the install command under `## Install` with the colleague install command. Leave `## Interstocks` alone.
+- **Install references.** In `agent-install.md`, the `pleb/graft` references that say where to install from (`gh repo clone pleb/graft`, each `upstream` URL `https://github.com/pleb/graft.git`, the repo description) name `<owner>/<repo>`.
+- **Install command.** In `README.md`, the install command under `## Install` is the colleague install command in the repo's form. `## Interstocks` stays as it is.
+  - Public: `Claude, install Graft https://raw.githubusercontent.com/<owner>/<repo>/main/agent-install.md`
+  - Private: `Claude, install Graft by reading agent-install.md from <owner>/<repo> with gh api -H "Accept: application/vnd.github.raw" repos/<owner>/<repo>/contents/agent-install.md`
+- **No simulator link.** `README.md` has no link to `https://pleb.github.io/graft/`, whatever its text. Remove each line that links to it.
 
-- Public: `Claude, install Graft https://raw.githubusercontent.com/<owner>/<repo>/main/agent-install.md`
-- Private: `Claude, install Graft by reading agent-install.md from <owner>/<repo> with gh api -H "Accept: application/vnd.github.raw" repos/<owner>/<repo>/contents/agent-install.md`
+## 4. Record and push
 
 Create `<dir>/INTERSTOCK-MODS.md`:
 
@@ -41,7 +44,7 @@ git -C <dir> commit -am "Make <owner>/<repo> an interstock"
 git -C <dir> push --set-upstream origin main
 ```
 
-## 4. Finish
+## 5. Finish
 
 Report `https://github.com/<owner>/<repo>`, `<dir>`, and the colleague install command. For a private repo, say colleagues need read access and `gh auth setup-git`. Say the caretaker runs `/graft:update` and `/graft:modify` in `<dir>` to update or modify the interstock.
 
