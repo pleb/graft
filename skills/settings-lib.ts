@@ -50,7 +50,6 @@ export const DEFAULTS_SOURCE = "Defaults";
 
 const SUBTREE = "/*";
 
-// Read from the defaults in ~/.my-graft/graft-settings.json only.
 const GLOBAL_KEYS = new Set(["yolo.acknowledged"]);
 
 const isObject = (value: unknown): value is Record<string, unknown> =>

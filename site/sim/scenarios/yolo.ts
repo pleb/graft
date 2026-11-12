@@ -1,6 +1,6 @@
 // Follows skills/yolo/SKILL.md: execute's run (9) with Questions (15-17: the request is clear, so no
 // clarify question, no Go or Plan more question, and the agent answers every round itself), First-use
-// warning (28: `yolo.acknowledged` is already `true`, so no warning), Start (46-48: run start, the
+// warning (27: `yolo.acknowledged` is already `true`, so no warning), Start (46-48: run start, the
 // ignore probe, a clean tree with nothing to sort), Recording decisions (56-57: `(agent <run start>)`
 // lines, no plan commits as the plan is untracked), Manual checks (69: the agent runs the
 // agent-runnable check, and Defer needs no question), Screenshots (73-83), PR (87-88: a ready PR with
