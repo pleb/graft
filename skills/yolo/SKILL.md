@@ -79,9 +79,9 @@ On a conflict, run `git reset --merge`. When the stash holds untracked files, re
 
 ## Report
 
-Before orchestrate's `## Finish the plan` moves or deletes the plan, read the `(agent <run start>)` decisions. Report adds:
+Before orchestrate's `## Finish the plan` moves or deletes the plan, read the `(agent <run start>)` decisions and the `(default)` entries written during this run. Report adds:
 
-- Every decision you made without asking.
+- Every decision you made without asking, and every `(default)` entry written during this run.
 - The dirty-tree paths you included, stashed or added to `info/exclude` (the paths left out of the sort among them).
 - Each agent check still failing, with what the worker observed.
 - Whether screenshots were attached, or why not.

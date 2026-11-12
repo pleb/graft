@@ -16,13 +16,13 @@ Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user
 
 ## Start
 
-The arguments are guidance and may set the state anywhere, such as `ready-state`, `draft` or `mark it ready`. A word that belongs to the guidance stays in it (for example, `note the docs are still a draft`); ask (routine) when it is unclear, recommending it stays in the guidance.
-
 Get settings, with the cwd as `<root>`.
 
 ```bash
 node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 ```
+
+The arguments are guidance and may set the state anywhere, such as `ready-state`, `draft` or `mark it ready`. A word that belongs to the guidance stays in it (for example, `note the docs are still a draft`); ask (routine) when it is unclear, recommending it stays in the guidance.
 
 ## Preconditions
 

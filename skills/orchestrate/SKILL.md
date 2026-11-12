@@ -108,7 +108,7 @@ When the plan or the user asks for a PR, raise it after Agent checks, not during
 
 - **Arguments**: the plan's PR request and the user's. The user's wins where they differ.
 - **Context**: the plan file or the work you were given, the motivation from this conversation, each issue from this run with its Resolves or Related split, the effective `pr.state` as the state to use when no argument names one, and each agent check still failing, for the PR body to flag. The brief marks these as context, not arguments.
-- **Questions**: where pr or common.md says to ask, the worker stops and reports the question. Ask the user, or answer it as `## Ask the user` describes when it is marked (routine), then send the worker again.
+- **Questions**: the worker answers routine questions as common.md's `## Ask the user` describes. Where it would ask the user, it stops and reports the question. Ask the user, then send the worker again.
 
 In pause mode, a PR milestone's Manual checks pause as `### Commit and review` describes once the PR is raised, before `## Finish the plan`. Fix commits are pushed to the PR's branch.
 

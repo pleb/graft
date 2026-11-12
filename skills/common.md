@@ -37,7 +37,7 @@ Take the first that applies:
 2. A file path: that plan file is the work.
 3. A plan name: the arguments match `<root>/.claude/graft/plans/<name>.md`, else the legacy `<root>/.claude/plans/<name>.md` (`.md` optional). That plan is the work.
 4. A research name: the arguments match `<root>/.claude/graft/research/<name>/report.md`. That research is the work.
-5. A single kebab-case word with no matching plan or research: list the top-level plans in `<root>/.claude/graft/plans/` and `<root>/.claude/plans/` and ask (routine) whether it names one of them or is the work, recommending the one it plainly names, else the word as the work.
+5. A single kebab-case word with no matching plan or research: list the top-level plans in `<root>/.claude/graft/plans/` and `<root>/.claude/plans/` and ask (routine) whether it names one of them or is the work, recommending the word as the work.
 6. Other text: that text is the work.
 7. Nothing: the work in this conversation.
 
