@@ -3,7 +3,7 @@
 // no Go or Plan more question as rounds reached the user (28), finalised (30), no finalise report
 // or hand-off (31)) and Orchestrate phase (35).
 // Plan phase follows skills/plan/SKILL.md: Start (19-25), Find the work (35, research found or a
-// new topic), Check the Graft folder skipped as the folder exists (common.md 52), Understand (43),
+// new topic), Check the Graft folder skipped as the folder exists (common.md 54), Understand (43),
 // Settle the solution (47-66, no clarify question), Write the plan (70-116, no PR milestone as
 // execute 25 says), Review (131-137) and the full pass Finish recommends (151-153).
 // Orchestrate phase follows skills/orchestrate/SKILL.md, condensed in orchestrate.ts's order: Start

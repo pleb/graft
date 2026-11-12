@@ -33,12 +33,12 @@ When the work is a plan file (including a plan in this conversation written to o
 - Its `status` is not `finalised`.
 - Its `## Open questions` section lists questions.
 
-Say which holds, list any open questions, and ask whether to continue or stop. On stop, name `/graft:plan <name>` as the next step (`/graft:plan <path>` for a plan outside `.claude/graft/plans/`). Never edit the plan.
+Say which holds, list any open questions, and ask whether to continue or stop. When only the status holds, ask it (routine), recommending continue. On stop, name `/graft:plan <name>` as the next step (`/graft:plan <path>` for a plan outside `.claude/graft/plans/`). Never edit the plan.
 
 When issues were supplied, before Execute:
 
-- With no plan, confirm with the user the task you take from the issues.
-- For each issue the plan's `## References` does not list, ask the user whether it is Resolves or Related.
+- With no plan, confirm with the user (routine) the task you take from the issues.
+- For each issue the plan's `## References` does not list, ask the user (routine) whether it is Resolves or Related, recommending Resolves when the work covers all of the issue and Related otherwise.
 
 ## Branch
 
@@ -82,13 +82,13 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 ## Final checks
 
 - Run the repo's checks (tests, typecheck, lint, build, whichever exist) on the whole branch. When the repo has none, note it in Report.
-- Report or ask about a check the environment cannot run (no database, credentials or network). Never send it to a worker to fix.
+- Report or ask (routine) about a check the environment cannot run (no database, credentials or network), recommending report. Never send it to a worker to fix.
 - For every other failure, rerun the failing check at the commit Execute started from, in a temporary `git worktree` set up like the main tree (dependencies installed, same setup), then remove the worktree. The cause predates this run only when that rerun fails the same way (same test, same error). Otherwise, including when the worktree cannot run the check, the cause is the branch's.
 - When the cause predates this run, look for an open PR or a newer default-branch commit that fixes it. When there is one, ask the user whether to rely on it or fix it here. To rely on it, record the failure and the PR or commit in Report and go on.
 - Send every failure you do not rely on an upstream fix for to a worker, and commit the fix in the repo's commit style.
 - When the fix is risky by `### Commit and review`'s test, run a pass as `### Each pass` describes, from the commit before this fix to HEAD, with the failing check as its intent; otherwise check the fix yourself. That pass's fixes get no further pass.
 - Then run the checks again. Ask the user about any fixed failure that still fails.
-- After the checks, `git status --porcelain` is empty. Report or ask about anything it lists.
+- After the checks, `git status --porcelain` is empty. Report or ask (routine) about anything it lists, recommending report and leaving the files as they are.
 
 ## Agent checks
 
@@ -100,7 +100,7 @@ Run this step when `## Execute` sorted any check as agent-runnable. A PR milesto
 - A check the worker reports as person-only goes to Report as deferred, whatever the mode.
 - Run this step again before pushing or going on after any later fix commit, such as a pause fix or a fix pushed to the PR's branch.
 - Once the PR is raised, push this step's fix commits to the PR's branch. When the checks still failing then differ from those the PR body flags, edit the body with `gh pr edit --body` to flag exactly those.
-- After the checks, `git status --porcelain` is empty. Report or ask about anything it lists.
+- After the checks, `git status --porcelain` is empty. Report or ask (routine) about anything it lists, recommending report and leaving the files as they are.
 
 ## Raise a PR
 
@@ -108,7 +108,7 @@ When the plan or the user asks for a PR, raise it after Agent checks, not during
 
 - **Arguments**: the plan's PR request and the user's. The user's wins where they differ.
 - **Context**: the plan file or the work you were given, the motivation from this conversation, each issue from this run with its Resolves or Related split, the effective `pr.state` as the state to use when no argument names one, and each agent check still failing, for the PR body to flag. The brief marks these as context, not arguments.
-- **Questions**: where pr or common.md says to ask, the worker stops and reports the question. Ask the user, then send the worker again.
+- **Questions**: where pr or common.md says to ask, the worker stops and reports the question. Ask the user, or answer it as `## Ask the user` describes when it is marked (routine), then send the worker again.
 
 In pause mode, a PR milestone's Manual checks pause as `### Commit and review` describes once the PR is raised, before `## Finish the plan`. Fix commits are pushed to the PR's branch.
 

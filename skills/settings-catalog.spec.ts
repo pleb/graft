@@ -31,6 +31,7 @@ describe("parseCatalog", () => {
     }
     expect(catalog.settings.map((setting) => setting.key)).toEqual([
       "common.reviewerModel",
+      "common.routineQuestions",
       "plan.outsideRepoPlans",
       "plan.questionsPerRound",
       "plan.manualChecksQuestion",
@@ -50,6 +51,7 @@ describe("parseCatalog", () => {
     ]);
     expect(catalog.settings).toMatchObject([
       { skill: "common", name: "reviewerModel", values: ["fable", "sonnet"], defaultValue: "opus" },
+      { skill: "common", name: "routineQuestions", values: ["auto"], defaultValue: "ask" },
       { skill: "plan", name: "outsideRepoPlans", values: ["always", "never"], defaultValue: "ask" },
       { skill: "plan", name: "questionsPerRound", values: ["1", "2", "4"], defaultValue: "3" },
       {

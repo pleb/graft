@@ -10,7 +10,7 @@
 // Review and finalise runs (27), finalised (30), no finalise report or hand-off (31)) and
 // Orchestrate phase (35).
 // Plan phase follows skills/plan/SKILL.md: Start (19-25), Find the work (35, a new topic), Check the
-// Graft folder (39, common.md 52-55: the probe passes, so no question), Understand (43), Settle the
+// Graft folder (39, common.md 54-57: the probe passes, so no question), Understand (43), Settle the
 // solution (47-66, no clarify question), Write the plan (70-116, no PR milestone as execute 25
 // says), Review (131-137) and the full pass Finish recommends (151-153).
 // Orchestrate phase follows skills/orchestrate/SKILL.md, condensed as execute.ts condenses it: Start
