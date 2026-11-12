@@ -42,6 +42,7 @@ Read `<target>/skills/orchestrate/SKILL.md` and follow its sections `## Execute`
 - Work in the clone on `main`, with no feature branch.
 - One commit for the whole mod, not one per milestone, made in Commit and push.
 - Skip `## Clean up`.
+- `orchestrate.agentDoesManualChecks` does not apply.
 - Review the whole mod once before Record: `graft:reviewer` and `graft:adversarial-reviewer` in parallel, both on `common.reviewerModel`, else Opus. This single review replaces Execute's review cadence. The target is the clone's uncommitted changes, by absolute path; the approved plan is the intent. Act on findings as Execute says.
 - Put review fixes in the uncommitted mod, not a separate fix commit.
 

@@ -145,7 +145,7 @@ Once no open question remains and no review pass is running, ask:
 
 The question lists the `(default)` entries in `## Decisions`, and an answer can overturn any of them.
 
-When `plan.manualChecksQuestion` is `finish`, the plan has Manual checks, `## Decisions` has no entry for the mode and `orchestrate.manualChecks` is `ask`, ask in the same call how orchestrate handles them: **Pause** after each milestone with Manual checks until the user reports the result, or **Defer** them to orchestrate's Report. Record the answer in `## Decisions` only when the user picks Review and finalise or Finalise. It does not count as change for the recommendation.
+When `plan.manualChecksQuestion` is `finish`, the plan has Manual checks (only person-only ones count when `orchestrate.agentDoesManualChecks` is `true`, by the rule in its settings row), `## Decisions` has no entry for the mode and `orchestrate.manualChecks` is `ask`, ask in the same call how orchestrate handles them: **Pause** after each milestone with Manual checks until the user reports the result, or **Defer** them to orchestrate's Report. Record the answer in `## Decisions` only when the user picks Review and finalise or Finalise. It does not count as change for the recommendation.
 
 Recommend Review and finalise when no full pass has run in this session, or when the plan has changed since the last pass started beyond small detail (the approach, the milestones, or a risky part). Recommend Finalise otherwise. For this recommendation, factual fixes applied from findings do not count as change; answers to open questions do. Text from an earlier session counts as unreviewed.
 

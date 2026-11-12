@@ -25,7 +25,7 @@ Read `${CLAUDE_SKILL_DIR}/../plan/SKILL.md` and follow it, with these changes:
 - Do not record the PR request as a plan milestone.
 - At the point Finish would ask its question, do not ask it:
   1. Take the option Finish would recommend. Review and finalise runs its pass and acts on the findings as Finish does. A decision a pass raises becomes a question to the user. Run another pass only when an answer changes the approach or the milestones.
-  2. When no `## Settle the solution` round and no review-raised question reached the user, ask **Go** or **Plan more**. The question states your reading of the request and the `(default)` entries in `## Decisions`. When `plan.manualChecksQuestion` is `finish`, ask Finish's Manual check mode question in the same call, and record its answer in `## Decisions` only when the user picks Go.
+  2. When no `## Settle the solution` round and no review-raised question reached the user, ask **Go** or **Plan more**. The question states your reading of the request and the `(default)` entries in `## Decisions`. When Finish would ask its Manual check mode question, ask it in the same call, and record its answer in `## Decisions` only when the user picks Go.
   3. Plan more acts as Finish's Continue planning. Its answer does not count as a question that reached the user, so ask Go or Plan more again at the next Finish point.
 - Then set `status: finalised`.
 - Plan's "You never implement", its finalise report and its "Do not implement" do not apply.
