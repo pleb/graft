@@ -175,7 +175,7 @@ Then follow common.md's `## Publish the change` with the branch `graft/update-<Y
 
 - What came in from upstream.
 - Each conflict and how it was resolved.
-- Each compliance fix, or that compliance was skipped because the merged clone has no `interstock.md`.
+- For an interstock, each compliance fix, or that compliance was skipped because the merged clone has no `interstock.md`.
 - Mods revised or dropped, with their registry rows.
 - Review findings acted on, with their fixes.
 - For a shared stock, the PR URL and that it needs merging with a merge commit, not squash or rebase. When no PR was raised, the branch, with the PR guidance above (the Graft line chosen and the items filled in) as the arguments to pass to `/graft:pr`.

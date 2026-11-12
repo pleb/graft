@@ -23,7 +23,7 @@ An interstock clone has these properties. Make each one true in `<dir>`.
 - **Install command.** In `README.md`, the install command under `## Install` is the colleague install command in the repo's form. `## Interstocks` stays as it is.
   - Public: `Claude, install Graft https://raw.githubusercontent.com/<owner>/<repo>/main/agent-install.md`
   - Private: `Claude, install Graft by reading agent-install.md from <owner>/<repo> with gh api -H "Accept: application/vnd.github.raw" repos/<owner>/<repo>/contents/agent-install.md`
-- **No simulator link.** `README.md` has no link to `https://pleb.github.io/graft/`, whatever its text. Remove each line that links to it.
+- **No simulator link.** `README.md` has no link to `https://pleb.github.io/graft/`, whatever its text. Remove each line that links to it, together with one blank line next to it.
 
 ## 4. Record and push
 
