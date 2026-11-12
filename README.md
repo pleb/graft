@@ -177,6 +177,24 @@ A repo or folder can also keep its own settings, as Claude Code does, in `.claud
 
 They apply over `~/.my-graft/graft-settings.json`, the local file last. `/graft-settings` edits only `~/.my-graft/graft-settings.json`, but its effective view includes these files.
 
+### Fewer questions
+
+These settings cut the questions Graft asks. Opting in trades questions for risk: the agent decides instead, and says what it took.
+
+- `orchestrate.agentDoesManualChecks: true` removes the Manual checks an agent can run itself from the ones you are asked to run.
+- `plan.finishQuestion: skip` removes the Finish question in `/graft:plan` and `/graft:research`.
+- `plan.clearQuestions: default` removes the plan questions that have a clear recommendation.
+- `research.steer: auto` removes the question of which threads to follow after each research wave.
+- `common.routineQuestions: auto` removes routine questions, such as linking an issue, ignoring the Graft folder or setting up research worktrees.
+- `yolo.acknowledged: true` removes the warning before `/graft:yolo` runs.
+- `plan.outsideRepoPlans: always` or `never` removes the question of whether to save plans and research outside a repo.
+- `research.uncommittedChanges: always` or `never` removes the question of whether experiments run on your uncommitted changes.
+- `orchestrate.manualChecks: defer` or `pause` removes the question of how to handle a plan's Manual checks.
+- `update.mode: auto` removes the question before `/graft:update` merges.
+- `diff.comments: auto` removes the go-ahead `/graft:diff` waits for before changing code.
+
+For no questions at all, use `/graft:yolo`. After its first-use warning, it asks only when the request is unclear.
+
 ## Interstocks
 
 An interstock (in horticulture, the middle piece of a double graft) is an organisation's shared copy of Graft that sits between `pleb/graft` and its users, replacing `pleb/graft` with its own repo. To create one:
