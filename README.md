@@ -203,7 +203,7 @@ Claude, install Graft https://raw.githubusercontent.com/pleb/graft/main/intersto
 
 Colleagues install with the install command in the interstock repo's README.
 
-The caretaker updates and modifies the interstock by running `/graft:update` and `/graft:modify` in a clone of its repo. In that clone, and in a clone of `pleb/graft`, both commands raise a PR for you to merge. In your own copy, they push straight to `main`.
+The caretaker updates and modifies the interstock by running `/graft:update` and `/graft:modify` in a clone of its repo. In that clone, and in a clone of `pleb/graft`, both commands raise a PR for you to merge. In your own copy, they push straight to `main`. `/graft:update` also keeps the interstock in line with `interstock.md`.
 
 The interstock records its mods in `INTERSTOCK-MODS.md`. Each copy records its own in `MODS.md`.
 

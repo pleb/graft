@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build simulator",
+      "type": "npm",
+      "script": "build:site",
+      "problemMatcher": []
+    },
+    {
+      "label": "Open simulator",
+      "type": "shell",
+      "command": "open site/dist/index.html",
+      "linux": { "command": "xdg-open site/dist/index.html" },
+      "windows": { "command": "start site\\dist\\index.html" },
+      "dependsOn": "Build simulator",
+      "problemMatcher": [],
+      "presentation": { "reveal": "silent" }
+    }
+  ]
+}
