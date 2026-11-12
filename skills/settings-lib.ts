@@ -50,6 +50,9 @@ export const DEFAULTS_SOURCE = "Defaults";
 
 const SUBTREE = "/*";
 
+// Read from the defaults in ~/.my-graft/graft-settings.json only.
+const GLOBAL_KEYS = new Set(["yolo.acknowledged"]);
+
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -283,7 +286,10 @@ export function explainLayers(layers: Layer[], settings: CatalogSetting[]): Expl
   return settings.map((setting) => {
     let value = setting.defaultValue;
     let source = DEFAULT_SOURCE;
-    for (const layer of layers) {
+    const applied = GLOBAL_KEYS.has(setting.key)
+      ? layers.filter(({ source }) => source === DEFAULTS_SOURCE)
+      : layers;
+    for (const layer of applied) {
       const stored = layer.values[setting.skill]?.[setting.name];
       if (isValid(setting, stored)) {
         value = String(stored);

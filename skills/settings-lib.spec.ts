@@ -648,6 +648,38 @@ describe("resolveSettings", () => {
     });
   });
 
+  it("reads yolo.acknowledged from the defaults only", async () => {
+    const catalog: Catalog = {
+      isParsed: true,
+      settings: [
+        {
+          key: "yolo.acknowledged",
+          skill: "yolo",
+          name: "acknowledged",
+          values: ["true"],
+          defaultValue: "false",
+          description: "",
+        },
+      ],
+    };
+    const acknowledged = { yolo: { acknowledged: "true" } };
+    const shared = { source: "shared", text: JSON.stringify(acknowledged) };
+    const scoped = JSON.stringify({ "/w/repo": { overrides: acknowledged } });
+    const fromRepo = await resolveSettings(scoped, catalog, "/w/repo", env(), [shared]);
+    const fromDefaults = await resolveSettings(
+      JSON.stringify(acknowledged),
+      catalog,
+      "/w/repo",
+      env(),
+    );
+    expect(fromRepo.isResolved && fromRepo.settings.map((s) => `${s.value} ${s.source}`)).toEqual([
+      "false Default",
+    ]);
+    expect(
+      fromDefaults.isResolved && fromDefaults.settings.map((s) => `${s.value} ${s.source}`),
+    ).toEqual(["true Defaults"]);
+  });
+
   it("refuses a catalog that does not parse", async () => {
     expect(
       await resolveSettings(undefined, { isParsed: false, error: "bad" }, "/r", env()),

@@ -1,9 +1,9 @@
 ---
 name: yolo
-description: Runs execute with the agent making the calls the user would usually make. Asks only when the request is unclear, and ends in a ready PR with screenshots attached when it can capture them.
+description: Runs execute with the agent making the calls the user would usually make. After a first-use warning, asks only when the request is unclear, and ends in a ready PR with screenshots attached when it can capture them.
 argument-hint: "[plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr guidance]"
 disable-model-invocation: true
-allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
+allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *), Bash(git -C ~/.my-graft *), Read(~/.my-graft/graft-settings.json), Edit(~/.my-graft/graft-settings.json), Write(~/.my-graft/graft-settings.json)
 ---
 
 You run execute, making the calls the user would usually make. Read `${CLAUDE_SKILL_DIR}/../execute/SKILL.md` and follow it, changed only as this file says. In that file and the files it reads, read `CLAUDE_SKILL_DIR` as `${CLAUDE_SKILL_DIR}`. Its `$ARGUMENTS` is this file's arguments.
@@ -21,6 +21,23 @@ You run execute, making the calls the user would usually make. Read `${CLAUDE_SK
   - A draft plan given as the work with no revision named: answer its open questions and finalise.
   - No work found, or plan mode active: stop and say why.
 - Answer the questions the pr worker reports back the same way, then send it again.
+
+## First-use warning
+
+Run this step before execute's `## Start`. When `yolo.acknowledged` from `node ${CLAUDE_SKILL_DIR}/../settings.ts .` is not `true`, ask, with no previews:
+
+> Yolo decides everything itself. It runs Manual checks itself, including seed scripts and database writes against whatever `.env` points at. It commits, pushes and opens a ready PR.
+
+- **Continue, don't warn again**: save `yolo.acknowledged`, then go on with the run.
+- **Stop**: end the run without changing anything.
+
+Save it as the settings pane does:
+
+1. Check that `git -C ~/.my-graft symbolic-ref --short -q HEAD` prints `main`, `git -C ~/.my-graft rev-parse -q --verify MERGE_HEAD` fails, `git -C ~/.my-graft status --porcelain --untracked-files=all` prints nothing and `git -C ~/.my-graft rev-list --count origin/main..HEAD` prints `0`. Then run `git -C ~/.my-graft pull --ff-only origin main`.
+2. In `~/.my-graft/graft-settings.json` (`{}` when missing), set `"acknowledged": "true"` under the top-level `"yolo"` key, keeping every other key, and write it back as two-space-indented JSON ending in a newline.
+3. Run `git -C ~/.my-graft add -- graft-settings.json`, `git -C ~/.my-graft commit --only -m "Set yolo.acknowledged to true" -- graft-settings.json` and `git -C ~/.my-graft push origin main`.
+
+When a step fails, go on with the run. Say the save failed, why, and the command that fixes it: `git -C ~/.my-graft switch main`, `git -C ~/.my-graft merge --abort`, `git -C ~/.my-graft status` (then commit or discard the changes), `git -C ~/.my-graft push origin main` or `git -C ~/.my-graft pull --ff-only origin main`. When only the push fails, say the setting is committed but not pushed. Otherwise restore `graft-settings.json` as it was and say the warning shows again next time.
 
 ## Start
 
