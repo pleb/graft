@@ -91,7 +91,7 @@ git -C <target> log --no-merges --format=%s upstream/main..HEAD -- <file>
 
 This prints their Change names, and the registry gives their intent. Resolve the file so upstream's change lands and each mod's intent still holds. Ask when both cannot hold, when no mod explains the clone's side, or when upstream now does what a mod did (offer to drop the mod and its row). `auto` never skips these questions. Record the conflicted files and each decision the user makes.
 
-For an interstock, the clone's side is also explained where step 3 of the merged `interstock.md` alone explains it; take upstream's side there. A hunk that also carries a mod's content follows the mod rule above.
+For an interstock, step 3 of the merged `interstock.md` also explains the clone's side. Where it alone explains a hunk, take upstream's side. Where the hunk also carries a mod's content, resolve it as above.
 
 To stop at any point before the commit, clear the merge and any fixes, including new files.
 
@@ -106,7 +106,7 @@ This is safe because Sync required a clean tree. (`merge --abort` can refuse onc
 
 Run this step for an interstock. When the merged clone has no `interstock.md`, skip it.
 
-Apply the file changes in step 3 of `<target>/interstock.md`, reading `<dir>` as `<target>` and `<owner>/<repo>` as `<origin-repo>`. Never create the registry, commit or push here.
+Make each property in step 3 of `<target>/interstock.md` true, reading `<dir>` as `<target>` and `<owner>/<repo>` as `<origin-repo>`. Never create the registry, commit or push here.
 
 For the install command's form, read the pre-merge install command under `## Install`.
 
