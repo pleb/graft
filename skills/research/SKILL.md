@@ -33,8 +33,6 @@ The root is a folder of repos, some not created yet.
 - When a repo the question needs is not under the root, ask whether to create it with the command the session's instructions give for adding a repo, then read it there.
 - Agent briefs name the root and the repos by absolute path. Run git as `git -C <repo>`.
 - Each experimenter works in one repo under the root. `## Experimenters` records a base OID per repo, and in a brief that repo is the root. The snapshot question is asked once per run and applies to each repo with uncommitted changes. After a wave, remove the run directory's worktrees with `git -C <repo>` in each repo that had an experimenter.
-- When the repos under the root are worktrees of clones that other sessions share, `git worktree list` shows their runs too. At Start, offer to remove only entries under this session's scratchpad or temp folder; list the rest without offering them.
-- When a repo depends on gitignored config (ports, `.env` files), a worktree in the run directory lacks it, so code it runs can reach another stack or service. Count that as an external effect to confirm.
 - `## Finish` says to run the next step from the root.
 
 ## Outside a repo
