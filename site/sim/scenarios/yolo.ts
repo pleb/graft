@@ -1,23 +1,25 @@
 // Follows skills/yolo/SKILL.md: execute's run (9) with Questions (15-17: the request is clear, so no
 // clarify question, no Go or Plan more question, and the agent answers every round itself), Start
 // (29-31: run start, the ignore probe, a clean tree with nothing to sort), Recording decisions
-// (39-40: `(agent <run start>)` lines, no plan commits as the plan is untracked), Manual checks (51,
-// Defer with no question), Screenshots (55-65), PR (69-70: a ready PR with the screenshot attached),
-// Restore the stash (75, nothing stashed) and Report (81-86).
+// (39-40: `(agent <run start>)` lines, no plan commits as the plan is untracked), Manual checks (52:
+// the agent runs the agent-runnable check, and Defer needs no question), Screenshots (56-66), PR
+// (70-71: a ready PR with the screenshot attached), Restore the stash (76, nothing stashed) and
+// Report (82-88).
 // Execute's part follows skills/execute/SKILL.md: Start (15-18, no PR request in the arguments),
 // Plan phase (22-31: plan's rounds answered by the agent, then in Finish's place the full pass
 // Review and finalise runs (27), finalised (30), no finalise report or hand-off (31)) and
 // Orchestrate phase (35).
 // Plan phase follows skills/plan/SKILL.md: Start (19-25), Find the work (35, a new topic), Check the
-// Graft folder (39, common.md 52-55: the probe passes, so no question), Understand (43), Settle the
-// solution (47-65, no clarify question), Write the plan (69-115, no PR milestone as execute 25
-// says), Review (130-136) and the full pass Finish recommends (150-152).
+// Graft folder (39, common.md 54-57: the probe passes, so no question), Understand (43), Settle the
+// solution (47-66, no clarify question), Write the plan (70-116, no PR milestone as execute 25
+// says), Review (131-137) and the full pass Finish recommends (151-153).
 // Orchestrate phase follows skills/orchestrate/SKILL.md, condensed as execute.ts condenses it: Start
-// (17, its root and settings already known), Branch (45-51), Execute (55-58, Defer from yolo 51),
-// Commit and review (62-66), Each pass (72-74), Clean up (76-79), Final checks (81-90), yolo's
-// Screenshots step, Raise a PR (92-98, a worker following skills/pr/SKILL.md 112-114 with
-// `ready-state` and the screenshot from yolo 70), Finish the plan (108-118, left in place) and
-// Report (120-130).
+// (17, its root and settings already known), Branch (45-51), Execute (55-59: milestone 3's Manual
+// check is agent-runnable, so no person-only check remains and there is no mode), Commit and review
+// (63-69), Each pass (73-75), Clean up (77-80), Final checks (82-91), Agent checks (93-103, the 429
+// check passes first time), yolo's Screenshots step, Raise a PR (105-111, a worker following
+// skills/pr/SKILL.md 112-114 with `ready-state` and the screenshot from yolo 71), Finish the plan
+// (121-131, left in place) and Report (133-144).
 import type { Scenario } from "../events.ts";
 
 const PLAN = ".claude/graft/plans/add-rate-limiting.md";
@@ -274,7 +276,7 @@ const scenario: Scenario = {
     },
     {
       type: "say",
-      text: "The plan is untracked, so its edits get no commits. Milestone 3's Manual check is deferred to Report without a question. Milestones 1 and 2 touch different files, so two workers run in parallel.",
+      text: "The plan is untracked, so its edits get no commits. Milestone 3's Manual check is agent-runnable, so it runs in Agent checks once the branch is finished, and no person-only check is left to defer. Milestones 1 and 2 touch different files, so two workers run in parallel.",
     },
     {
       type: "agent.start",
@@ -408,6 +410,21 @@ const scenario: Scenario = {
     { type: "tool", name: "Bash", args: "npm test", result: "# tests 18\n# pass 18\n# fail 0" },
     { type: "tool", name: "Bash", args: "npm run lint", result: "No problems found" },
     { type: "tool", name: "Bash", args: "git status --porcelain", result: "(no output)" },
+    { type: "chapter", id: "yolo-agent-checks", title: "Agent checks" },
+    {
+      type: "agent.start",
+      id: "yolo-worker-agent-checks",
+      agent: "graft:worker",
+      description: "Run milestone 3's Manual check on the branch",
+      from: PLAN,
+    },
+    {
+      type: "agent.done",
+      id: "yolo-worker-agent-checks",
+      report:
+        "Ran on 9c41e07: started the server, sent 101 requests to GET /notes within a minute. Requests 1 to 100 got 200; request 101 got 429 with Retry-After: 42. Stopped the server; the tree is as I found it.",
+    },
+    { type: "tool", name: "Bash", args: "git status --porcelain", result: "(no output)" },
     { type: "chapter", id: "yolo-screenshots", title: "Screenshots" },
     {
       type: "tool",
@@ -518,7 +535,7 @@ const scenario: Scenario = {
     },
     {
       type: "say",
-      text: "Deferred Manual check, milestone 3: start the server, send 101 requests in a minute, and see the last one get 429. The plan stays in place.",
+      text: "Agent-run check, milestone 3, on 9c41e07: start the server, send 101 requests in a minute, and see the last one get 429. Passed: request 101 got 429 with Retry-After: 42. No person-only checks to defer. The plan stays in place.",
     },
     { type: "end" },
   ],

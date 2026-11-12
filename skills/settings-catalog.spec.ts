@@ -31,13 +31,18 @@ describe("parseCatalog", () => {
     }
     expect(catalog.settings.map((setting) => setting.key)).toEqual([
       "common.reviewerModel",
+      "common.routineQuestions",
       "plan.outsideRepoPlans",
       "plan.questionsPerRound",
       "plan.manualChecksQuestion",
+      "plan.finishQuestion",
+      "plan.clearQuestions",
       "research.artifact",
       "research.uncommittedChanges",
+      "research.steer",
       "orchestrate.finishedPlan",
       "orchestrate.manualChecks",
+      "orchestrate.agentDoesManualChecks",
       "diff.comments",
       "diff.fileList",
       "pr.state",
@@ -46,6 +51,7 @@ describe("parseCatalog", () => {
     ]);
     expect(catalog.settings).toMatchObject([
       { skill: "common", name: "reviewerModel", values: ["fable", "sonnet"], defaultValue: "opus" },
+      { skill: "common", name: "routineQuestions", values: ["auto"], defaultValue: "ask" },
       { skill: "plan", name: "outsideRepoPlans", values: ["always", "never"], defaultValue: "ask" },
       { skill: "plan", name: "questionsPerRound", values: ["1", "2", "4"], defaultValue: "3" },
       {
@@ -54,6 +60,8 @@ describe("parseCatalog", () => {
         values: ["finish"],
         defaultValue: "orchestrate",
       },
+      { skill: "plan", name: "finishQuestion", values: ["skip"], defaultValue: "ask" },
+      { skill: "plan", name: "clearQuestions", values: ["default"], defaultValue: "ask" },
       { skill: "research", name: "artifact", values: ["true"], defaultValue: "false" },
       {
         skill: "research",
@@ -61,6 +69,7 @@ describe("parseCatalog", () => {
         values: ["always", "never"],
         defaultValue: "ask",
       },
+      { skill: "research", name: "steer", values: ["auto"], defaultValue: "ask" },
       {
         skill: "orchestrate",
         name: "finishedPlan",
@@ -72,6 +81,12 @@ describe("parseCatalog", () => {
         name: "manualChecks",
         values: ["pause", "defer"],
         defaultValue: "ask",
+      },
+      {
+        skill: "orchestrate",
+        name: "agentDoesManualChecks",
+        values: ["true"],
+        defaultValue: "false",
       },
       { skill: "diff", name: "comments", values: ["auto"], defaultValue: "batch" },
       { skill: "diff", name: "fileList", values: ["tree"], defaultValue: "flat" },

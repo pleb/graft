@@ -1,7 +1,7 @@
 // Follows skills/orchestrate/SKILL.md: Start (19-23), Find the work (27-36, a finalised plan with
-// the footer), Branch (45-51), Execute (55-58), Commit and review (62-66: go on past milestones 1
-// and 2, then one final pass after Clean up), Each pass (72-74), Clean up (76-79), Final checks
-// (81-90), Finish the plan (108-118, left in place) and Report (120-130). The plan asks for no PR.
+// the footer), Branch (45-51), Execute (55-59), Commit and review (63-69: go on past milestones 1
+// and 2, then one final pass after Clean up), Each pass (73-75), Clean up (77-80), Final checks
+// (82-91), Finish the plan (121-131, left in place) and Report (133-144). The plan asks for no PR.
 import type { Scenario } from "../events.ts";
 
 const PLAN = ".claude/graft/plans/add-rate-limiting.md";

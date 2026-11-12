@@ -24,7 +24,7 @@ Get settings once, passing the cwd as `<root>` outside a repo.
 node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 ```
 
-In a repo, list the `git worktree list --porcelain` entries under a `graft-research-` run directory, left by earlier runs. When there are any, ask which to remove, and run `git worktree remove --force <path>` on each the user picks.
+In a repo, list the `git worktree list --porcelain` entries under a `graft-research-` run directory, left by earlier runs. When there are any, ask (routine) which to remove, recommending none, and run `git worktree remove --force <path>` on each the user picks.
 
 ## Outside a repo
 
@@ -73,7 +73,7 @@ Before the first experimenter in a run:
 1. Record the base OID with `git rev-parse HEAD`.
 2. Settle the snapshot. With a clean `git status --porcelain`, it is `never`. Otherwise use `research.uncommittedChanges`; for `ask`, ask once per run whether experiments run on the uncommitted changes (`always`) or on `HEAD` (`never`).
 3. Make the run directory: a fresh `graft-research-<n>` folder in the scratchpad when the session lists one, else `mktemp -d "${TMPDIR:-/tmp}/graft-research-XXXXXX"`. Resolve it with `cd <dir> && pwd -P` and use that path from then on.
-4. Ask once to confirm setting up worktrees like the main tree (for example, dependency installs). The answer covers the run.
+4. Ask once (routine) to confirm setting up worktrees like the main tree (for example, dependency installs), recommending setup. The answer covers the run.
 
 Before an experiment that could touch anything outside its worktree (network, databases, cloud credentials, files under home such as `~/.claude.json`), ask the user.
 
@@ -84,6 +84,8 @@ After every experimenter in a wave has returned, run `git worktree remove --forc
 ## Steer
 
 After each wave, add the discoveries to the report and tell the user in a line what changed. Then ask which threads to follow, drop or add, and fan out again.
+
+When `research.steer` is `auto`, do not ask: follow the threads you recommend, including those `## Challenge` raises, and state in one line which you took.
 
 ## Challenge
 
@@ -130,6 +132,8 @@ Once a wave leaves no thread to follow, ask:
 
 - **Conclude**: `## Challenge`, then conclude.
 - **Continue researching**: ask the user what to dig into next.
+
+When `plan.finishQuestion` is `skip`, do not ask: take **Conclude** once the findings answer the question, wholly or in part, state that in one line, and list what is still open under `## Open threads`.
 
 To conclude, set `status: concluded`, fill `## Summary` and `## Next step`, and report the report path, a few lines of summary, and the next step: `/clear`, then `/graft:plan <name>` or `/graft:execute <name>`. Name the report by its path instead when `<root>/.claude/graft/plans/<name>.md` or `<root>/.claude/plans/<name>.md` exists, or when the report is outside the repo; then say to run the next step from inside the repo that holds the code. Do not implement.
 

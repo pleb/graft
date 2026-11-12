@@ -26,7 +26,7 @@ When the arguments name a PR number or URL, that PR is the target:
 node ${CLAUDE_SKILL_DIR}/pr.ts view <number | url>
 ```
 
-With none, run `node ${CLAUDE_SKILL_DIR}/pr.ts view`. When it prints a PR, ask **Review the PR** (recommended) or **Review the working tree**. When it prints `null`, or on the working-tree answer, the target is the working tree: the diff from the merge base with the default branch, plus uncommitted and untracked changes.
+With none, run `node ${CLAUDE_SKILL_DIR}/pr.ts view`. When it prints a PR, ask (routine) **Review the PR** (recommended) or **Review the working tree**. When it prints `null`, or on the working-tree answer, the target is the working tree: the diff from the merge base with the default branch, plus uncommitted and untracked changes.
 
 `view` prints `{url, repo, number, state, title, body, headRefName, headRefOid, baseRefName, baseRefOid, prior}`, which later steps use.
 

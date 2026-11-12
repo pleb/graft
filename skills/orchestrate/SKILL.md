@@ -33,12 +33,12 @@ When the work is a plan file (including a plan in this conversation written to o
 - Its `status` is not `finalised`.
 - Its `## Open questions` section lists questions.
 
-Say which holds, list any open questions, and ask whether to continue or stop. On stop, name `/graft:plan <name>` as the next step (`/graft:plan <path>` for a plan outside `.claude/graft/plans/`). Never edit the plan.
+Say which holds, list any open questions, and ask whether to continue or stop. When only the status holds, ask it (routine), recommending continue. On stop, name `/graft:plan <name>` as the next step (`/graft:plan <path>` for a plan outside `.claude/graft/plans/`). Never edit the plan.
 
 When issues were supplied, before Execute:
 
-- With no plan, confirm with the user the task you take from the issues.
-- For each issue the plan's `## References` does not list, ask the user whether it is Resolves or Related.
+- With no plan, confirm with the user (routine) the task you take from the issues.
+- For each issue the plan's `## References` does not list, ask the user (routine) whether it is Resolves or Related, recommending Resolves when the work covers all of the issue and Related otherwise.
 
 ## Branch
 
@@ -52,6 +52,7 @@ Check the commit style once: read the last 10 commit subjects on the default bra
 
 ## Execute
 
+- When `orchestrate.agentDoesManualChecks` is `true`, sort each milestone's Manual checks before the first worker starts, by the rule in that setting's row: agent-runnable checks run in `## Agent checks`, and the rest are person-only. From here on, a milestone's Manual checks are its person-only ones.
 - When the plan has Manual checks, settle the Manual check mode before the first worker starts, from the first source that gives one: `orchestrate.manualChecks` (`pause` or `defer`), a `## Decisions` entry for the mode, or a question to the user: **Pause** after each milestone with Manual checks, or **Defer** them to Report. A plan without Manual checks has no mode.
 - Use `graft:worker` agents on Opus for all implementation. Each brief is self-contained: the goal, the files, the decisions already made, and how to verify.
 - When a milestone's verification is split into **Automated** and **Manual**, its brief and its commit use only the Automated checks. Verification without the split is used as written.
@@ -81,21 +82,33 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 ## Final checks
 
 - Run the repo's checks (tests, typecheck, lint, build, whichever exist) on the whole branch. When the repo has none, note it in Report.
-- Report or ask about a check the environment cannot run (no database, credentials or network). Never send it to a worker to fix.
+- Report or ask (routine) about a check the environment cannot run (no database, credentials or network), recommending report. Never send it to a worker to fix.
 - For every other failure, rerun the failing check at the commit Execute started from, in a temporary `git worktree` set up like the main tree (dependencies installed, same setup), then remove the worktree. The cause predates this run only when that rerun fails the same way (same test, same error). Otherwise, including when the worktree cannot run the check, the cause is the branch's.
 - When the cause predates this run, look for an open PR or a newer default-branch commit that fixes it. When there is one, ask the user whether to rely on it or fix it here. To rely on it, record the failure and the PR or commit in Report and go on.
 - Send every failure you do not rely on an upstream fix for to a worker, and commit the fix in the repo's commit style.
 - When the fix is risky by `### Commit and review`'s test, run a pass as `### Each pass` describes, from the commit before this fix to HEAD, with the failing check as its intent; otherwise check the fix yourself. That pass's fixes get no further pass.
 - Then run the checks again. Ask the user about any fixed failure that still fails.
-- After the checks, `git status --porcelain` is empty. Report or ask about anything it lists.
+- After the checks, `git status --porcelain` is empty. Report or ask (routine) about anything it lists, recommending report and leaving the files as they are.
+
+## Agent checks
+
+Run this step when `## Execute` sorted any check as agent-runnable. A PR milestone's agent-runnable checks run once `## Raise a PR` has raised the PR; the rest run here.
+
+- Send one `graft:worker` with every agent-runnable check and its milestone. Its brief: run each check on the branch as committed and report pass or fail with what it observed; report any check it cannot run as person-only; stop every process it starts; leave the tree as it found it; never commit.
+- Send each failing check, with what the worker observed, to a fix worker, and commit the fix in the repo's commit style. Run a pass over the fixes as `### Each pass` describes, from the commit before the first fix to HEAD, with the failing checks as its intent. That pass's fixes get no further pass. Then run `## Final checks` and every agent check again.
+- Give each check up to three fix attempts. When it still fails, ask the user: **Go on** with it failing, or **Stop**. Stop goes to Report.
+- A check the worker reports as person-only goes to Report as deferred, whatever the mode.
+- Run this step again before pushing or going on after any later fix commit, such as a pause fix or a fix pushed to the PR's branch.
+- Once the PR is raised, push this step's fix commits to the PR's branch. When the checks still failing then differ from those the PR body flags, edit the body with `gh pr edit --body` to flag exactly those.
+- After the checks, `git status --porcelain` is empty. Report or ask (routine) about anything it lists, recommending report and leaving the files as they are.
 
 ## Raise a PR
 
-When the plan or the user asks for a PR, raise it after Final checks, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with its common.md at `${CLAUDE_SKILL_DIR}/../common.md`.
+When the plan or the user asks for a PR, raise it after Agent checks, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with its common.md at `${CLAUDE_SKILL_DIR}/../common.md`.
 
 - **Arguments**: the plan's PR request and the user's. The user's wins where they differ.
-- **Context**: the plan file or the work you were given, the motivation from this conversation, each issue from this run with its Resolves or Related split, and the effective `pr.state` as the state to use when no argument names one. The brief marks these as context, not arguments.
-- **Questions**: where pr or common.md says to ask, the worker stops and reports the question. Ask the user, then send the worker again.
+- **Context**: the plan file or the work you were given, the motivation from this conversation, each issue from this run with its Resolves or Related split, the effective `pr.state` as the state to use when no argument names one, and each agent check still failing, for the PR body to flag. The brief marks these as context, not arguments.
+- **Questions**: the worker answers routine questions as common.md's `## Ask the user` describes. Where it would ask the user, it stops and reports the question. Ask the user, then send the worker again.
 
 In pause mode, a PR milestone's Manual checks pause as `### Commit and review` describes once the PR is raised, before `## Finish the plan`. Fix commits are pushed to the PR's branch.
 
@@ -124,6 +137,7 @@ Follow `orchestrate.finishedPlan`:
 - Each final check command and its result, quoting the output of any failure.
 - Review findings acted on, and those dismissed with the reason.
 - In defer mode, each milestone's Manual checks. In pause mode, each pause's result.
+- Apart from those, each agent-run check with its result and the commit it ran on, and each check the agent-checks worker reported as person-only.
 - Items the cleanup agents flagged for a decision.
 - Existing branch description lines this run kept but did not decide.
 - When `## Finish the plan` ran, where the plan went: left in place, archived to `<path>`, deleted, or not moved or deleted and why.
