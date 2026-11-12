@@ -151,4 +151,6 @@ Recommend Review and finalise when no full pass has run in this session, or when
 
 Review and finalise runs a full pass when none has run in this session. Otherwise it runs a delta pass over everything changed since the last pass started, fixes included, with reviewers picked as in Review. A decision the pass raises becomes an open question. Once it is answered, ask this question again, and the test above sets the recommendation.
 
+When `plan.finishQuestion` is `skip`, do not ask this question: take the recommended option and state it in one line. When the Manual check mode question above applies, ask it alone and record its answer in `## Decisions`. The finalise report lists every `(default)` entry in `## Decisions`.
+
 To finalise, set `status: finalised`, then report the plan path, a few lines of summary, and the next step: `/clear`, then `/graft:orchestrate <name>` (`/graft:orchestrate <path>` for a plan outside `.claude/graft/plans/`). For a plan written from outside a repo, name it by full path and say to run the next step from inside the repo that holds the code. When the directory under `## Goal` is still not a repo, say orchestrate needs one (for example, `git init` it first). Do not implement.
