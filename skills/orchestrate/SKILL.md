@@ -32,6 +32,7 @@ Applies in common.md's workspace mode. This section changes each section it name
 - **Execute**: commit a milestone in each repo it changed, staging only its files there.
 - **Each pass** and **Clean up**: ranges are per repo. Record each repo's HEAD when Execute starts, or when the repo is created; a repo's first range starts there. A brief lists each repo's absolute path with its range.
 - **Final checks**: run each repo's checks in that repo. The start-commit rerun puts every repo at its start commit (a temporary `git worktree` per repo, laid out as under the root), so a failure in an unchanged repo caused by another repo's change is the run's. `git status --porcelain` is empty in each repo; the root's own files are not checked.
+- **Agent checks**: run each check with every repo on its branch, in the repos its milestone names. Flag a check still failing only on the PRs of the repos its milestone changed. `git status --porcelain` is empty in each repo, as in Final checks.
 - **Raise a PR**: one worker per repo with commits on its branch, using that repo's `pr.state`. When there are several, raise them all, then send each worker again with the other PRs' URLs to link them.
 - **Finish the plan**: when the plan is not inside a repo, `ls-files` fails with `not a git repository`; treat that as untracked. For `archive`, `<repo>` is the root's basename.
 - **Report**: branches, commits, ranges and checks per repo.
