@@ -3,14 +3,14 @@
 // no Go or Plan more question as rounds reached the user (28), finalised (30), no finalise report
 // or hand-off (31)) and Orchestrate phase (35).
 // Plan phase follows skills/plan/SKILL.md: Start (19-25), Find the work (35, research found or a
-// new topic), Check the Graft folder skipped as the folder exists (common.md 52), Understand (43),
-// Settle the solution (47-65, no clarify question), Write the plan (69-115, no PR milestone as
-// execute 25 says), Review (130-136) and the full pass Finish recommends (150-152).
+// new topic), Check the Graft folder skipped as the folder exists (common.md 54), Understand (43),
+// Settle the solution (47-66, no clarify question), Write the plan (70-116, no PR milestone as
+// execute 25 says), Review (131-137) and the full pass Finish recommends (151-153).
 // Orchestrate phase follows skills/orchestrate/SKILL.md, condensed in orchestrate.ts's order: Start
-// (17, its root and settings already known), Branch (45-51), Execute (55-58, Defer as
+// (17, its root and settings already known), Branch (45-51), Execute (55-59, Defer as
 // orchestrate.manualChecks is ask and plan.manualChecksQuestion is orchestrate), Commit and review
-// (62-66), Each pass (72-74), Clean up (76-79), Final checks (81-90), Raise a PR (92-98, a worker
-// following skills/pr/SKILL.md), Finish the plan (108-118, left in place) and Report (120-130).
+// (63-69), Each pass (73-75), Clean up (77-80), Final checks (82-91), Raise a PR (105-111, a worker
+// following skills/pr/SKILL.md), Finish the plan (121-131, left in place) and Report (133-144).
 import type { Scenario } from "../events.ts";
 
 const PLAN = ".claude/graft/plans/add-rate-limiting.md";

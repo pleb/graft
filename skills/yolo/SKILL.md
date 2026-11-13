@@ -55,16 +55,17 @@ Applies in common.md's workspace mode, and runs each command in a repo as common
 
 - Stop only when you cannot go on, such as missing credentials or a failure a fix does not clear. A stop goes to Report and raises no PR.
 - A check the environment cannot run is not a stop. List it in Report.
+- An agent check still failing after three fix attempts is not a stop.
 - When a rescue reviewer (`codex:codex-rescue`, `pidex:pidex-rescue`) fails or is missing, go on without it and say so in Report.
 - When a `graft:reviewer` or `graft:adversarial-reviewer` fails, run it again once. A second failure is a stop.
 
 ## Manual checks
 
-The Manual check mode is Defer, whatever `orchestrate.manualChecks` says. Never answer a question that asks for a check's result.
+Follow orchestrate as if `orchestrate.agentDoesManualChecks` were `true`, whatever it says. The Manual check mode is Defer, whatever `orchestrate.manualChecks` says. Never answer a question that asks for a check's result.
 
 ## Screenshots
 
-Run this step between orchestrate's `## Final checks` and `## Raise a PR`. No screenshots is not a failure. In workspace mode, run it as `## Workspace mode` says.
+Run this step between orchestrate's `## Agent checks` and `## Raise a PR`. No screenshots is not a failure. In workspace mode, run it as `## Workspace mode` says.
 
 1. Skip the step, saying why in Report, when `gh --version` is below 2.99.0, or when the host of `gh repo view --json url` is neither `github.com` nor a host ending in `.ghe.com`.
 2. Record `git branch --show-current`, `git status --porcelain`, `git rev-parse HEAD` and `git worktree list`.
@@ -78,7 +79,7 @@ Run this step between orchestrate's `## Final checks` and `## Raise a PR`. No sc
 
 ## PR
 
-- Raise a PR unless you stopped, whether or not the plan or the user asks for one.
+- Raise a PR unless you stopped, whether or not the plan or the user asks for one, with any agent check still failing flagged in its body.
 - Add to the **Arguments** orchestrate passes the pr worker: `ready-state`, unless the arguments name a state, and, when there are approved screenshots, a request to attach them with their paths. That request tells the worker to stop and report an attach failure without retrying.
 - On an attach failure, never retry the upload. When `gh pr view` shows a PR (per repo in workspace mode), put it in the run's state (ready unless the arguments named one) with `gh pr ready` or `gh pr ready --undo`, and remove image references that still point at local paths with `gh pr edit --body`. When there is no PR, send the pr worker again without the screenshot request. Name the failure in Report.
 
@@ -90,10 +91,11 @@ On a conflict, run `git reset --merge`. When the stash holds untracked files, re
 
 ## Report
 
-Before orchestrate's `## Finish the plan` moves or deletes the plan, read the `(agent <run start>)` decisions. Report adds:
+Before orchestrate's `## Finish the plan` moves or deletes the plan, read the `(agent <run start>)` decisions and the `(default)` entries written during this run. Report adds:
 
-- Every decision you made without asking.
+- Every decision you made without asking, and every `(default)` entry written during this run.
 - The dirty-tree paths you included, stashed or added to `info/exclude` (the paths left out of the sort among them).
+- Each agent check still failing, with what the worker observed.
 - Whether screenshots were attached, or why not.
 - Any stash left, by SHA.
 
