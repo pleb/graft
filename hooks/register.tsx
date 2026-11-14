@@ -932,7 +932,8 @@ function addView($: EngineInterface, ui: Ui) {
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text dimColor>
-        A repo's path, or a directory ending in /* for every repo under it. It starts with / or ~/.
+        A repo's path, or a directory ending in /* for it and everything under it. It starts with /
+        or ~/.
       </Text>
       <Input
         key="scopePath"

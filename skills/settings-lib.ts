@@ -227,7 +227,8 @@ function isUnder(path: string, dir: string): boolean {
 }
 
 // Least specific first, so later layers win: defaults, `/*` scopes by depth,
-// then exact scopes. `isSubtree` gives the layers for every path beneath `path`.
+// then exact scopes. A `/*` scope applies to its folder and every path under it.
+// `isSubtree` gives the layers for the `/*` scope at `path`, so leaves out exact scopes.
 export async function layersFor(
   file: SettingsFile,
   path: string,
@@ -239,9 +240,7 @@ export async function layersFor(
   );
   const subtrees = normalised
     .filter(
-      (scope) =>
-        scope.isSubtree &&
-        ((isSubtree && isSamePath(scope.path, path)) || isUnder(path, scope.path)),
+      (scope) => scope.isSubtree && (isSamePath(scope.path, path) || isUnder(path, scope.path)),
     )
     .sort((a, b) => depth(a.path) - depth(b.path));
   const exact = isSubtree
