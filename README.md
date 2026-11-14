@@ -166,7 +166,7 @@ Settings live in `~/.my-graft/graft-settings.json`:
 }
 ```
 
-Top-level skill keys are the defaults. A key that is a path is a scope whose `overrides` apply to that repo, or to every repo under a directory ending in `/*`; scopes apply from the broadest to the repo's own path. On Windows, write scope paths with forward slashes; `/c/...` and local admin shares such as `//localhost/C$/...` are read as `C:/...`.
+Top-level skill keys are the defaults. A key that is a path is a scope whose `overrides` apply to that repo. A path ending in `/*` applies to that folder and everything under it. Scopes apply from the broadest to the repo's own path. On Windows, write scope paths with forward slashes; `/c/...` and local admin shares such as `//localhost/C$/...` are read as `C:/...`.
 
 A repo or folder can also keep its own settings, as Claude Code does, in `.claude/graft-settings.json` (shared) and `.claude/graft-settings.local.json` (yours; keep it out of git) at the top level of the repo the skills run in (a linked worktree's own), or in the current folder outside a repo. Each holds skill keys only, with no scopes:
 

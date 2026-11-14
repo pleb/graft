@@ -244,11 +244,43 @@ describe("resolveSettings", () => {
     });
   });
 
-  it("does not match path/* to path itself", async () => {
+  it("matches path/* to path itself and every path under it", async () => {
     const file = { "/w/*": { overrides: { pr: { state: "ready" } } } };
-    expect(await values(file, "/w")).toMatchObject({ pr: { state: "draft" } });
-    expect(await values(file, "/wx/repo")).toMatchObject({ pr: { state: "draft" } });
+    expect(await values(file, "/w")).toMatchObject({ pr: { state: "ready" } });
     expect(await values(file, "/w/repo")).toMatchObject({ pr: { state: "ready" } });
+    expect(await values(file, "/wx/repo")).toMatchObject({ pr: { state: "draft" } });
+  });
+
+  it("applies a /* scope to a non-repo folder at its path", async () => {
+    const file = { "/w/notes/*": { overrides: { plan: { questionsPerRound: "1" } } } };
+    expect(await resolved(file, "/w/notes")).toMatchObject({ root: "/w/notes" });
+    expect(await sources(file, "/w/notes")).toMatchObject({
+      "plan.questionsPerRound": "1 from /w/notes/*",
+    });
+  });
+
+  it("applies a /* scope to a repo at its path, from a subdirectory", async () => {
+    const environment = env({ roots: { "/w/repo/src": "/w/repo" } });
+    const file = { "/w/repo/*": { overrides: { pr: { state: "ready" } } } };
+    expect(await resolved(file, "/w/repo/src", environment)).toMatchObject({ root: "/w/repo" });
+    expect(await sources(file, "/w/repo/src", environment)).toMatchObject({
+      "pr.state": "ready from /w/repo/*",
+    });
+  });
+
+  it.each([
+    ["the exact scope first", ["/w", "/w/*"]],
+    ["the /* scope first", ["/w/*", "/w"]],
+  ])("puts an exact scope over a /* scope on the same folder, %s", async (_, order) => {
+    const scopes: Record<string, object> = {
+      "/w": { overrides: { pr: { state: "ready" } } },
+      "/w/*": { overrides: { plan: { questionsPerRound: "1" }, pr: { state: "draft" } } },
+    };
+    const file = Object.fromEntries(order.map((key) => [key, scopes[key]]));
+    expect(await sources(file, "/w")).toEqual({
+      "plan.questionsPerRound": "1 from /w/*",
+      "pr.state": "ready from /w",
+    });
   });
 
   it("compares keys and the root after expanding ~ and resolving symlinks", async () => {
@@ -398,7 +430,7 @@ describe("resolveSettings", () => {
         "pr.state": "ready from C:/work/repo",
       });
       expect(await values(file, "C:/work", windowsEnv())).toMatchObject({
-        plan: { questionsPerRound: "3" },
+        plan: { questionsPerRound: "4" },
       });
     });
 
@@ -448,7 +480,7 @@ describe("resolveSettings", () => {
         "pr.state": "ready from \\\\server\\share\\repo",
       });
       expect(await values(file, "//server/share", windowsEnv())).toMatchObject({
-        plan: { questionsPerRound: "3" },
+        plan: { questionsPerRound: "4" },
       });
     });
 
@@ -572,13 +604,14 @@ describe("resolveSettings", () => {
       ]);
     });
 
-    it("gives an exact scope the /* scopes above it and the other exact keys for its path", async () => {
+    it("gives an exact scope the /* scopes at or above it and the other exact keys for its path", async () => {
       expect(await inherited("~/w/repo")).toEqual([
         "Defaults",
         "/*",
         `${HOME}/w/*`,
         "~/w/*",
         "~/w/./*",
+        "~/w/repo/*",
         `${HOME}/w/repo/`,
       ]);
     });
