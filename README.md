@@ -95,13 +95,13 @@ Publishes your changes as a private artifact to comment on. In `batch` mode (the
 
 Pushes the branch and opens a PR when you're ready to ship the changes.
 
-## Helper commands
+### Review
 
 ```text
 /graft:review [pr number | url] [reviewer model: sonnet | opus (default) | fable]
 ```
 
-`/graft:review` reviews a PR or the working tree with the reviewer and adversarial reviewer, prints one combined review, then offers to post findings to the PR or apply them through execute.
+Reviews a PR or the working tree with the reviewer and adversarial reviewer, prints one combined review, then offers to post findings to the PR or apply them through execute.
 
 ## Utility commands
 
