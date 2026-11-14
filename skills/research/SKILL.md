@@ -28,7 +28,7 @@ In a repo, or in each repo under the root as `## Workspace` says, list the `git 
 
 ## Workspace
 
-- When a repo the question needs is not under the root, ask whether to create it, then read it there.
+- When a repo the question needs is not under the root, add it as common.md's `## Workspace` says, then read it there.
 - Each experimenter works in one repo under the root. `## Experimenters` records a base OID per repo, and in a brief that repo is the root. The snapshot question is asked once per run and applies to each repo with uncommitted changes. After a wave, remove the run directory's worktrees with `git -C <repo>` in each repo that had an experimenter.
 
 ## Outside a repo
