@@ -116,7 +116,7 @@ Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps 
 
 `/graft:tune` finds corrections you keep making to plan, orchestrate, execute and yolo runs and turns the ones you pick into mods.
 
-![How your copy of Graft stays current: /graft:update merges the latest Graft from pleb/graft, the upstream, into your clone at ~/.my-graft, keeping your mods. The clone pushes to your private repo <login>/my-graft, which your other machines pull from. Claude Code loads Graft from the clone, and /reload-plugins picks up changes. In Claude Code, Graft tells you to run /graft:update when it is due. You run /graft:modify, which commits a mod to the clone, recorded in MODS.md, and /graft:tune, which finds corrections you keep making and turns the ones you pick into mods through /graft:modify.](./docs/update.svg)
+![How your copy of Graft stays current, in two lanes. Where Graft lives: /graft:update merges the latest Graft from pleb/graft, the upstream, into your clone at ~/.my-graft, keeping your mods. The clone pushes to your private repo <login>/my-graft, and your other machines pull from it. Using and changing it: Claude Code loads Graft from the clone, and /reload-plugins picks up changes. In Claude Code, Graft tells you to run /graft:update when it is due. You run /graft:modify and /graft:tune. /graft:modify commits a mod to the clone, recorded in MODS.md. /graft:tune finds corrections you keep making and turns the ones you pick into mods through /graft:modify.](./docs/update.svg)
 
 ## Update notices
 
