@@ -28,7 +28,7 @@ On another machine, or after `/graft:uninstall`, run the same line. It clones yo
 
 ## Using it
 
-![Graft's flow: /graft:research, /graft:plan and /graft:execute are where you begin. /graft:research works with you, a researcher, an experimenter and an adversarial reviewer to write a research report, which /graft:plan takes as context. /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:execute runs plan and then orchestrate in one session with you deciding. /graft:yolo runs the same with the agent deciding, ending in a ready PR with screenshots. /graft:diff publishes a claude.ai artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/flow.svg)
+![Graft's flow: /graft:research, /graft:plan and /graft:execute are where you begin. /graft:research works with you, a researcher, an experimenter and an adversarial reviewer to write a research report, which /graft:plan takes as context. /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:execute runs plan and then orchestrate in one session with you deciding. /graft:yolo runs the same with the agent deciding, ending in a ready PR with screenshots. /graft:diff publishes a claude.ai artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/assets/flow.svg)
 
 Start from what you know:
 
@@ -65,7 +65,7 @@ At the start of a session, Graft tells you when your clone is behind its upstrea
 
 `/graft:uninstall` removes the plugin and deletes `~/.my-graft`, but first shows you what is uncommitted there and asks. Your `my-graft` repo on GitHub stays.
 
-![How your copy of Graft stays current, in two lanes. Where Graft lives: /graft:update merges the latest Graft from pleb/graft, the upstream, into your clone at ~/.my-graft, keeping your mods. The clone pushes to your private repo <login>/my-graft, and your other machines pull from it. Using and changing it: Claude Code loads Graft from the clone, and /reload-plugins picks up changes. In Claude Code, Graft tells you to run /graft:update when it is due. You run /graft:modify and /graft:tune. /graft:modify commits a mod to the clone, recorded in MODS.md. /graft:tune finds corrections you keep making and turns the ones you pick into mods through /graft:modify.](./docs/update.svg)
+![How your copy of Graft stays current, in two lanes. Where Graft lives: /graft:update merges the latest Graft from pleb/graft, the upstream, into your clone at ~/.my-graft, keeping your mods. The clone pushes to your private repo <login>/my-graft, and your other machines pull from it. Using and changing it: Claude Code loads Graft from the clone, and /reload-plugins picks up changes. In Claude Code, Graft tells you to run /graft:update when it is due. You run /graft:modify and /graft:tune. /graft:modify commits a mod to the clone, recorded in MODS.md. /graft:tune finds corrections you keep making and turns the ones you pick into mods through /graft:modify.](./docs/assets/update.svg)
 
 ## Working across repos
 

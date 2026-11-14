@@ -33,7 +33,7 @@ const FOLLOWS: Record<string, string[]> = {
 };
 
 // Hand-offs the owning skill does not name. Orchestrate's Report names no next step; the README's
-// flow (docs/flow.svg) has /graft:pr push orchestrate's branch and open the PR.
+// flow (docs/assets/flow.svg) has /graft:pr push orchestrate's branch and open the PR.
 const UNTOLD_HANDOFFS: Record<string, string[]> = { orchestrate: ["/graft:pr"] };
 
 const { scenarios } = await loadScenarios(join(ROOT, "site", "sim", "scenarios"));
