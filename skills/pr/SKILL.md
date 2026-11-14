@@ -22,6 +22,8 @@ Get settings, with the cwd as `<root>`.
 node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 ```
 
+When the brief's context names a repo directory, run git as `git -C <dir> ...`, the settings command with `<dir>` as `<root>` and every other command as `cd <dir> && ...`, and read files, the PR template included, by absolute path under `<dir>`.
+
 The arguments are guidance and may set the state anywhere, such as `ready-state`, `draft` or `mark it ready`. A word that belongs to the guidance stays in it (for example, `note the docs are still a draft`); ask (routine) when it is unclear, recommending it stays in the guidance.
 
 ## Preconditions
