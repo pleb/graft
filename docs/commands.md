@@ -54,7 +54,7 @@ Run `/clear` between `/graft:plan` and `/graft:orchestrate`, so the build starts
 /graft:execute [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr request]
 ```
 
-Plans and then orchestrates in one session, with no `/clear` in between. Use it for work small enough that the plan and the build fit in one conversation. You still answer the plan's questions, but instead of asking how to finish planning it takes the review it would recommend, then starts building. Add a PR request, such as `open a pr`, to raise one at the end.
+Plans and then orchestrates in one session, with no `/clear` in between. Use it for work small enough that the plan and the build fit in one conversation. You still answer the plan's questions, but once the plan is written it runs a review of the plan instead of asking whether to, then starts building. Add a PR request, such as `open a pr`, to raise one at the end.
 
 ## /graft:yolo
 
@@ -94,7 +94,7 @@ Gets two reviews of a change, one from a reviewer looking for bugs and one from 
 /graft:update [mode: ask (default) | auto]
 ```
 
-Merges the latest Graft from upstream (the repo your clone takes updates from: `pleb/graft`, or your organisation's [interstock](../README.md#interstocks)) into your clone, keeping your mods. In `ask` mode it lists what is new and asks before merging; [`update.mode`](./settings.md#settings) sets the default. When a conflict touches a mod, Graft resolves it so the mod's recorded intent still holds, and asks when it cannot. When you have mods, a reviewer and an adversarial reviewer check the merge before it is committed. The merge is pushed to your `my-graft` repo, or raised as a PR when you run it in a clone of an interstock or of `pleb/graft`. It needs Claude Code 2.1.273 or later.
+Merges the latest Graft from upstream (the repo your clone takes updates from: `pleb/graft`, or your organisation's [interstock](../README.md#interstocks), an organisation's copy of Graft) into your clone, keeping your mods. A mod is a change you made to your clone with `/graft:modify`. In `ask` mode it lists what is new and asks before merging; [`update.mode`](./settings.md#settings) sets the default. When a conflict touches a mod, Graft resolves it so the mod's recorded intent still holds, and asks when it cannot. When you have mods, a reviewer and an adversarial reviewer check the merge before it is committed. The merge is pushed to your `my-graft` repo, or raised as a PR when you run it in a clone of an interstock or of `pleb/graft`. It needs Claude Code 2.1.273 or later.
 
 ## /graft:modify
 
@@ -102,7 +102,7 @@ Merges the latest Graft from upstream (the repo your clone takes updates from: `
 /graft:modify [when... do...]
 ```
 
-Changes your copy of Graft. A mod is one such change, recorded with its intent in `MODS.md` so `/graft:update` can keep it. Describe the behaviour you want, for example `/graft:modify when a plan touches a database, add a rollback milestone`. Graft settles the change with you, implements it, has a reviewer and an adversarial reviewer check it, then commits it and pushes it to your `my-graft` repo. Run it in a clone of an interstock or of `pleb/graft` and it raises a PR instead. Like update, it needs Claude Code 2.1.273 or later.
+Changes your copy of Graft, one mod at a time. Each mod is recorded with its intent in `MODS.md` so `/graft:update` can keep it. Describe the behaviour you want, for example `/graft:modify when a plan touches a database, add a rollback milestone`. Graft settles the change with you, implements it, has a reviewer and an adversarial reviewer check it, then commits it and pushes it to your `my-graft` repo. Run it in a clone of an interstock or of `pleb/graft` and it raises a PR instead. Like update, it needs Claude Code 2.1.273 or later.
 
 ## /graft:tune
 
@@ -118,7 +118,7 @@ Reads your `/graft:plan`, `/graft:orchestrate`, `/graft:execute` and `/graft:yol
 /graft:uninstall
 ```
 
-Removes Graft from Claude Code and deletes `~/.my-graft`, after showing any work in it that is not on GitHub and asking first. Your `my-graft` repo on GitHub stays, so installing again later brings your mods back.
+Removes Graft from Claude Code and deletes `~/.my-graft`, after asking first. Before it asks, it shows the output of `git status --short --branch` for the clone (its branch, uncommitted changes and untracked files) and lists any files under `.claude/graft/` or `.claude/plans/` that deleting the clone would delete. It does not list stashes, other branches or ignored files. Your `my-graft` repo on GitHub stays, so installing again later brings your mods back.
 
 ## /graft-settings
 

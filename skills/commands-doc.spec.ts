@@ -21,6 +21,9 @@ function signatures(markdown: string): Map<string, string | undefined> {
   for (const section of markdown.split(/^## /m).slice(1)) {
     const heading = section.slice(0, section.indexOf("\n")).trim();
     if (heading.startsWith("/graft:")) {
+      if (found.has(heading)) {
+        throw new Error(`docs/commands.md has more than one ## ${heading} section`);
+      }
       found.set(heading, /^```text\n(.*)$/m.exec(section)?.[1]);
     }
   }
