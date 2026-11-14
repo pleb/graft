@@ -95,18 +95,6 @@ Publishes your changes as a private artifact to comment on. In `batch` mode (the
 
 Pushes the branch and opens a PR when you're ready to ship the changes.
 
-### Working across repos
-
-Research, plan, execute, orchestrate and yolo can run from a folder of repos. Turn it on in the folder's `.claude/graft-settings.json`:
-
-```json
-{ "plan": { "outsideRepoPlans": "here" } }
-```
-
-Graft adds a repo the work needs with the command the folder's `CLAUDE.md` (or a parent's) gives for adding one, and asks when it gives none. For a repo that does not exist yet, it asks for a command that creates one with at least one commit and an `origin` to push to.
-
-The plan's `## Repos` lists each repo the work changes, with the command that adds it or `existing`. When asked for a PR, orchestrate raises one per changed repo and links them.
-
 ## Helper commands
 
 ```text
@@ -135,6 +123,18 @@ Make Graft your own with `/graft:modify when ... do ...`. `/graft:update` keeps 
 When a session starts, Graft checks whether your clone at `~/.my-graft` has the latest `main` from its upstream (`pleb/graft`, or your [interstock](#interstocks)). It asks upstream with a read-only `git ls-remote`, at most once a day after a successful look, and never fetches or changes the clone. It skips the check in non-interactive runs and when `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` is set.
 
 When the clone is behind, a notice says so and suggests `/graft:update` at the prompt. [`update.notify`](#settings) sets how often, or shows a status line instead.
+
+## Working across repos
+
+Research, plan, execute, orchestrate and yolo can run from a folder of repos. Turn it on in the folder's `.claude/graft-settings.json`:
+
+```json
+{ "plan": { "outsideRepoPlans": "here" } }
+```
+
+Graft adds a repo the work needs with the command the folder's `CLAUDE.md` (or a parent's) gives for adding one, and asks when it gives none. For a repo that does not exist yet, it asks for a command that creates one with at least one commit and an `origin` to push to.
+
+The plan's `## Repos` lists each repo the work changes, with the command that adds it or `existing`. When asked for a PR, orchestrate raises one per changed repo and links them.
 
 ## Settings
 
