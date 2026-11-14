@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 920" width="830" height="920" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 520" width="830" height="520" role="img" aria-labelledby="title desc">
   <title id="title">How your copy of Graft is set up and kept current</title>
-  <desc id="desc">Your clone at ~/.my-graft sits in the middle. /graft:update merges the latest Graft from pleb/graft, the upstream, into the clone, keeping your mods. /graft:modify commits a mod to the clone, recorded in MODS.md. /graft:tune finds corrections you keep making and hands the ones you pick to /graft:modify. The clone pushes to your private repo &lt;login&gt;/my-graft, and your other machines pull from it. Claude Code loads Graft from the clone, and /reload-plugins picks up changes. Graft tells you in Claude Code when /graft:update is due.</desc>
+  <desc id="desc">Two lanes. Where Graft lives: /graft:update merges the latest Graft from pleb/graft, the upstream, into your clone at ~/.my-graft, keeping your mods, and the clone pushes to your private repo &lt;login&gt;/my-graft, which your other machines pull from. Using and changing it: Claude Code loads Graft from the clone, and /reload-plugins picks up changes. In Claude Code, Graft tells you to run /graft:update when it is due. You run /graft:modify, which commits a mod to the clone, recorded in MODS.md, and /graft:tune, which finds corrections you keep making and turns the ones you pick into mods through /graft:modify.</desc>
   <style>
     .sans { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; }
@@ -8,6 +8,7 @@
     .head { font-size: 15px; font-weight: 700; fill: #ffffff; }
     .sub { font-size: 14px; fill: #57606a; }
     .label { font-size: 14px; fill: #1f2328; }
+    .lane { font-size: 14px; font-weight: 700; fill: #57606a; }
     .node { fill: #f6f8fa; stroke: #d0d7de; stroke-width: 1; }
     .pill { fill: #ffffff; stroke: #d0d7de; stroke-width: 1; }
     .cmd { fill: #ddf4ff; stroke: #54aeff; stroke-width: 1; }
@@ -21,105 +22,75 @@
       <path d="M10,0 L0,5 L10,10 z" fill="#6e7781"/>
     </marker>
   </defs>
-
-  <!-- Edges come first so the label pills paint over them. -->
-  <path class="edge" d="M140 110 V402 H303" marker-end="url(#arrow-end)"/>
-  <path class="edge" d="M355 8 V234" marker-end="url(#arrow-end)"/>
-  <path class="edge" d="M475 8 V234" marker-end="url(#arrow-end)"/>
-  <path class="edge" d="M415 328 V360" marker-end="url(#arrow-end)"/>
-  <path class="edge" d="M527 402 H690 V112" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)"/>
-  <path class="edge" d="M415 442 V610" marker-end="url(#arrow-end)"/>
-  <path class="edge" d="M415 668 V838" marker-end="url(#arrow-end)"/>
-
-  <g id="node-upstream">
-    <rect class="node" x="30" y="40" width="220" height="70" rx="10"/>
-    <text class="mono name" x="140" y="68" text-anchor="middle">pleb/graft</text>
-    <text class="sans sub" x="140" y="92" text-anchor="middle">upstream</text>
+  <rect x="1" y="1" width="828" height="236" rx="10" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+  <rect x="1" y="249" width="828" height="270" rx="10" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+  <path class="edge" d="M120 148 V86 H370 V140" marker-end="url(#arrow-end)"/>
+  <path class="edge" d="M460 140 V86 H710 V148" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)"/>
+  <path class="edge" d="M85 398 V310 H385 V224" marker-end="url(#arrow-end)"/>
+  <path class="edge" d="M142 432 H173" marker-end="url(#arrow-end)"/>
+  <path class="edge" d="M270 374 V356" marker-end="url(#arrow-end)"/>
+  <path class="edge" d="M470 224 V310 H690 V394" marker-end="url(#arrow-end)"/>
+  <path class="edge" d="M690 482 V500 H85 V466" marker-end="url(#arrow-end)"/>
+  <text class="sans lane" x="20" y="30">Where Graft lives</text>
+  <text class="sans lane" x="20" y="278">Using and changing it</text>
+  <g>
+    <rect class="node" x="30" y="150" width="180" height="64" rx="10"/>
+    <text class="mono name" x="120" y="178" text-anchor="middle">pleb/graft</text>
+    <text class="sans sub" x="120" y="200" text-anchor="middle">upstream</text>
   </g>
-
-  <g id="node-private">
-    <rect class="node" x="580" y="40" width="220" height="70" rx="10"/>
-    <text class="mono name" x="690" y="68" text-anchor="middle">&lt;login&gt;/my-graft</text>
-    <text class="sans sub" x="690" y="92" text-anchor="middle">your private repo</text>
+  <g>
+    <rect class="node" x="325" y="142" width="180" height="80" rx="10"/>
+    <rect x="335" y="152" width="160" height="34" rx="6" fill="#0969da"/>
+    <text class="mono head" x="415" y="174" text-anchor="middle">~/.my-graft</text>
+    <text class="sans sub" x="415" y="209" text-anchor="middle">your clone</text>
   </g>
-
-  <g id="node-clone">
-    <rect class="node" x="305" y="362" width="220" height="80" rx="10"/>
-    <g id="node-clone-header">
-      <rect x="315" y="372" width="200" height="34" rx="6" fill="#0969da"/>
-      <text class="mono head" x="415" y="394" text-anchor="middle">~/.my-graft</text>
-    </g>
-    <text class="sans sub" x="415" y="429" text-anchor="middle">your clone</text>
+  <g>
+    <rect class="node" x="620" y="150" width="180" height="64" rx="10"/>
+    <text class="mono name" x="710" y="178" text-anchor="middle">&lt;login&gt;/my-graft</text>
+    <text class="sans sub" x="710" y="200" text-anchor="middle">your private repo</text>
   </g>
-
-  <g id="node-claude">
-    <rect x="305" y="612" width="220" height="56" rx="10" fill="#dafbe1" stroke="#4ac26b" stroke-width="1"/>
-    <text class="sans name" x="415" y="645" text-anchor="middle">Claude Code</text>
+  <g>
+    <rect class="pill" x="155" y="42" width="180" height="88" rx="12"/>
+    <rect class="cmd" x="175" y="52" width="139" height="26" rx="13"/>
+    <text class="mono label" x="245" y="70" text-anchor="middle">/graft:update</text>
+    <text class="sans label" x="245" y="99" text-anchor="middle">merges the latest Graft,</text>
+    <text class="sans label" x="245" y="119" text-anchor="middle">keeping your mods</text>
   </g>
-
-  <g id="label-update">
-    <rect class="pill" x="30" y="210" width="220" height="92" rx="12"/>
-    <g id="label-update-cmd">
-      <rect class="cmd" x="72" y="220" width="136" height="26" rx="13"/>
-      <text class="mono label" x="140" y="238" text-anchor="middle">/graft:update</text>
-    </g>
-    <text class="sans label" x="140" y="266" text-anchor="middle">merges the latest Graft,</text>
-    <text class="sans label" x="140" y="286" text-anchor="middle">keeping your mods</text>
+  <g>
+    <rect class="pill" x="495" y="58" width="180" height="56" rx="12"/>
+    <text class="sans label" x="585" y="83" text-anchor="middle">push, and pull on</text>
+    <text class="sans label" x="585" y="103" text-anchor="middle">your other machines</text>
   </g>
-
-  <g id="label-tune">
-    <rect class="pill" x="400" y="40" width="150" height="92" rx="12"/>
-    <g id="label-tune-cmd">
-      <rect class="cmd" x="415" y="50" width="120" height="26" rx="13"/>
-      <text class="mono label" x="475" y="68" text-anchor="middle">/graft:tune</text>
-    </g>
-    <text class="sans label" x="475" y="96" text-anchor="middle">finds corrections</text>
-    <text class="sans label" x="475" y="116" text-anchor="middle">you keep making</text>
+  <g>
+    <rect class="node" x="30" y="400" width="110" height="64" rx="10"/>
+    <text class="sans name" x="85" y="437" text-anchor="middle">You</text>
   </g>
-
-  <g id="label-picked">
-    <rect class="pill" x="400" y="166" width="150" height="36" rx="12"/>
-    <text class="sans label" x="475" y="189" text-anchor="middle">the ones you pick</text>
+  <g>
+    <rect class="pill" x="202" y="266" width="170" height="88" rx="12"/>
+    <rect class="cmd" x="217" y="276" width="139" height="26" rx="13"/>
+    <text class="mono label" x="287" y="294" text-anchor="middle">/graft:modify</text>
+    <text class="sans label" x="287" y="323" text-anchor="middle">commits a mod,</text>
+    <text class="sans label" x="287" y="343" text-anchor="middle">recorded in <tspan class="mono">MODS.md</tspan></text>
   </g>
-
-  <g id="label-modify">
-    <rect class="pill" x="315" y="236" width="200" height="92" rx="12"/>
-    <g id="label-modify-cmd">
-      <rect class="cmd" x="347" y="246" width="136" height="26" rx="13"/>
-      <text class="mono label" x="415" y="264" text-anchor="middle">/graft:modify</text>
-    </g>
-    <text class="sans label" x="415" y="292" text-anchor="middle">commits a mod,</text>
-    <text class="sans label" x="415" y="312" text-anchor="middle">recorded in <tspan class="mono">MODS.md</tspan></text>
+  <g>
+    <rect class="pill" x="172" y="376" width="196" height="108" rx="12"/>
+    <rect class="cmd" x="209" y="386" width="122" height="26" rx="13"/>
+    <text class="mono label" x="270" y="404" text-anchor="middle">/graft:tune</text>
+    <text class="sans label" x="270" y="433" text-anchor="middle">finds corrections you keep</text>
+    <text class="sans label" x="270" y="453" text-anchor="middle">making, and turns the</text>
+    <text class="sans label" x="270" y="473" text-anchor="middle">ones you pick into mods</text>
   </g>
-
-  <g id="label-sync">
-    <rect class="pill" x="590" y="227" width="200" height="60" rx="12"/>
-    <text class="sans label" x="690" y="252" text-anchor="middle">push, and pull on</text>
-    <text class="sans label" x="690" y="272" text-anchor="middle">your other machines</text>
+  <g>
+    <rect class="pill" x="480" y="266" width="200" height="88" rx="12"/>
+    <text class="sans label" x="580" y="291" text-anchor="middle">loads Graft;</text>
+    <rect class="cmd" x="502" y="296" width="156" height="26" rx="13"/>
+    <text class="mono label" x="580" y="314" text-anchor="middle">/reload-plugins</text>
+    <text class="sans label" x="580" y="343" text-anchor="middle">picks up changes</text>
   </g>
-
-  <g id="label-load">
-    <rect class="pill" x="315" y="476" width="200" height="100" rx="12"/>
-    <text class="sans label" x="415" y="504" text-anchor="middle">loads Graft from here;</text>
-    <g id="label-load-cmd">
-      <rect class="cmd" x="340" y="514" width="150" height="26" rx="13"/>
-      <text class="mono label" x="415" y="532" text-anchor="middle">/reload-plugins</text>
-    </g>
-    <text class="sans label" x="415" y="562" text-anchor="middle">picks up changes</text>
-  </g>
-
-  <g id="node-you">
-    <rect class="node" x="305" y="840" width="220" height="56" rx="10"/>
-    <text class="sans name" x="415" y="873" text-anchor="middle">You</text>
-  </g>
-
-  <g id="label-notify">
-    <rect class="pill" x="315" y="704" width="200" height="100" rx="12"/>
-    <text class="sans label" x="415" y="732" text-anchor="middle">Graft tells you</text>
-    <g id="label-notify-cmd">
-      <rect class="cmd" x="347" y="742" width="136" height="26" rx="13"/>
-      <text class="mono label" x="415" y="760" text-anchor="middle">/graft:update</text>
-    </g>
-    <text class="sans label" x="415" y="790" text-anchor="middle">is due</text>
+  <g>
+    <rect x="580" y="396" width="220" height="84" rx="10" fill="#dafbe1" stroke="#4ac26b" stroke-width="1"/>
+    <text class="sans name" x="690" y="422" text-anchor="middle">Claude Code</text>
+    <text class="sans sub" x="690" y="446" text-anchor="middle">Graft tells you to run</text>
+    <text class="mono sub" x="690" y="466" text-anchor="middle">/graft:update</text>
   </g>
 </svg>
