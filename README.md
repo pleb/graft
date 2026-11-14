@@ -6,11 +6,9 @@ Graft is a Claude Code plugin that takes a task from idea to pull request. It pl
 
 ## Why Graft
 
-Install gives you a private GitHub repo holding your own copy of Graft, and you can change it. Graft calls each change a mod. `/graft:modify` could make every plan include a rollback step, for example, and records why you wanted it. When Graft gets an update, `/graft:update` merges it into your copy and keeps your mods.
+Your changes to Graft, which it calls mods, survive its updates. Install gives you a private GitHub repo holding your own copy, and an update merges into it by what each mod is meant to do. `/graft:tune` learns from the corrections you keep making and offers to turn them into mods. [Make it yours](#make-it-yours) covers how.
 
-`/graft:tune` reads your recent plan, orchestrate, execute and yolo runs (the last two weeks by default) for corrections you keep repeating and offers to turn them into mods.
-
-Before a branch is done, a reviewer has checked it for bugs and an adversarial reviewer has looked for reasons it should not ship. Each is told to report a finding only when it can show how the change would go wrong.
+Before an orchestrate run ends, a reviewer has checked its milestone commits for bugs and an adversarial reviewer has looked for reasons they should not ship. Each is told to report a finding only when it can show how the change would go wrong.
 
 Plans are Markdown files in `.claude/graft/plans`. You can read and edit one before anything is built.
 
@@ -49,7 +47,7 @@ A plan on its own builds nothing. Run `/clear` so the build starts with an empty
 /graft:orchestrate deploy-static-site-to-azure
 ```
 
-Orchestrate works on a branch. A worker agent builds each milestone and Graft commits it, and both reviewers go over the whole branch before the run ends.
+Orchestrate works on a branch. A worker agent builds each milestone and Graft commits it, and both reviewers check its milestone commits before the run ends.
 
 Once the branch is done, `/graft:diff` publishes its changes as a private claude.ai artifact you can comment on line by line, and Claude acts on your comments. `/graft:pr` pushes the branch and opens the pull request, or rewrites the title and body of the one it already has. `/graft:review` runs the two reviewers over a PR, or over your branch and its uncommitted changes, and can post the findings you pick to the PR.
 
@@ -59,7 +57,7 @@ Every command and its arguments are in [docs/commands.md](./docs/commands.md).
 
 Describe a mod in plain words, such as `/graft:modify when a plan touches a database, add a rollback milestone`. Graft agrees the change with you, makes it, has both reviewers check it, and pushes it to your `my-graft` repo. Each mod and its intent go in `MODS.md`.
 
-`/graft:tune` finds mods for you. A correction only counts when you made it in at least two tasks across at least two sessions, and you pick which findings to keep.
+`/graft:tune` finds mods for you. It reads your recent plan, orchestrate, execute and yolo runs (the last two weeks by default) for corrections you keep repeating. A correction only counts when you made it in at least two tasks across at least two sessions, and you pick which findings to keep.
 
 `/graft:update` merges new Graft into your clone from its upstream, the repo it takes updates from: `pleb/graft`, or your organisation's [interstock](#interstocks) (a shared copy of Graft). When a conflict touches a mod, Graft resolves it so the mod still does what you recorded, and asks when it can't. `/graft:modify` and `/graft:update` need Claude Code 2.1.273 or later.
 
@@ -97,9 +95,9 @@ The interstock records its mods in `INTERSTOCK-MODS.md`, and each person's copy 
 
 ## Settings
 
-`/graft-settings` opens a pane that edits the defaults and per-repo overrides. Each change is committed and pushed.
+Settings live in `~/.my-graft/graft-settings.json`, which holds your defaults and overrides for repo or folder paths. `/graft-settings` opens a pane that edits only this file, and commits and pushes each change.
 
-Settings live in `~/.my-graft/graft-settings.json`. A repo can override them in `.claude/graft-settings.json` and `.claude/graft-settings.local.json`. [Graft settings](./docs/settings.md) lists every setting and how these files combine.
+A repo can also override settings in `.claude/graft-settings.json` and `.claude/graft-settings.local.json`, which you edit by hand. [Graft settings](./docs/settings.md) lists every setting and how these files combine.
 
 ### Fewer questions
 

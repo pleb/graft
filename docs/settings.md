@@ -54,7 +54,7 @@ They apply over `~/.my-graft/graft-settings.json`, the local file last. `/graft-
 
 ## Update notices
 
-Graft asks its upstream (the repo your clone takes updates from: `pleb/graft`, or your organisation's [interstock](../README.md#interstocks), its shared copy of Graft) for the latest commit on `main` at most once a day after a successful look. After a failed look it tries again in one hour, then two, four and so on, up to a day.
+Graft asks its upstream (the repo your clone takes updates from: `pleb/graft`, or your organisation's [interstock](../README.md#interstocks), its shared copy of Graft) for the latest commit on `main` at most once a day after a successful look. Graft looks only at session start. After a failed look, the next one waits for a session start at least one hour later, then two, four and so on, up to a day.
 
 At each session start, Graft compares your clone with the upstream commit it last saw. When the clone is behind, a notice says so and suggests `/graft:update` at the prompt. `update.notify` sets how often a behind clone gets a notice (at every session start by default), or shows a status line instead. With `update.notify` set to `off`, Graft does not ask upstream at all.
 

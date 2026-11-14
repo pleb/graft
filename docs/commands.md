@@ -40,7 +40,7 @@ Works out a plan with you, starting from a one-line topic, a full spec or a rese
 /graft:orchestrate [plan path | plan name | task] [issues] [reviewer model: sonnet | opus (default) | fable]
 ```
 
-Builds a finished plan, or a task list you give it, on a branch (a new feature branch when you start on the default branch). A worker agent implements each milestone and Graft commits it. A reviewer checks the commits as they build up, joined by an adversarial reviewer when a change is risky, and both review the whole branch before the run ends. Comment and docs editors then tidy the branch, and the repo's tests and other checks run on the result. Ask for a PR in the arguments, such as `open a pr`, and it raises one when the work is done.
+Builds a finished plan, or a task list you give it, on a branch (a new feature branch when you start on the default branch). A worker agent implements each milestone and Graft commits it. A reviewer checks the commits as they build up, joined by an adversarial reviewer when a change is risky, and both check every milestone commit before the run ends. Comment and docs editors then tidy the branch, and the repo's tests and other checks run on the result. Ask for a PR in the arguments, such as `open a pr`, and it raises one when the work is done.
 
 Run `/clear` between `/graft:plan` and `/graft:orchestrate`, so the build starts with an empty context:
 
