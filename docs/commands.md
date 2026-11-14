@@ -4,20 +4,32 @@ Every Graft command, with its arguments. In each signature, square brackets mark
 
 Your clone is `~/.my-graft`, the local copy of your private `my-graft` repo that Claude Code loads Graft from.
 
-- [Shared arguments](#shared-arguments): issues and reviewer model
+[Shared arguments](#shared-arguments) explains the issues and reviewer model arguments that several commands take.
+
+**Plan and build**
+
 - [`/graft:research`](#graftresearch): investigate a question before planning
 - [`/graft:plan`](#graftplan): write a plan with you
 - [`/graft:orchestrate`](#graftorchestrate): build a plan with agents, reviewed as it goes
 - [`/graft:execute`](#graftexecute): plan and build in one run
 - [`/graft:yolo`](#graftyolo): plan, build and raise a PR, asking only when unclear
+
+**Review and ship**
+
 - [`/graft:diff`](#graftdiff): comment on your branch's changes line by line
 - [`/graft:pr`](#graftpr): raise or update a pull request
 - [`/graft:review`](#graftreview): review a pull request or your branch
+
+**Change and update your copy**
+
 - [`/graft:update`](#graftupdate): merge upstream changes into your clone
 - [`/graft:modify`](#graftmodify): change your copy of Graft
 - [`/graft:tune`](#grafttune): find mods from corrections you repeat
-- [`/graft:uninstall`](#graftuninstall): remove Graft
+
+**Settings and removal**
+
 - [`/graft-settings`](#graft-settings): edit settings in a pane
+- [`/graft:uninstall`](#graftuninstall): remove Graft
 
 ## Shared arguments
 
