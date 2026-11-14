@@ -157,7 +157,7 @@ These settings remove questions Graft asks. Opting in trades questions for risk:
 - `update.mode: auto` removes the question before `/graft:update` merges.
 - `diff.comments: auto` removes the go-ahead `/graft:diff` waits for before changing code.
 
-For the fewest questions, use [`/graft:yolo`](#yolo). It asks only when the request is unclear.
+For the fewest questions, use [`/graft:yolo`](./docs/commands.md#graftyolo). It asks only when the request is unclear.
 
 ## Interstocks
 
