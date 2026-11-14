@@ -94,7 +94,7 @@ Gets two reviews of a change, one from a reviewer looking for bugs and one from 
 /graft:update [mode: ask (default) | auto]
 ```
 
-Merges the latest Graft from upstream (the repo your clone takes updates from: `pleb/graft`, or your organisation's [interstock](../README.md#interstocks), an organisation's copy of Graft) into your clone, keeping your mods. A mod is a change you made to your clone with `/graft:modify`. In `ask` mode it lists what is new and asks before merging; [`update.mode`](./settings.md#settings) sets the default. When a conflict touches a mod, Graft resolves it so the mod's recorded intent still holds, and asks when it cannot. When you have mods, a reviewer and an adversarial reviewer check the merge before it is committed. The merge is pushed to your `my-graft` repo, or raised as a PR when you run it in a clone of an interstock or of `pleb/graft`. It needs Claude Code 2.1.273 or later.
+Merges the latest Graft from upstream (the repo your clone takes updates from: `pleb/graft`, or your organisation's [interstock](../README.md#interstocks), its shared copy of Graft) into your clone, keeping your mods. A mod is a change you made to your clone with `/graft:modify`. In `ask` mode it lists what is new and asks before merging; [`update.mode`](./settings.md#settings) sets the default. When a conflict touches a mod, Graft resolves it so the mod's recorded intent still holds, and asks when it cannot. When you have mods, a reviewer and an adversarial reviewer check the merge before it is committed. The merge is pushed to your `my-graft` repo, or raised as a PR when you run it in a clone of an interstock or of `pleb/graft`. It needs Claude Code 2.1.273 or later.
 
 ## /graft:modify
 

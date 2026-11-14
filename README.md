@@ -105,7 +105,7 @@ Settings live in `~/.my-graft/graft-settings.json`. A repo can override them in 
 
 These settings remove questions Graft asks. Opting in trades questions for risk: for each, the agent decides instead and says what it chose.
 
-- `orchestrate.agentDoesManualChecks: true` removes the Manual checks (a plan's checks that need a person) an agent can run itself from the ones you are asked to run.
+- `orchestrate.agentDoesManualChecks: true` has an agent run the Manual checks (a plan's hands-on checks) it can, leaving you only those that need a person.
 - `plan.finishQuestion: skip` removes the Finish question, the last one `/graft:plan` and `/graft:research` ask before they wrap up.
 - `plan.clearQuestions: default` removes the plan questions that have a clear recommendation.
 - `research.steer: auto` removes the question of which threads to follow after each round of research.
