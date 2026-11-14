@@ -320,24 +320,25 @@ describe("parseCatalog", () => {
     );
   });
 
-  it("matches the README's settings table to common.md", () => {
+  it("matches the settings table in docs/settings.md to common.md", () => {
     const common = parseCatalog(readFileSync(new URL("./common.md", import.meta.url), "utf8"));
-    const readme = parseCatalog(readFileSync(new URL("../README.md", import.meta.url), "utf8"), {
-      isDefaultListed: true,
-    });
+    const docs = parseCatalog(
+      readFileSync(new URL("../docs/settings.md", import.meta.url), "utf8"),
+      { isDefaultListed: true },
+    );
 
     expect(common).toMatchObject({ isParsed: true });
-    expect(readme).toMatchObject({ isParsed: true });
-    if (!common.isParsed || !readme.isParsed) {
+    expect(docs).toMatchObject({ isParsed: true });
+    if (!common.isParsed || !docs.isParsed) {
       return;
     }
-    expect(readme.settings.map(({ key, defaultValue }) => ({ key, defaultValue }))).toEqual(
+    expect(docs.settings.map(({ key, defaultValue }) => ({ key, defaultValue }))).toEqual(
       common.settings.map(({ key, defaultValue }) => ({ key, defaultValue })),
     );
-    expect(readme.settings.map(({ shownWhen }) => shownWhen)).toEqual(
+    expect(docs.settings.map(({ shownWhen }) => shownWhen)).toEqual(
       common.settings.map(({ shownWhen }) => shownWhen),
     );
-    readme.settings.forEach((setting, i) => {
+    docs.settings.forEach((setting, i) => {
       const expected = common.settings[i]!;
       expect(setting.isText, setting.key).toBe(expected.isText);
       if (!expected.isText) {

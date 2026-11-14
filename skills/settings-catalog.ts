@@ -1,4 +1,4 @@
-// Parses the `## Settings` table in common.md, or in README.md with
+// Parses the `## Settings` table in common.md, or in docs/settings.md with
 // `isDefaultListed`, where Values include the Default. An optional `Shown when`
 // column after Default, or a `<sub>(shown when ...)</sub>` note in the Key cell,
 // names the setting a row depends on. A Values cell of the
@@ -26,7 +26,7 @@ export type Catalog =
 const HEADER = ["Key", "Values", "Default", "What it does"];
 const SHOWN_HEADER = ["Key", "Values", "Default", "Shown when", "What it does"];
 const KEY = /^`([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)`$/;
-// README.md names the condition under the key instead of in a `Shown when` column.
+// docs/settings.md names the condition under the key instead of in a `Shown when` column.
 const KEY_NOTE =
   /^(`[^`]+`) <br><sub>\(shown when ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+ = [^\s<()]+)\)<\/sub>$/;
 const CONDITION = /^`([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+) = ([^`\s]+)`$/;
