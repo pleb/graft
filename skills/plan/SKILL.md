@@ -26,8 +26,8 @@ Outside a repo (non-zero exit), skip the ignore check. In common.md's workspace 
 
 ## Workspace
 
-- When a repo the work needs is not under the root, create it, then read it there. Creating a repo is not implementing.
-- The plan's `## Repos` lists each repo the work changes, one line per repo: its path relative to the root, then the command that created it, or `existing`. Each milestone names the repos it changes.
+- `existing` is only for a repo already under the root. Record any other repo the work changes with the command that adds it, as common.md's `## Workspace` says (for a repo that does not exist anywhere yet, the user's create command); orchestrate runs it before Branch when the repo is missing. Run that command yourself only for a repo that exists elsewhere and whose code you need to read, then read it under the root. Otherwise record it without running it.
+- The plan's `## Repos` lists each repo the work changes, one line per repo: its path relative to the root, then the command that adds it, or `existing`. Each milestone names the repos it changes.
 
 ## Outside a repo
 

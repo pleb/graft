@@ -201,8 +201,8 @@ Outside a repo, get settings with the cwd as `<root>`. When `plan.outsideRepoPla
 
 In workspace mode:
 
-- Create a repo with the command the session's instructions give for adding a repo. Ask when they give none.
-- The root is not a repo, and every agent's shell starts there. Run git as `git -C <repo>` and every other command as `cd <repo> && <command>`, with the repo's absolute path. Agent briefs name the root and the repos by absolute path, and say so.
+- Add a repo by running, from the root, the command the instructions loaded for the folder (its `CLAUDE.md` or a parent's) give for adding a repo. Ask when they give none. A repo that does not exist anywhere yet is created with a command the user gives, which must leave it with at least one commit.
+- The root is not a repo, and every agent's shell starts there. Once a repo exists, run git as `git -C <repo>` and every other command as `cd <repo> && <command>`, with the repo's absolute path. Agent briefs name the root and the repos by absolute path, and say so.
 - When reporting a next step, say to run it from the root.
 
 ## Settings

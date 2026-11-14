@@ -20,7 +20,7 @@ You run execute, making the calls the user would usually make. Read `${CLAUDE_SK
   - Common.md's `## Find the work` rule 5: the word is the work.
   - A draft plan given as the work with no revision named: answer its open questions and finalise.
   - No work found, or plan mode active: stop and say why.
-  - Plan or orchestrate asks which command creates a missing repo, and the session's instructions give none: stop and say why.
+  - Plan or orchestrate asks which command adds a missing repo, and the folder's instructions give none: stop and say why.
   - Orchestrate asks which repos under the root the work covers, with no `## Repos`: stop and say why.
 - Answer the questions the pr worker reports back the same way, then send it again.
 
