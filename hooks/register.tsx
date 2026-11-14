@@ -1,8 +1,8 @@
 import { atom, read, update } from "claude-code";
 import type { Elements, EngineInterface, Register } from "claude-code";
 
-import { parseCatalog } from "../skills/settings-catalog.ts";
-import type { Catalog, CatalogSetting } from "../skills/settings-catalog.ts";
+import { parseCatalog } from "../skills/settings-catalog";
+import type { Catalog, CatalogSetting } from "../skills/settings-catalog";
 import {
   DEFAULT_SOURCE,
   explainLayers,
@@ -19,13 +19,13 @@ import {
   projectFilePaths,
   projectLayers,
   withSetting,
-} from "../skills/settings-lib.ts";
+} from "../skills/settings-lib";
 import type {
   Environment,
   ExplainedSetting,
   SettingsFile,
   SkillValues,
-} from "../skills/settings-lib.ts";
+} from "../skills/settings-lib";
 import {
   LOCAL_PROBE_ENV,
   checkBehind,
@@ -35,8 +35,8 @@ import {
   noticeText,
   parseLsRemote,
   readMode,
-} from "../features/update-check-lib.ts";
-import type { Behind, Git, Look, Mode, Notice } from "../features/update-check-lib.ts";
+} from "../features/update-check-lib";
+import type { Behind, Git, Look, Mode, Notice } from "../features/update-check-lib";
 import type { GraftSettingsPane } from "../types";
 
 const PANE = "graft-settings";
