@@ -103,7 +103,9 @@ Research, plan, execute, orchestrate and yolo can run from a folder of repos. Tu
 { "plan": { "outsideRepoPlans": "here" } }
 ```
 
-Put the command that adds a repo to the folder in its `CLAUDE.md`; Graft asks when there is none. For a repo that does not exist yet, Graft asks you for a command that creates it with at least one commit and an `origin` to push to. The plan's `## Repos` lists each repo the work changes with the command that adds it, or `existing`. When asked for a PR, orchestrate raises one per repo and links them.
+Graft adds a repo the work needs with the command the folder's `CLAUDE.md` (or a parent's) gives for adding one, and asks when it gives none. For a repo that does not exist yet, it asks for a command that creates one with at least one commit and an `origin` to push to.
+
+The plan's `## Repos` lists each repo the work changes, with the command that adds it or `existing`. When asked for a PR, orchestrate raises one per changed repo and links them.
 
 ## Helper commands
 
