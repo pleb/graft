@@ -2,6 +2,8 @@ import { expect, mock, test } from "claude-code/testing";
 import type { Engine } from "claude-code/testing";
 import type { On } from "claude-code";
 
+declare const setTimeout: (callback: (...args: never[]) => void, ms: number) => unknown;
+
 const HOME = "/home/u";
 const CLONE = `${HOME}/.my-graft`;
 const SETTINGS = `${CLONE}/graft-settings.json`;
