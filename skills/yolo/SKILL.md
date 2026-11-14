@@ -20,11 +20,14 @@ You run execute, making the calls the user would usually make. Read `${CLAUDE_SK
   - Common.md's `## Find the work` rule 5: the word is the work.
   - A draft plan given as the work with no revision named: answer its open questions and finalise.
   - No work found, or plan mode active: stop and say why.
+  - Plan or orchestrate asks which command adds a missing repo, and the folder's instructions give none: stop and say why.
+  - Plan or orchestrate asks for the command that creates a repo that does not exist yet: stop and say why.
+  - Orchestrate asks which repos under the root the work covers, with no `## Repos`: stop and say why.
 - Answer the questions the pr worker reports back the same way, then send it again.
 
 ## Start
 
-Once execute's `## Start` has found the repo, and before anything else reads the tree, on every path (the finalised-plan shortcut included):
+Once execute's `## Start` has found the repo, and before anything else reads the tree, on every path (the finalised-plan shortcut included). In workspace mode, `## Workspace mode` changes steps 2 to 4.
 
 1. Record the run start with `date '+%Y-%m-%d %H:%M'`.
 2. Run `git -C <root> check-ignore -q .claude/graft/.probe.md`, even when `.claude/graft/` exists. When it is not ignored, add `/.claude/graft/` to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names.
@@ -33,6 +36,16 @@ Once execute's `## Start` has found the repo, and before anything else reads the
    - A path related to the work is included. Once orchestrate's `## Branch` has run, and before the first milestone, stage only the included paths with `git -C <root> add -- <paths>` and commit them in a commit of their own. The first review range starts before that commit.
    - Stash the unrelated paths.
 4. Stash every path the sort stashes in one `git -C <root> stash push --include-untracked -- <paths>`. Run `git rev-parse -q --verify stash@{0}` before and after it. When the push created an entry, keep its SHA (the value after). Otherwise there is no stash to restore.
+
+## Workspace mode
+
+Applies in common.md's workspace mode, and runs each command in a repo as common.md's `## Workspace` says. This section changes each section it names. After compaction, read this section again.
+
+- **Start**: skip step 2; the plan lives at the root. Run steps 3 and 4 in each repo under the root that exists at Start, and in a repo added later once it is added, before its Branch step. Keep one stash SHA per repo.
+- **Screenshots**: run step 1's `gh repo view`, step 2's record and step 4's restore per repo, skipping the repos step 1 rules out. The worker's brief asks which repo each image shows. Attach a screenshot only to the PR of the repo whose change it shows.
+- **PR**: check an attach failure with `gh pr view` per repo.
+- **Restore the stash**: per repo, applying each repo's stash in that repo.
+- **Report**: the stashes, and the paths included, stashed or added to `info/exclude`, per repo.
 
 ## Recording decisions
 
@@ -53,7 +66,7 @@ Follow orchestrate as if `orchestrate.agentDoesManualChecks` were `true`, whatev
 
 ## Screenshots
 
-Run this step between orchestrate's `## Agent checks` and `## Raise a PR`. No screenshots is not a failure.
+Run this step between orchestrate's `## Agent checks` and `## Raise a PR`. No screenshots is not a failure. In workspace mode, run it as `## Workspace mode` says.
 
 1. Skip the step, saying why in Report, when `gh --version` is below 2.99.0, or when the host of `gh repo view --json url` is neither `github.com` nor a host ending in `.ghe.com`.
 2. Record `git branch --show-current`, `git status --porcelain`, `git rev-parse HEAD` and `git worktree list`.
@@ -69,11 +82,11 @@ Run this step between orchestrate's `## Agent checks` and `## Raise a PR`. No sc
 
 - Raise a PR unless you stopped, whether or not the plan or the user asks for one, with any agent check still failing flagged in its body.
 - Add to the **Arguments** orchestrate passes the pr worker: `ready-state`, unless the arguments name a state, and, when there are approved screenshots, a request to attach them with their paths. That request tells the worker to stop and report an attach failure without retrying.
-- On an attach failure, never retry the upload. When `gh pr view` shows a PR, put it in the run's state (ready unless the arguments named one) with `gh pr ready` or `gh pr ready --undo`, and remove image references that still point at local paths with `gh pr edit --body`. When there is no PR, send the pr worker again without the screenshot request. Name the failure in Report.
+- On an attach failure, never retry the upload. When `gh pr view` shows a PR (per repo in workspace mode), put it in the run's state (ready unless the arguments named one) with `gh pr ready` or `gh pr ready --undo`, and remove image references that still point at local paths with `gh pr edit --body`. When there is no PR, send the pr worker again without the screenshot request. Name the failure in Report.
 
 ## Restore the stash
 
-Once the PR is raised, or at a stop when `git status --porcelain` prints nothing, run `git stash apply --index <sha>`. When it fails for a reason other than a conflict, run `git stash apply <sha>`. Once applied, drop that entry (`git stash list --format='%gd %H'` names it). At a stop with a dirty tree, apply nothing.
+Once the PR is raised, or at a stop when `git status --porcelain` prints nothing, run `git stash apply --index <sha>`. In workspace mode, do this per repo. When it fails for a reason other than a conflict, run `git stash apply <sha>`. Once applied, drop that entry (`git stash list --format='%gd %H'` names it). At a stop with a dirty tree, apply nothing.
 
 On a conflict, run `git reset --merge`. When the stash holds untracked files, remove each file `git -C <root> ls-tree -r --name-only <sha>^3` lists that was not present before the apply, and keep the stash.
 
@@ -86,6 +99,8 @@ Before orchestrate's `## Finish the plan` moves or deletes the plan, read the `(
 - Each agent check still failing, with what the worker observed.
 - Whether screenshots were attached, or why not.
 - Any stash left, by SHA.
+
+In workspace mode, list the stashes and paths per repo.
 
 ## After compaction
 

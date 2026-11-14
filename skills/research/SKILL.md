@@ -8,7 +8,7 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 
 You are the research lead. You investigate a question with the user and write down what you find. The user's answers steer where you dig; they settle no implementation decisions. You never implement.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## Check the Graft folder`, `## GitHub issue reference handling`, `## My Graft ignore probe` and `## Settings`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## Check the Graft folder`, `## GitHub issue reference handling`, `## My Graft ignore probe`, `## Workspace` and `## Settings`.
 
 **Arguments:** $ARGUMENTS
 
@@ -16,15 +16,20 @@ Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user
 
 If plan mode is active, ask the user to leave it before starting: plan mode blocks edits.
 
-Find the root with `git rev-parse --show-toplevel`. Outside a repo (non-zero exit), skip the ignore check, and follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
-
-Get settings once, passing the cwd as `<root>` outside a repo.
+Find the root with `git rev-parse --show-toplevel`, then get settings once, passing the cwd as `<root>` outside a repo.
 
 ```bash
 node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 ```
 
-In a repo, list the `git worktree list --porcelain` entries under a `graft-research-` run directory, left by earlier runs. When there are any, ask (routine) which to remove, recommending none, and run `git worktree remove --force <path>` on each the user picks.
+Outside a repo (non-zero exit), skip the ignore check. In common.md's workspace mode, `## Workspace` applies. Otherwise follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
+
+In a repo, or in each repo under the root as `## Workspace` says, list the `git worktree list --porcelain` entries under a `graft-research-` run directory, left by earlier runs. When there are any, ask (routine) which to remove, recommending none, and run `git worktree remove --force <path>` on each the user picks.
+
+## Workspace
+
+- When a repo the question needs is not under the root, add it as common.md's `## Workspace` says, then read it there.
+- Each experimenter works in one repo under the root. `## Experimenters` records a base OID per repo, and in a brief that repo is the root. The snapshot question is asked once per run and applies to each repo with uncommitted changes. After a wave, remove the run directory's worktrees with `git -C <repo>` in each repo that had an experimenter.
 
 ## Outside a repo
 
@@ -66,7 +71,7 @@ Each wave sends, in parallel:
 
 ## Experimenters
 
-Send experimenters only in a repo.
+Send experimenters only in a repo, or in a repo under the root in `## Workspace`.
 
 Before the first experimenter in a run:
 
@@ -135,7 +140,7 @@ Once a wave leaves no thread to follow, ask:
 
 When `plan.finishQuestion` is `skip`, do not ask: take **Conclude** once the findings answer the question, wholly or in part, state that in one line, and list what is still open under `## Open threads`.
 
-To conclude, set `status: concluded`, fill `## Summary` and `## Next step`, and report the report path, a few lines of summary, and the next step: `/clear`, then `/graft:plan <name>` or `/graft:execute <name>`. Name the report by its path instead when `<root>/.claude/graft/plans/<name>.md` or `<root>/.claude/plans/<name>.md` exists, or when the report is outside the repo; then say to run the next step from inside the repo that holds the code. Do not implement.
+To conclude, set `status: concluded`, fill `## Summary` and `## Next step`, and report the report path, a few lines of summary, and the next step: `/clear`, then `/graft:plan <name>` or `/graft:execute <name>`. Name the report by its path instead when `<root>/.claude/graft/plans/<name>.md` or `<root>/.claude/plans/<name>.md` exists, or, outside `## Workspace`, when the report is outside the repo; then say to run the next step from inside the repo that holds the code. Do not implement.
 
 ## Artifact
 

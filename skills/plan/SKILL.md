@@ -8,7 +8,7 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 
 You are the planner. You settle the solution with the user and write it down. You never implement.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## Check the Graft folder`, `## GitHub issue reference handling`, `## My Graft ignore probe` and `## Settings`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## Check the Graft folder`, `## GitHub issue reference handling`, `## My Graft ignore probe`, `## Workspace` and `## Settings`.
 
 **Arguments:** $ARGUMENTS
 
@@ -16,13 +16,18 @@ Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user
 
 If plan mode is active, ask the user to leave it before starting: plan mode blocks edits.
 
-Find the root with `git rev-parse --show-toplevel`. Outside a repo (non-zero exit), skip the ignore check, and follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
-
-Get settings once, passing the cwd as `<root>` outside a repo.
+Find the root with `git rev-parse --show-toplevel`, then get settings once, passing the cwd as `<root>` outside a repo.
 
 ```bash
 node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 ```
+
+Outside a repo (non-zero exit), skip the ignore check. In common.md's workspace mode, `## Workspace` applies. Otherwise follow `## Outside a repo` when `git -C ~/.my-graft rev-parse --show-toplevel` prints `~/.my-graft` (expanded); otherwise the root is the cwd.
+
+## Workspace
+
+- Record each repo the work changes with the command that adds it, as common.md's `## Workspace` says (for a repo that does not exist anywhere yet, the user's create command), even when it is already under the root; orchestrate runs it before Branch when the repo is missing. `existing` is only for a repo under the root that no add command covers. Run that command yourself only for a repo that exists elsewhere and whose code you need to read (including a repo the work only reads, which `## Repos` does not list), then read it under the root. Otherwise record it without running it.
+- The plan's `## Repos` lists each repo the work changes, one line per repo: its path relative to the root, then the command that adds it, or `existing`. Each milestone names the repos it changes.
 
 ## Outside a repo
 
@@ -84,6 +89,8 @@ status: draft
 
 ## References
 
+## Repos
+
 ## Approach
 
 ## Decisions
@@ -108,6 +115,8 @@ Each milestone names the files and the change, and splits its verification into 
 Record every answer from a round, and every answer to a question a review raised, in `## Decisions` as one line, `- <question>: <answer> (you)`, with a short reason after the answer when it is not obvious, and remove the answered open question. Record the path the clarify step settles, not the clarify answer itself. `## Approach` does not restate a decision's rationale.
 
 Spend words on decisions, risks and contracts. Give routine changes a line.
+
+`## Repos` is written only in `## Workspace`.
 
 `## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, `- Related <URL>` for any other link, and `- Research <path>` for research the plan builds on. Read an issue or PR the conversation brings in, not only one in the arguments, as `## GitHub issue reference handling` describes. An issue References already lists keeps its line. Other issues supplied in the arguments are added as Resolves; other issues, PRs and links are added as Related. The user can move any line between the two.
 
@@ -154,4 +163,4 @@ Review and finalise runs a full pass when none has run in this session. Otherwis
 
 When `plan.finishQuestion` is `skip`, do not ask this question: take the recommended option and state it in one line. When the Manual check mode question above applies, ask it alone and record its answer in `## Decisions`. The finalise report lists every `(default)` entry in `## Decisions`.
 
-To finalise, set `status: finalised`, then report the plan path, a few lines of summary, and the next step: `/clear`, then `/graft:orchestrate <name>` (`/graft:orchestrate <path>` for a plan outside `.claude/graft/plans/`). For a plan written from outside a repo, name it by full path and say to run the next step from inside the repo that holds the code. When the directory under `## Goal` is still not a repo, say orchestrate needs one (for example, `git init` it first). Do not implement.
+To finalise, set `status: finalised`, then report the plan path, a few lines of summary, and the next step: `/clear`, then `/graft:orchestrate <name>` (`/graft:orchestrate <path>` for a plan outside `.claude/graft/plans/`). For a plan written from outside a repo, outside `## Workspace`, name it by full path and say to run the next step from inside the repo that holds the code. When the directory under `## Goal` is still not a repo, say orchestrate needs one (for example, `git init` it first). Do not implement.
