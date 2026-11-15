@@ -1,61 +1,194 @@
 # Graft settings
 
-`/graft-settings` opens a pane in Claude Code that edits the defaults and per-repo overrides described here. A change is saved, then committed and pushed.
+Settings change how Graft's commands behave. To make Graft ask fewer questions, see [Fewer questions](../README.md#fewer-questions). When a setting lets Graft answer a question for you, it says what it picked.
 
-## Settings
+## Change a setting
 
-| Key                                                                                    | Values                                         | Default     | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| -------------------------------------------------------------------------------------- | ---------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `common.reviewerModel`                                                                 | `fable`, `opus`, `sonnet`                      | opus        | The reviewer model when the command names none.                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `common.routineQuestions`                                                              | `ask`, `auto`                                  | ask         | Whether Graft asks routine questions, such as linking an issue as Resolves or Related, ignoring the Graft folder or setting up research worktrees (`ask`), or takes the recommended option and says which it took (`auto`).                                                                                                                                                                                                                                           |
-| `plan.outsideRepoPlans`                                                                | `always`, `ask`, `here`, `never`               | ask         | What `/graft:plan` and `/graft:research` do outside a repo: save plans in `~/.my-graft/.claude/graft/plans/` and research in `~/.my-graft/.claude/graft/research/` (`always`), ask first (`ask`), save them in the current folder's `.claude/graft/` and work across the repos under it, which `/graft:execute`, `/graft:orchestrate` and `/graft:yolo` then run from too (`here`; see [Working across repos](../README.md#working-across-repos)), or stop (`never`). |
-| `plan.questionsPerRound`                                                               | `1`, `2`, `3`, `4`                             | 3           | The most questions `/graft:plan` and `/graft:research` ask at once.                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `plan.manualChecksQuestion` <br><sub>(shown when orchestrate.manualChecks = ask)</sub> | `finish`, `orchestrate`                        | orchestrate | When `orchestrate.manualChecks` is `ask`, whether `/graft:plan` asks how a plan's Manual checks are handled in its Finish question (`finish`) or leaves it to `/graft:orchestrate` (`orchestrate`).                                                                                                                                                                                                                                                                   |
-| `plan.finishQuestion`                                                                  | `ask`, `skip`                                  | ask         | Whether `/graft:plan` and `/graft:research` ask their Finish question (`ask`) or take the recommended option and say which they took (`skip`). With `skip`, plan lists the decisions it took by default in its report, and research concludes once its findings answer the question and lists what is still open.                                                                                                                                                     |
-| `plan.clearQuestions`                                                                  | `ask`, `default`                               | ask         | Whether `/graft:plan` asks every question that has a recommendation (`ask`) or records the recommended answer as a default decision and says which it took (`default`). It still asks a question that touches a risky part (such as a contract, schema, stored data, security or a migration) or whose options differ only in naming or wording.                                                                                                                      |
-| `research.artifact`                                                                    | `false`, `true`                                | false       | Whether `/graft:research` also publishes its report as a private claude.ai artifact (`true`) or keeps it as Markdown only (`false`).                                                                                                                                                                                                                                                                                                                                  |
-| `research.uncommittedChanges`                                                          | `always`, `ask`, `never`                       | ask         | Whether `/graft:research` experiments run on your uncommitted changes (`always`), on the last commit (`never`), or ask once per run (`ask`).                                                                                                                                                                                                                                                                                                                          |
-| `research.steer`                                                                       | `ask`, `auto`                                  | ask         | Whether `/graft:research` asks which threads to follow after each wave (`ask`) or follows the ones it recommends and says which it took (`auto`).                                                                                                                                                                                                                                                                                                                     |
-| `orchestrate.finishedPlan`                                                             | `archive`, `delete`, `leave`                   | leave       | What `/graft:orchestrate` does with an untracked plan once every milestone is done: move it to `~/.my-graft/.claude/graft/plans/<repo>/<plan>.md` (`archive`), delete it (`delete`) or leave it in place (`leave`). Archives stay on this machine.                                                                                                                                                                                                                    |
-| `orchestrate.manualChecks`                                                             | `ask`, `defer`, `pause`                        | ask         | How `/graft:orchestrate` handles a plan's Manual checks: stop after each milestone that has them until you report the result (`pause`), list them in its report (`defer`) or ask at the start of the run (`ask`).                                                                                                                                                                                                                                                     |
-| `orchestrate.agentDoesManualChecks`                                                    | `false`, `true`                                | false       | Whether `/graft:orchestrate` runs the Manual checks an agent can run (browser, scripts, database) once the branch is finished, and leaves only those that need a person to the Manual check mode (`true`), or leaves every Manual check to you (`false`). Checks that write to a shared database or service run too.                                                                                                                                                  |
-| `diff.comments`                                                                        | `auto`, `batch`                                | batch       | How `/graft:diff` handles your comments when the command names no mode: discuss them in their threads and change code when you send a go-ahead or press Finish review (`batch`), or apply each one as it arrives and republish (`auto`).                                                                                                                                                                                                                              |
-| `diff.fileList`                                                                        | `flat`, `tree`                                 | flat        | The file list layout a new `/graft:diff` page starts in, until you switch it on the page (your browser then remembers your choice for that page).                                                                                                                                                                                                                                                                                                                     |
-| `pr.state`                                                                             | `draft`, `ready`                               | draft       | The state `/graft:pr` opens a new PR in when the command names none.                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `update.mode`                                                                          | `ask`, `auto`                                  | ask         | Whether `/graft:update` asks before merging (`ask`) or merges straight away (`auto`) when the command names no mode.                                                                                                                                                                                                                                                                                                                                                  |
-| `update.notify`                                                                        | `daily`, `off`, `persistent`, `session`, `sha` | session     | When Graft tells you `/graft:update` is due: a notice at each session start (`session`), at most once a day (`daily`) or once per upstream commit (`sha`), a status line until you update (`persistent`), or never, with no upstream check (`off`). Per-repo overrides do not apply.                                                                                                                                                                                  |
+Run `/graft-settings` to open the settings pane. It sets your defaults, or overrides for one repo or folder, in `~/.my-graft/graft-settings.json` (your copy of Graft), then commits and pushes. It pulls first, so it needs to reach your `my-graft` repo, and it won't save while `~/.my-graft` has uncommitted or unpushed changes or isn't on `main`.
 
-## Settings files
+You can also edit that file yourself, then commit and push it. Settings nest by command, so `pr.state` is written `{ "pr": { "state": "ready" } }`. To see each setting's value in a repo and which file set it:
 
-Settings live in `~/.my-graft/graft-settings.json`, in your clone of Graft (your own copy of the Graft repo, which Claude Code loads Graft from):
+```bash
+node ~/.my-graft/skills/settings.ts <repo path> --explain
+```
+
+## General
+
+### `common.reviewerModel`
+
+The model the reviewer agents use when the command doesn't name one.
+
+- `opus` (default)
+- `fable`
+- `sonnet`
+
+### `common.routineQuestions`
+
+Small housekeeping questions, such as whether an issue is Resolves or Related, whether to gitignore `.claude/graft/`, or how to set up research worktrees.
+
+- `ask` (default)
+- `auto`: take the recommended answer.
+
+## Plan and research
+
+### `plan.questionsPerRound`
+
+The most questions `/graft:plan` and `/graft:research` ask at once.
+
+- `1`
+- `2`
+- `3` (default)
+- `4`
+
+### `plan.clearQuestions`
+
+Plan questions that have a clear recommendation.
+
+- `ask` (default)
+- `default`: record the recommendation as a decision in the plan. Plan still asks about risky parts (contracts, schemas, stored data, security, migrations) and about naming.
+
+### `plan.finishQuestion`
+
+The last question `/graft:plan` and `/graft:research` ask before they wrap up.
+
+- `ask` (default)
+- `skip`: plan takes the recommended option and lists the answers it chose in its report. Research stops once its findings answer the question, even partly, and lists what is still open.
+
+### `plan.manualChecksQuestion`
+
+Which command asks how a plan's [manual checks](#orchestrate) are handled. Applies only when `orchestrate.manualChecks` is `ask`.
+
+- `orchestrate` (default): `/graft:orchestrate`, when it starts.
+- `finish`: `/graft:plan`, at the end of planning.
+
+### `plan.outsideRepoPlans`
+
+Where `/graft:plan` and `/graft:research` save their files when you run them outside a repo without naming a file.
+
+- `ask` (default): ask whether to use `~/.my-graft`.
+- `always`: `~/.my-graft/.claude/graft/`.
+- `here`: this folder's `.claude/graft/`, working across the repos under it ([Working across repos](../README.md#working-across-repos)). Set it in the folder's `.claude/graft-settings.json`.
+- `never`: stop.
+
+### `research.steer`
+
+Choosing which leads `/graft:research` follows after each round of agents.
+
+- `ask` (default)
+- `auto`: follow the ones it recommends.
+
+### `research.uncommittedChanges`
+
+What `/graft:research` experiments run on when you have uncommitted changes.
+
+- `ask` (default): ask once per run.
+- `always`: your changes.
+- `never`: the last commit.
+
+### `research.artifact`
+
+Publishing the `/graft:research` report as a private claude.ai artifact as well as Markdown.
+
+- `false` (default)
+- `true`
+
+## Orchestrate
+
+Manual checks are the hands-on checks a plan lists, such as trying a page in a browser.
+
+### `orchestrate.manualChecks`
+
+How `/graft:orchestrate` handles manual checks.
+
+- `ask` (default): use the mode recorded in the plan, or ask when the run starts.
+- `pause`: stop after each milestone that has them until you report the result.
+- `defer`: list them in the final report.
+
+### `orchestrate.agentDoesManualChecks`
+
+Having an agent run the manual checks it can (browser, scripts, database) once the branch is finished.
+
+- `false` (default): you run every check.
+- `true`: the agent runs what it can. Some checks may write to a shared database or service. Checks that need a person, a device or an account the agent lacks stay with you.
+
+### `orchestrate.finishedPlan`
+
+What happens to a finished Graft plan that git doesn't track and that isn't already under `~/.my-graft`.
+
+- `leave` (default)
+- `archive`: move it to `~/.my-graft/.claude/graft/plans/<repo>/`, on this machine only.
+- `delete`
+
+## Pull requests and review
+
+### `pr.state`
+
+The state `/graft:pr` opens a new PR in when the command doesn't name one.
+
+- `draft` (default)
+- `ready`
+
+### `diff.comments`
+
+How `/graft:diff` handles your comments when the command doesn't name a mode.
+
+- `batch` (default): reply in each thread, and change code when you give the go-ahead or press Finish review.
+- `auto`: apply each comment as it arrives and republish.
+
+### `diff.fileList`
+
+The file list layout a new `/graft:diff` page starts in. Your browser remembers a switch you make on the page.
+
+- `flat` (default)
+- `tree`
+
+## Updates
+
+### `update.mode`
+
+Asking before `/graft:update` merges, when the command doesn't name a mode.
+
+- `ask` (default)
+- `auto`: merge straight away.
+
+### `update.notify`
+
+When Graft tells you your clone is behind upstream. Only the value at the top level of `~/.my-graft/graft-settings.json` counts, whatever `--explain` shows for a repo.
+
+- `session` (default): a notice at each session start.
+- `daily`: at most once a day.
+- `sha`: once per new upstream commit.
+- `persistent`: a status line until you update.
+- `off`: never, and Graft doesn't check.
+
+Graft checks at session start, at most once a day, with a read-only `git ls-remote` against the `upstream` remote of `~/.my-graft`: `pleb/graft`, or your organisation's [interstock](../README.md#interstocks). After a failed check it waits an hour, then two, four and so on, up to a day. It doesn't check in non-interactive runs, when `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` is set, or when there is no `upstream` remote.
+
+## How settings combine
+
+The top level of `~/.my-graft/graft-settings.json` holds your defaults. A path key overrides them for that repo, or, ending in `/*`, for that folder and every repo under it:
 
 ```json
 {
   "pr": { "state": "draft" },
   "~/work/*": { "overrides": { "pr": { "state": "ready" } } },
-  "/Users/me/oss/graft": {
-    "overrides": { "plan": { "questionsPerRound": "4" } }
-  },
-  "C:/work/*": { "overrides": { "pr": { "state": "ready" } } }
+  "/Users/me/oss/graft": { "overrides": { "plan": { "questionsPerRound": "4" } } }
 }
 ```
 
-Top-level skill keys are the defaults. A key that is a path is a scope whose `overrides` apply to that repo. A path ending in `/*` applies to that folder and everything under it. Scopes apply from the broadest to the repo's own path, so a deeper `/*` scope wins over a shallower one and an exact path wins over both.
+Paths start with `/`, `~` or a drive letter. On Windows, use forward slashes (`C:/work/*`). Paths match the main checkout, so a linked worktree gets the same overrides.
 
-On Windows, write scope paths with forward slashes. `/c/...` and local admin shares such as `//localhost/C$/...` are read as `C:/...`.
+A repo, or a folder outside one, can also hold `.claude/graft-settings.json` (shared) and `.claude/graft-settings.local.json` (yours; keep it out of git) at its top level. They hold settings, not paths, and you edit them by hand. A linked worktree reads its own copies.
 
-A repo or folder can also keep its own settings, as Claude Code does, in `.claude/graft-settings.json` (shared) and `.claude/graft-settings.local.json` (yours; keep it out of git). They sit at the top level of the repo the skills run in (a linked worktree's own), or in the current folder outside a repo. Each holds skill keys only, with no scopes:
+When a setting is set in more than one place, the later one in this list wins:
 
-```json
-{ "pr": { "state": "ready" } }
-```
+1. Built-in defaults
+2. The top level of `~/.my-graft/graft-settings.json`
+3. Path overrides, broadest first, then the exact repo path
+4. `.claude/graft-settings.json`
+5. `.claude/graft-settings.local.json`
 
-They apply over `~/.my-graft/graft-settings.json`, the local file last. `/graft-settings` edits only `~/.my-graft/graft-settings.json`, but its effective view includes these files.
+An invalid value is ignored, and the next valid one up the list applies. A file that isn't valid JSON, or isn't shaped like the example, stops Graft's commands until you fix it.
 
-## Update notices
+When `/graft:orchestrate` works across repos, it takes `common.reviewerModel` and `pr.state` from each repo and the rest from the folder.
 
-Graft asks its upstream (the repo your clone takes updates from: `pleb/graft`, or your organisation's [interstock](../README.md#interstocks), its shared copy of Graft) for the latest commit on `main` at most once a day after a successful look. Graft looks only at session start. After a failed look, the next one waits for a session start at least one hour later, then two, four and so on, up to a day.
-
-At each session start, Graft compares your clone with the upstream commit it last saw. When the clone is behind, a notice says so and suggests `/graft:update` at the prompt. `update.notify` sets how often a behind clone gets a notice (at every session start by default), or shows a status line instead. With `update.notify` set to `off`, Graft does not ask upstream at all.
-
-The check is a read-only `git ls-remote`: it never fetches or changes the clone. Graft skips it in non-interactive runs and when `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` is set.
+`/graft:yolo` overrides several settings. It answers its own questions, asking only when the request is unclear. It has an agent run the manual checks it can, defers the rest, and opens PRs as ready unless you name a state.
