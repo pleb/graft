@@ -192,17 +192,18 @@ function replaceChoices(root: HTMLElement, nodes: HTMLElement[]): void {
 
 function roleNode(row: RoleRow): HTMLElement {
   const count = row.runs.length;
-  const node = element("div", "agent-row");
+  const head = element("span", "agent-head");
   const name = element("strong", "agent-name");
   name.append(element("span", "agent-ns", "graft:"), row.agent);
-  node.append(element("span", `agent-state agent-stack-${Math.min(4, count)}`, "◌"), name);
-  if (count > 1) node.append(element("span", "agent-count", `×${count}`));
-  node.append(
-    row.again
-      ? element("span", "agent-status agent-again", "running again")
-      : element("span", "agent-status", "running"),
-    element("span", "agent-desc", row.runs[0].description),
-  );
+  head.append(element("span", `agent-state agent-stack-${Math.min(4, count)}`, "◌"), name);
+  if (count > 1) head.append(element("span", "agent-count", `×${count}`));
+  if (row.again) {
+    const status = element("span", "agent-status agent-again");
+    status.append(element("span", "agent-running", "running "), "again");
+    head.append(status);
+  } else head.append(element("span", "agent-status", "running"));
+  const node = element("div", "agent-row");
+  node.append(head, element("span", "agent-desc", row.runs[0].description));
   return node;
 }
 

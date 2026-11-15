@@ -378,6 +378,23 @@ const BROWSER_GLOBALS = new Set([
 
 // Characters after which a `/` starts a regular expression rather than a division.
 const REGEX_AFTER = "(,=:[!&|?{};+-*%<>~^";
+// Keywords with the same effect.
+const REGEX_AFTER_KEYWORDS = new Set([
+  "await",
+  "case",
+  "delete",
+  "do",
+  "else",
+  "in",
+  "instanceof",
+  "new",
+  "of",
+  "return",
+  "throw",
+  "typeof",
+  "void",
+  "yield",
+]);
 
 // Identifiers the code reads bare: not after a `.`, not object keys, not inside strings, comments
 // or regular expressions.
@@ -411,7 +428,17 @@ function bareReferences(code: string): Set<string> {
     else if (char === "`") at = skipTemplate(at + 1);
     else if (code.startsWith("//", at))
       at = code.indexOf("\n", at) === -1 ? code.length : code.indexOf("\n", at);
-    else if (code.startsWith("/*", at))
+    else if (code.startsWith("...", at)) {
+      at += 2;
+      previous = ",";
+      continue;
+    } else if (code.startsWith("++", at) || code.startsWith("--", at)) {
+      at++;
+      // After an operand the operator is postfix, so a following `/` divides.
+      if (previous === "a" || previous === ")" || previous === "]") continue;
+      previous = "+";
+      continue;
+    } else if (code.startsWith("/*", at))
       at = code.indexOf("*/", at) === -1 ? code.length : code.indexOf("*/", at) + 1;
     else if (char === "/" && (previous === "" || REGEX_AFTER.includes(previous))) {
       let inClass = false;
@@ -433,7 +460,7 @@ function bareReferences(code: string): Set<string> {
       const key = /^\s*:/.test(code.slice(at + name.length)) && "{,".includes(previous);
       if (previous !== "." && !key) found.add(name);
       at += name.length - 1;
-      previous = "a";
+      previous = REGEX_AFTER_KEYWORDS.has(name) ? "(" : "a";
       continue;
     }
     previous = char;

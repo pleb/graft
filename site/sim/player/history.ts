@@ -8,6 +8,8 @@ export type HistoryHandlers = {
   seek(position: number): void;
   // Called after the shown tab changes.
   view(view: PanelView): void;
+  // Called after the reader's toggle resizes an entry.
+  resize(): void;
 };
 
 type HistoryRow = { key: string; sig: string; node: HTMLElement };
@@ -240,6 +242,7 @@ function fillItem(
       if (dom.open.has(index)) dom.open.delete(index);
       else dom.open.add(index);
       dom.refill.get(node)?.();
+      dom.handlers.resize();
     });
     node.append(more);
   }

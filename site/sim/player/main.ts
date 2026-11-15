@@ -81,7 +81,7 @@ function main(): void {
     document.getElementById("panel")!,
     document.getElementById("tabs")!,
     document.getElementById("history")!,
-    { seek: handlers.seek, view: redrawWires },
+    { seek: handlers.seek, view: redrawWires, resize: redrawWires },
   );
 
   const open = (): void => {

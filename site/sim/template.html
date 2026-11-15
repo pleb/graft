@@ -573,9 +573,17 @@
         color: var(--term-fg);
         white-space: nowrap;
       }
+      .agent-head {
+        display: contents;
+      }
       .agent-solo .agent-row {
-        flex-wrap: wrap;
-        row-gap: 0;
+        flex-direction: column;
+        gap: 0;
+      }
+      .agent-solo .agent-head {
+        display: flex;
+        gap: 8px;
+        min-width: 0;
       }
       .agent-state {
         flex: none;
@@ -595,7 +603,12 @@
           6px -6px 0 rgb(212 167 44 / 0.3),
           9px -9px 0 rgb(212 167 44 / 0.18);
       }
-      .agent-name,
+      .agent-name {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
       .agent-count,
       .agent-status {
         flex: none;
@@ -619,7 +632,7 @@
         color: var(--term-muted);
       }
       .agent-solo .agent-desc {
-        flex-basis: 100%;
+        flex: none;
         padding-left: 2ch;
       }
       .agent-idle {
@@ -1308,7 +1321,8 @@
         }
       }
       @media (max-width: 899px) {
-        .agent-ns {
+        .agent-ns,
+        .agent-running {
           display: none;
         }
         #stage {

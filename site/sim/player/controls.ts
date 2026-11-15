@@ -188,6 +188,7 @@ export function initControls(
     start: (id) => (engage(), given.start(id)),
     speed: (value) => (engage(), given.speed(value)),
     toggle: () => (engage(), given.toggle()),
+    restart: () => (engage(), given.restart()),
     seek: (position) => (engage(), given.seek(position)),
   };
   const primary = ordered(scenarios, "start", Object.keys(HINTS)).map((scenario) =>

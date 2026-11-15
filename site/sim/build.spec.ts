@@ -417,6 +417,39 @@ describe("linkPlayer", () => {
     ).toThrow(/top-level name performance/);
   });
 
+  it("fails when a global is read bare in a spread", () => {
+    expect(() =>
+      linkPlayer([
+        file("core.ts", "export const document = 1;\n"),
+        file("main.ts", "const a = { ...document };\na;\n"),
+      ]),
+    ).toThrow(/top-level name document/);
+  });
+
+  it("fails when a global is read bare after a regular expression that follows a keyword", () => {
+    expect(() =>
+      linkPlayer([
+        file("core.ts", "export const document = 1;\n"),
+        file(
+          "main.ts",
+          'function f(s: string): boolean {\n  return /"/.test(s) && document.hidden;\n}\nf("");\n',
+        ),
+      ]),
+    ).toThrow(/top-level name document/);
+  });
+
+  it("fails when a global is read bare after a division that follows a postfix increment", () => {
+    expect(() =>
+      linkPlayer([
+        file("core.ts", "export function history(): void {}\n"),
+        file(
+          "main.ts",
+          'let count = 1;\nconst ratio = count++ / 2;\nhistory.replaceState(null, "", `#${ratio}`);\n',
+        ),
+      ]),
+    ).toThrow(/top-level name history/);
+  });
+
   it("allows a global's name where it is imported, a property, a key or in a string", () => {
     expect(() =>
       linkPlayer([
