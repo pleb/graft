@@ -30,7 +30,7 @@ An interstock clone has these properties. Make each one true in `<dir>`.
   gh api repos/<owner>/<repo>/deployments/<id>/statuses --jq '.[0].state'
   gh api repos/<owner>/<repo>/pages --jq .html_url
   ```
-  - When the state is `success`, `README.md` has the line `[Watch it run in the simulator](<html_url>).`, with the `html_url` GitHub reports, as its own paragraph after the README's opening paragraph, and no other line linking to the simulator.
+  - When the state is `success`, `README.md` has the line `[Watch it run in the simulator](<html_url>).` as its own paragraph after the README's opening paragraph, and no other line linking to the simulator.
   - When the variable "was not found" or reads anything but `publish`, there is no deployment or status, the state is anything but `success`, or Pages returns 404, `README.md` has no line linking to the simulator, whether `https://pleb.github.io/graft/` or an earlier Pages URL of `<owner>/<repo>`. Remove each such line, together with one blank line next to it.
   - When a read fails any other way, keep `HEAD`'s simulator link line as it is and ask the user.
 
@@ -74,11 +74,11 @@ Offer to switch the user's own Graft to the interstock by following `<dir>/agent
 
 ## Publish the simulator
 
-Publish the simulator (`site/`) to the GitHub Pages of the interstock `<owner>/<repo>`, cloned at `<dir>`. Take `<owner>/<repo>`, `<dir>`, and whether this runs inside `/graft:update`. Edit no files.
+Publish the simulator (`site/`) to the GitHub Pages of the interstock `<owner>/<repo>`, cloned at `<dir>`. The caller says whether this runs inside `/graft:update`. Edit no files.
 
 When a command here fails in a way its step does not name, report its cause and who must act, in place of the rule at the top of this file. Before step 5, the section then ends. From step 5 on, `GRAFT_SIMULATOR` stays `publish`.
 
-1. Check the user is a repo admin. Unless it prints `true`, say an admin must follow this section, and stop without setting `GRAFT_SIMULATOR`.
+1. Check the user is a repo admin. Unless it prints `true`, say an admin must follow this section, and end.
    ```bash
    gh api repos/<owner>/<repo> --jq .permissions.admin
    ```

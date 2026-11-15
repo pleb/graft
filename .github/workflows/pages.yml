@@ -14,7 +14,6 @@ concurrency:
 jobs:
   build:
     name: build
-    # Publishes from main in pleb/graft, or in an interstock whose `GRAFT_SIMULATOR` variable is `publish`; other copies and branches skip it.
     if: github.ref == 'refs/heads/main' && (github.repository == 'pleb/graft' || vars.GRAFT_SIMULATOR == 'publish')
     runs-on: ubuntu-latest
     permissions:
@@ -40,7 +39,6 @@ jobs:
   deploy:
     name: deploy
     needs: build
-    # Publishes from main in pleb/graft, or in an interstock whose `GRAFT_SIMULATOR` variable is `publish`; other copies and branches skip it.
     if: github.ref == 'refs/heads/main' && (github.repository == 'pleb/graft' || vars.GRAFT_SIMULATOR == 'publish')
     runs-on: ubuntu-latest
     permissions:

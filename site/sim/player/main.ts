@@ -96,7 +96,6 @@ function main(): void {
   fit();
 }
 
-// Points the header and footer links at the repo the page was built for.
 function linkSite(repo: string): void {
   const home = `https://github.com/${repo}`;
   (document.getElementById("install") as HTMLAnchorElement).href = installUrl(repo);

@@ -1,4 +1,3 @@
-// Checks the install line and link the build gives the page against the README's Install section.
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

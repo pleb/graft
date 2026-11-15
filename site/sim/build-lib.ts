@@ -48,7 +48,6 @@ export function installLines(repo: string): string[] {
   ];
 }
 
-// The repo is `repo`, else the one INTERSTOCK-MODS.md's first line names, else pleb/graft.
 export function resolveSite(root: string, repo?: string): Site {
   let resolved = repo;
   const modsPath = join(root, "INTERSTOCK-MODS.md");
