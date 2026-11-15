@@ -356,6 +356,14 @@ describe("parseSettingsPage", () => {
     ]);
   });
 
+  it("reads a condition sentence that wraps across lines", () => {
+    expect(
+      parseSettingsPage(
+        PAGE.replace("Names it. Applies only when", "Names it.\nApplies only\nwhen"),
+      ).map(({ description, shownWhen }) => ({ description, shownWhen }))[1],
+    ).toEqual({ description: "Names it.", shownWhen: { key: "a.one", value: "never" } });
+  });
+
   it("reads a condition on the default", () => {
     expect(
       parseSettingsPage(PAGE.replace("is `never`.", "is `ask`.")).map(({ shownWhen }) => shownWhen),
@@ -393,6 +401,36 @@ describe("parseSettingsPage", () => {
       "cannot read the condition",
     ],
     ["a missing summary", "Does one. Over two lines.\n\n", "", "has no summary"],
+    [
+      "a summary that runs into the bullets",
+      "Over two lines.\n\n",
+      "Over two lines.\n",
+      "runs into the bullets",
+    ],
+    [
+      "a wrapped condition after the bullets",
+      "Prose after the bullets.",
+      "Applies only\nwhen `b.two` is `x`.",
+      "cannot read the condition in a.one: Applies only when `b.two` is `x`.",
+    ],
+    [
+      "an indented continuation of a bullet",
+      "- `ask` (default)\n",
+      "- `ask`\n  (default)\n",
+      "a bullet continues onto the next line",
+    ],
+    [
+      "a continued comma list",
+      "- `never`\n",
+      "- `never`,\n  `x`\n",
+      "a bullet continues onto the next line",
+    ],
+    [
+      "a continued free-text bullet",
+      "`Other model`)\n",
+      "`Other model`)\n  and more\n",
+      "a bullet continues onto the next line",
+    ],
     ["a duplicate key", "### `b.two`", "### `a.one`", "the key is listed twice"],
     ["a duplicate value", "- `never`\n", "- `always`\n", "a value is listed twice"],
     ["a default listed as a value", "- `never`\n", "- `ask`\n", "a value is listed twice"],

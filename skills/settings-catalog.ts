@@ -203,8 +203,13 @@ function parseEntry([heading = "", ...lines]: string[]): CatalogSetting {
   const first = lines.findIndex((line) => line.trim() !== "");
   const length = lines.slice(first).findIndex((line) => line.trim() === "");
   const summaryLines = lines.slice(first, length === -1 ? undefined : first + length);
-  if (first === -1 || summaryLines.some((line) => LIST_ITEM.test(line))) {
+  if (first === -1 || LIST_ITEM.test(summaryLines[0]!)) {
     throw new Error(`${key} has no summary`);
+  }
+  if (summaryLines.some((line) => LIST_ITEM.test(line))) {
+    throw new Error(
+      `${key} has a summary that runs into the bullets; add a blank line between them`,
+    );
   }
   let summary = summaryLines.map((line) => line.trim()).join(" ");
   let shownWhen: Condition | undefined;
@@ -217,9 +222,26 @@ function parseEntry([heading = "", ...lines]: string[]): CatalogSetting {
     throw new Error(`${key} has no summary`);
   }
   const rest = lines.slice(first + summaryLines.length);
-  const conditionLike = [summary, ...rest].find((line) => CONDITION_LIKE.test(line));
+  const paragraphs = rest
+    .join("\n")
+    .split(/\n\s*\n/)
+    .map((paragraph) =>
+      paragraph
+        .split("\n")
+        .map((line) => line.trim())
+        .join(" ")
+        .trim(),
+    );
+  const conditionLike = [summary, ...paragraphs].find((text) => CONDITION_LIKE.test(text));
   if (conditionLike !== undefined) {
-    throw new Error(`cannot read the condition in ${key}: ${conditionLike.trim()}`);
+    throw new Error(`cannot read the condition in ${key}: ${conditionLike}`);
+  }
+  const continued = rest.findIndex(
+    (line, index) =>
+      index > 0 && LIST_ITEM.test(rest[index - 1]!) && line.trim() !== "" && !LIST_ITEM.test(line),
+  );
+  if (continued !== -1) {
+    throw new Error(`a bullet continues onto the next line in ${key}: ${rest[continued]!.trim()}`);
   }
 
   const values: string[] = [];

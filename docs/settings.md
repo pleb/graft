@@ -113,7 +113,7 @@ Having an agent run the manual checks it can (browser, scripts, database) once t
 
 ### `orchestrate.finishedPlan`
 
-What happens to a finished Graft plan that git doesn't track and that isn't already under `~/.my-graft`.
+What happens to a finished Graft plan that git doesn't track and that isn't already archived in `~/.my-graft`.
 
 - `leave` (default)
 - `archive`: move it to `~/.my-graft/.claude/graft/plans/<repo>/`, on this machine only.
