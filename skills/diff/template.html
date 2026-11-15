@@ -1323,7 +1323,6 @@
     };
     build(root, ol, "");
   }
-  // With the pane filter on, sections of files the filter leaves out are hidden.
   const filterSection = (fi) => (sections[fi].hidden = paneFilter && !listed(fi));
   function filterChanged() {
     renderList();
@@ -1331,8 +1330,6 @@
     leaveHidden();
     reportPins();
   }
-  // Moves current off a hidden section, to the first visible one that reaches the viewport top or
-  // below it, else to the last visible one above it, without scrolling.
   function leaveHidden() {
     if (!sections[current]?.hidden) return;
     let above = -1;
@@ -2076,8 +2073,7 @@
     });
     reportPins();
   }
-  // Updates the comment icons of the files that hold any of these comment ids. A newly open line
-  // in a closed context gap has no row, so its file re-renders to open the gap, keeping the scroll.
+  // A newly open line in a closed context gap has no row, so its file re-renders to open the gap.
   function markFiles(ids) {
     const list = [...ids];
     DIFF.files.forEach((f, fi) => {
@@ -2158,8 +2154,7 @@
     jumpUntil = Date.now() + 300;
     scrollToEl(sections[current], "start");
   }
-  // Keeps the current file's row, or the nearest visible folder row holding it, in view below the
-  // list's sticky header. Scrolling only the list keeps the page where it is.
+  // Scrolls only the list, never the page, to keep the current file's row below its sticky header.
   function followRow() {
     const files = $("files");
     let row = $("li-" + DIFF.files[current].id);
@@ -2221,7 +2216,6 @@
     },
     { passive: true },
   );
-  // The last visible section whose top is above 40px, else the first visible one, else current.
   // Hidden sections have zero rects, so they are skipped.
   function scrolledTo(secs) {
     let best = -1;
@@ -2230,7 +2224,6 @@
     });
     return best < 0 ? current : best;
   }
-  // The next or previous file the filter lists, else current.
   function step(dir) {
     let fi = current + dir;
     while (fi >= 0 && fi < DIFF.files.length && !listed(fi)) fi += dir;
