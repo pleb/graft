@@ -1,5 +1,5 @@
-// Follows skills/pr/SKILL.md: Start (19-25), Preconditions (29-31), Body (35-97, no template, no
-// Resolves line as no issue applies), Title (101-103) and Create (107-112, draft from pr.state).
+// Follows skills/pr/SKILL.md: Start, Preconditions, Body (no template, no Resolves line as no issue
+// applies), Title and Create (draft from pr.state).
 import type { Scenario } from "../events.ts";
 
 const TITLE = "Add rate limiting to the notes API";

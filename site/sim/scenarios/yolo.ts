@@ -1,25 +1,22 @@
-// Follows skills/yolo/SKILL.md: execute's run (9) with Questions (15-17: the request is clear, so no
-// clarify question, no Go or Plan more question, and the agent answers every round itself), Start
-// (29-31: run start, the ignore probe, a clean tree with nothing to sort), Recording decisions
-// (39-40: `(agent <run start>)` lines, no plan commits as the plan is untracked), Manual checks (52:
-// the agent runs the agent-runnable check, and Defer needs no question), Screenshots (56-66), PR
-// (70-71: a ready PR with the screenshot attached), Restore the stash (76, nothing stashed) and
-// Report (82-88).
-// Execute's part follows skills/execute/SKILL.md: Start (15-18, no PR request in the arguments),
-// Plan phase (22-31: plan's rounds answered by the agent, then in Finish's place the full pass
-// Review and finalise runs (27), finalised (30), no finalise report or hand-off (31)) and
-// Orchestrate phase (35).
-// Plan phase follows skills/plan/SKILL.md: Start (19-25), Find the work (35, a new topic), Check the
-// Graft folder (39, common.md 54-57: the probe passes, so no question), Understand (43), Settle the
-// solution (47-66, no clarify question), Write the plan (70-116, no PR milestone as execute 25
-// says), Review (131-137) and the full pass Finish recommends (151-153).
+// Follows skills/yolo/SKILL.md: execute's run with Questions (the request is clear, so no clarify
+// question, no Go or Plan more question, and the agent answers every round itself), Start (run
+// start, the ignore probe, a clean tree with nothing to sort), Recording decisions
+// (`(agent <run start>)` lines, no plan commits as the plan is untracked), Manual checks (the agent
+// runs the agent-runnable check, and Defer needs no question), Screenshots, PR (a ready PR with the
+// screenshot attached), Restore the stash (nothing stashed) and Report.
+// Execute's part follows skills/execute/SKILL.md: Start (no PR request in the arguments), Plan
+// phase (plan's rounds answered by the agent, then in Finish's place the full pass Review and
+// finalise runs, finalised, no finalise report or hand-off) and Orchestrate phase.
+// Plan phase follows skills/plan/SKILL.md: Start, Find the work (a new topic), Check the Graft
+// folder (common.md's check: the probe passes, so no question), Understand, Settle the solution (no
+// clarify question), Write the plan (no PR milestone, as execute's Plan phase says), Review and the
+// full pass Finish recommends.
 // Orchestrate phase follows skills/orchestrate/SKILL.md, condensed as execute.ts condenses it: Start
-// (17, its root and settings already known), Branch (45-51), Execute (55-59: milestone 3's Manual
-// check is agent-runnable, so no person-only check remains and there is no mode), Commit and review
-// (63-69), Each pass (73-75), Clean up (77-80), Final checks (82-91), Agent checks (93-103, the 429
-// check passes first time), yolo's Screenshots step, Raise a PR (105-111, a worker following
-// skills/pr/SKILL.md 112-114 with `ready-state` and the screenshot from yolo 71), Finish the plan
-// (121-131, left in place) and Report (133-144).
+// (its root and settings already known), Branch, Execute (milestone 3's Manual check is
+// agent-runnable, so no person-only check remains and there is no mode), Commit and review, Each
+// pass, Clean up, Final checks, Agent checks (the 429 check passes first time), yolo's Screenshots
+// step, Raise a PR (a worker following skills/pr/SKILL.md with `ready-state` and the screenshot from
+// yolo's PR step), Finish the plan (left in place) and Report.
 import type { Scenario } from "../events.ts";
 
 const PLAN = ".claude/graft/plans/add-rate-limiting.md";

@@ -1,7 +1,6 @@
-// Follows skills/research/SKILL.md: Start (19-27), Find the work (37-39, a new question), Check the
-// Graft folder skipped as the folder exists (common.md 54), Rounds (49-54), Frame (56-58), Fan out
-// (60-65, no experimenters), Steer (84-86), Report (94-127), Finish (129-138) with
-// Challenge (90-92).
+// Follows skills/research/SKILL.md: Start, Find the work (a new question), Check the Graft folder
+// skipped as the folder exists (common.md), Rounds, Frame, Fan out (no experimenters), Steer,
+// Report, Finish with Challenge.
 import type { Scenario } from "../events.ts";
 
 const REPORT = ".claude/graft/research/add-rate-limiting/report.md";
