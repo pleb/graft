@@ -1,5 +1,6 @@
 import { finale, formatHash, prExcerpt, skillName } from "./core.ts";
 import type { Card, Finale, Playback } from "./core.ts";
+import { selectTab } from "./history.ts";
 import { element } from "./terminal.ts";
 
 type FinaleDom = {
@@ -101,7 +102,14 @@ function recapSection(result: Finale): HTMLElement {
       return item;
     }),
   );
-  section.append(chips, lines);
+  const steps = element(
+    "button",
+    "finale-history",
+    "See every step in History",
+  ) as HTMLButtonElement;
+  steps.type = "button";
+  steps.addEventListener("click", () => selectTab("history", true));
+  section.append(chips, lines, steps);
   return section;
 }
 

@@ -7,7 +7,15 @@ import { check, linkPlayer, loadScenarios, renderPage, scriptJson } from "./buil
 import type { Event, Repo, Scenario } from "./events.ts";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
-const PLAYER = ["core.ts", "terminal.ts", "stage.ts", "finale.ts", "controls.ts", "main.ts"];
+const PLAYER = [
+  "core.ts",
+  "terminal.ts",
+  "history.ts",
+  "stage.ts",
+  "finale.ts",
+  "controls.ts",
+  "main.ts",
+];
 
 const REPO: Repo = { name: "acme/notes-api", files: { "README.md": "# notes\n\nA notes API.\n" } };
 
@@ -390,6 +398,70 @@ describe("linkPlayer", () => {
     expect(() =>
       linkPlayer([
         file("core.ts", 'const a = f(1, [2, 3], { b: ",", c: `${"x"},` }); // ,\nlet c = 1;\n'),
+      ]),
+    ).not.toThrow();
+  });
+
+  it("fails when a top-level name hides a browser global another file uses bare", () => {
+    expect(() =>
+      linkPlayer([
+        file("history.ts", "export function history(): void {}\n"),
+        file("main.ts", 'history.replaceState(null, "", "#a");\n'),
+      ]),
+    ).toThrow(/history.ts: top-level name history hides the browser global history, which main.ts/);
+    expect(() =>
+      linkPlayer([
+        file("core.ts", "export const performance = 1;\n"),
+        file("main.ts", "const at = () => `${String(performance)}`;\nat();\n"),
+      ]),
+    ).toThrow(/top-level name performance/);
+  });
+
+  it("fails when a global is read bare in a spread", () => {
+    expect(() =>
+      linkPlayer([
+        file("core.ts", "export const document = 1;\n"),
+        file("main.ts", "const a = { ...document };\na;\n"),
+      ]),
+    ).toThrow(/top-level name document/);
+  });
+
+  it("fails when a global is read bare after a regular expression that follows a keyword", () => {
+    expect(() =>
+      linkPlayer([
+        file("core.ts", "export const document = 1;\n"),
+        file(
+          "main.ts",
+          'function f(s: string): boolean {\n  return /"/.test(s) && document.hidden;\n}\nf("");\n',
+        ),
+      ]),
+    ).toThrow(/top-level name document/);
+  });
+
+  it("fails when a global is read bare after a division that follows a postfix increment", () => {
+    expect(() =>
+      linkPlayer([
+        file("core.ts", "export function history(): void {}\n"),
+        file(
+          "main.ts",
+          'let count = 1;\nconst ratio = count++ / 2;\nhistory.replaceState(null, "", `#${ratio}`);\n',
+        ),
+      ]),
+    ).toThrow(/top-level name history/);
+  });
+
+  it("allows a global's name where it is imported, a property, a key or in a string", () => {
+    expect(() =>
+      linkPlayer([
+        file("core.ts", "export function history(): number {\n  return 1;\n}\n"),
+        file(
+          "stage.ts",
+          'const a = { history: 1 };\nwindow.history.back();\na.history;\n"history";\n',
+        ),
+        file(
+          "main.ts",
+          'import { history } from "./core.ts";\nhistory(); // history\n/history/.test("");\n',
+        ),
       ]),
     ).not.toThrow();
   });

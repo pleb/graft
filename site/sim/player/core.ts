@@ -26,7 +26,25 @@ export type Line =
   | { kind: "chapter"; title: string }
   | { kind: "handoff"; text: string };
 
-export type AgentRow = { id: string; agent: string; description: string; done: boolean };
+export type AgentRow = {
+  id: string;
+  agent: string;
+  description: string;
+  done: boolean;
+  // Whether its role had finished a run earlier on the walked path when it started.
+  again?: boolean;
+};
+
+// Finished runs of one bare role in the current chapter; the role that finished most recently is last.
+export type Finished = { agent: string; runs: number };
+
+// One panel row per bare role with running runs, in the order its oldest running run started.
+// `runs` are newest first; `again` comes from the newest.
+export type RoleRow = {
+  agent: string;
+  runs: { id: string; description: string }[];
+  again: boolean;
+};
 
 export type Pending = { at: number; choices: Choice[]; chosen?: string };
 
@@ -89,6 +107,9 @@ export type StageState = {
 export type TermState = {
   lines: Line[];
   agents: AgentRow[];
+  finished: Finished[];
+  // Bare roles that have finished a run anywhere on the walked path.
+  finishedRoles: string[];
   caption: string;
   busy: boolean;
   // A hand-off waiting in the input box.
@@ -200,6 +221,8 @@ export function emptyTerm(repo?: Repo): TermState {
   return {
     lines: [],
     agents: [],
+    finished: [],
+    finishedRoles: [],
     caption: "",
     busy: false,
     ended: false,
@@ -429,16 +452,19 @@ export function applyStep(term: TermState, step: Step): TermState {
     case "prompt":
       add({ kind: "prompt", text: event.text });
       next.agents = [];
+      next.finished = [];
       next.busy = true;
       break;
     case "clear":
       next.lines = [];
       next.agents = [];
+      next.finished = [];
       next.busy = false;
       break;
     case "chapter":
       add({ kind: "chapter", title: event.title });
       next.agents = term.agents.filter((agent) => !agent.done);
+      next.finished = [];
       break;
     case "caption":
       next.caption = event.text;
@@ -456,7 +482,13 @@ export function applyStep(term: TermState, step: Step): TermState {
       add({ kind: "agent", agent: event.agent, description: event.description });
       next.agents = [
         ...term.agents.filter((agent) => !agent.done),
-        { id: event.id, agent: event.agent, description: event.description, done: false },
+        {
+          id: event.id,
+          agent: event.agent,
+          description: event.description,
+          done: false,
+          again: term.finishedRoles.includes(bareRole(event.agent)),
+        },
       ];
       break;
     case "agent.done": {
@@ -470,6 +502,17 @@ export function applyStep(term: TermState, step: Step): TermState {
       next.agents = term.agents.map((agent) =>
         agent.id === event.id ? { ...agent, done: true } : agent,
       );
+      // The card, unlike the row, outlives a prompt or `/clear` while its run is still going.
+      const card = findCard(term.stage, event.id);
+      if (card?.kind === "agent" && !card.done) {
+        const role = bareRole(card.agent);
+        const runs = term.finished.find((entry) => entry.agent === role)?.runs ?? 0;
+        next.finished = [
+          ...term.finished.filter((entry) => entry.agent !== role),
+          { agent: role, runs: runs + 1 },
+        ];
+        if (!term.finishedRoles.includes(role)) next.finishedRoles = [...term.finishedRoles, role];
+      }
       break;
     }
     case "handoff":
@@ -488,6 +531,25 @@ export function applyStep(term: TermState, step: Step): TermState {
     clears: term.stage.clears,
   });
   return next;
+}
+
+function bareRole(agent: string): string {
+  return agent.replace(/^graft:/, "");
+}
+
+export function roleRows(term: TermState): RoleRow[] {
+  const rows = new Map<string, RoleRow>();
+  for (const agent of term.agents) {
+    if (agent.done) continue;
+    const role = bareRole(agent.agent);
+    const run = { id: agent.id, description: agent.description };
+    const row = rows.get(role);
+    if (row) {
+      row.runs.unshift(run);
+      row.again = agent.again === true;
+    } else rows.set(role, { agent: role, runs: [run], again: agent.again === true });
+  }
+  return [...rows.values()];
 }
 
 export function replay(steps: Step[], position: number, repo?: Repo): TermState {
@@ -710,6 +772,157 @@ export function choose(playback: Playback, at: number, next: string): void {
   jump(playback, handoff + 1);
 }
 
+// One History entry. Agent start, finish and commit items name the runs they belong to.
+export type HistoryItem = {
+  // The index of the step it shows.
+  index: number;
+  // The key of the card it changes.
+  card?: string;
+  // Set on the one item per anchored card that the card's wire ends on in History.
+  wire?: boolean;
+} & (
+  | { kind: "prompt"; text: string }
+  | { kind: "say"; text: string }
+  | { kind: "tool"; name: string; args: string; result?: string }
+  | { kind: "answers"; questions: Question[] }
+  | { kind: "agentStart"; runs: string[]; agent: string; description: string }
+  | { kind: "agentDone"; runs: string[]; agent: string; description: string; report?: string }
+  | { kind: "commit"; runs: string[]; id: string; subject: string }
+  | { kind: "file"; path: string; created: boolean }
+  | { kind: "branch"; name: string }
+  | { kind: "prOpen"; number: number; title: string; draft: boolean }
+  | { kind: "prSeed"; number: number; title: string }
+  | { kind: "prComment"; number: number; text: string }
+  | { kind: "handoff"; text: string; chosen?: string }
+);
+
+// Items before a skill's first chapter sit in a chapter with no title.
+export type HistoryChapter = { index?: number; title?: string; items: HistoryItem[] };
+
+export type HistorySkill = { at: number; index: number; skill: string; chapters: HistoryChapter[] };
+
+function historyItem(step: Step, index: number, stage: StageState): HistoryItem | undefined {
+  const event = step.event;
+  switch (event.type) {
+    case "prompt":
+    case "say":
+      return { index, kind: event.type, text: event.text };
+    case "tool":
+      return { index, kind: "tool", name: event.name, args: event.args, result: event.result };
+    case "ask":
+      return { index, kind: "answers", questions: event.questions };
+    case "agent.start":
+      return {
+        index,
+        card: event.id,
+        kind: "agentStart",
+        runs: [event.id],
+        agent: event.agent,
+        description: event.description,
+      };
+    case "agent.done": {
+      const card = findCard(stage, event.id);
+      return {
+        index,
+        card: event.id,
+        kind: "agentDone",
+        runs: [event.id],
+        agent: card?.kind === "agent" ? card.agent : event.id,
+        description: card?.kind === "agent" ? card.description : "",
+        report: event.report,
+      };
+    }
+    case "git.commit":
+      return {
+        index,
+        card: `commit:${event.id}`,
+        kind: "commit",
+        runs: event.by ?? [],
+        id: event.id,
+        subject: event.subject,
+      };
+    case "file.create":
+    case "file.modify":
+      return {
+        index,
+        card: event.path,
+        kind: "file",
+        path: event.path,
+        created: event.type === "file.create",
+      };
+    case "git.branch":
+      return { index, kind: "branch", name: event.name };
+    case "pr.open":
+      return {
+        index,
+        card: `pr:${event.number}`,
+        kind: "prOpen",
+        number: event.number,
+        title: event.title,
+        draft: event.draft,
+      };
+    case "pr.seed":
+      return {
+        index,
+        card: `pr:${event.number}`,
+        kind: "prSeed",
+        number: event.number,
+        title: event.title,
+      };
+    case "pr.comment":
+      return {
+        index,
+        card: `pr:${event.number}`,
+        kind: "prComment",
+        number: event.number,
+        text: event.text,
+      };
+    case "handoff":
+      return { index, kind: "handoff", text: event.text, chosen: step.chosen };
+    default:
+      return undefined;
+  }
+}
+
+// The walked path before `position` as skills, then chapters, then items in step order.
+export function runHistory(
+  byId: Map<string, Scenario>,
+  steps: Step[],
+  position: number,
+): HistorySkill[] {
+  const skills: HistorySkill[] = [];
+  // Per card, the item from the step that set its current anchor.
+  const targets = new Map<string, HistoryItem>();
+  let term = emptyTerm();
+  steps.slice(0, position).forEach((step, index) => {
+    const before = term.stage;
+    term = applyStep(term, step);
+    if (skills.at(-1)?.at !== step.at) {
+      const scenario = byId.get(step.scenario);
+      skills.push({
+        at: step.at,
+        index,
+        skill: scenario ? skillName(scenario) : step.scenario,
+        chapters: [],
+      });
+    }
+    const chapters = skills.at(-1)!.chapters;
+    if (step.event.type === "chapter") {
+      chapters.push({ index, title: step.event.title, items: [] });
+      return;
+    }
+    const item = historyItem(step, index, before);
+    if (!item) return;
+    if (chapters.length === 0) chapters.push({ items: [] });
+    chapters.at(-1)!.items.push(item);
+    if (item.card === undefined) return;
+    const anchor = findCard(term.stage, item.card)?.anchor;
+    if (anchor && anchor !== findCard(before, item.card)?.anchor) targets.set(item.card, item);
+  });
+  for (const [key, item] of targets) if (findCard(term.stage, key)?.anchor) item.wire = true;
+  return skills;
+}
+
 export type RecapLine = { skill: string; text: string };
 
 export type Finale = {
@@ -827,7 +1040,7 @@ export function finale(
         questions += event.questions.length;
         break;
       case "agent.start": {
-        const role = event.agent.replace(/^graft:/, "");
+        const role = bareRole(event.agent);
         tally.roles.set(role, (tally.roles.get(role) ?? 0) + 1);
         agents++;
         break;

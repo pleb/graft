@@ -1,16 +1,21 @@
 import type { Question } from "../events.ts";
-import type { Line, Pending, Run, Step, TermState } from "./core.ts";
+import { roleRows } from "./core.ts";
+import type { Line, Pending, RoleRow, Run, Step, TermState } from "./core.ts";
 
 type TermDom = {
   log: HTMLElement;
   lines: HTMLElement;
   pending: HTMLElement;
   agents: HTMLElement;
+  live: HTMLElement;
+  done: HTMLElement;
   spinner: HTMLElement;
   input: HTMLElement;
   caption: HTMLElement;
   rendered: Line[];
   handoff?: Pending;
+  // Other places that show the hand-off's choices; `dropped` runs when focus leaves with them.
+  mirrors: { slot: HTMLElement; dropped(): void }[];
   reduced: boolean;
   choose(at: number, next: string): void;
 };
@@ -106,32 +111,58 @@ export function initTerminal(
   log.append(lines, pending);
   const agents = element("div", "term-agents");
   agents.setAttribute("aria-label", "Background agents");
+  const live = element("div", "agent-live");
+  const foot = element("div", "agent-foot");
   const spinner = element("div", "term-spinner");
   spinner.setAttribute("aria-hidden", "true");
+  const done = element("div", "agent-finished");
+  foot.append(spinner, done);
+  agents.append(live, foot);
   const input = element("div", "term-input");
-  root.replaceChildren(bar, log, agents, spinner, input);
+  root.replaceChildren(bar, log, agents, input);
   termDom = {
     log,
     lines,
     pending,
     agents,
+    live,
+    done,
     spinner,
     input,
     caption,
     rendered: [],
+    mirrors: [],
     reduced,
     choose,
   };
 }
 
+// Shows the hand-off's choices in `slot` too, in step with the terminal input.
+export function mirrorChoices(slot: HTMLElement, dropped: () => void): void {
+  const dom = termDom;
+  if (!dom) return;
+  dom.mirrors.push({ slot, dropped });
+  renderInput(dom, dom.handoff);
+}
+
 function renderInput(dom: TermDom, handoff: Pending | undefined): void {
   dom.handoff = handoff;
+  for (const { slot, dropped } of dom.mirrors) {
+    const focused = slot.contains(document.activeElement);
+    replaceChoices(slot, handoff ? [handoffChoices(handoff, dom.choose)] : []);
+    slot.hidden = !handoff;
+    if (focused && !slot.contains(document.activeElement)) dropped();
+  }
   if (!handoff) {
     const mark = element("span", "term-mark", "›");
     const typed = element("span", "term-typed");
     dom.input.replaceChildren(mark, typed, element("span", "term-caret"));
     return;
   }
+  replaceChoices(dom.input, [handoffChoices(handoff, dom.choose)]);
+}
+
+function handoffChoices(handoff: Pending, choose: (at: number, next: string) => void): HTMLElement {
   const choices = element("div", "term-choices");
   choices.setAttribute("role", "group");
   choices.setAttribute("aria-label", "Run next");
@@ -140,33 +171,75 @@ function renderInput(dom: TermDom, handoff: Pending | undefined): void {
     const button = element("button", "term-choice", choice.command) as HTMLButtonElement;
     button.type = "button";
     button.setAttribute("aria-pressed", String(choice.command === handoff.chosen));
-    button.addEventListener("click", () => dom.choose(handoff.at, choice.next));
+    button.addEventListener("click", () => choose(handoff.at, choice.next));
     choices.append(button);
   }
-  dom.input.replaceChildren(choices);
+  return choices;
 }
 
+// Replaces `root`'s content, moving focus from a choice button to the new one for the same command.
+function replaceChoices(root: HTMLElement, nodes: HTMLElement[]): void {
+  const active = document.activeElement;
+  const focused =
+    active instanceof HTMLElement && root.contains(active) && active.matches(".term-choice")
+      ? active.textContent
+      : undefined;
+  root.replaceChildren(...nodes);
+  if (focused === undefined) return;
+  for (const button of root.querySelectorAll<HTMLElement>(".term-choice"))
+    if (button.textContent === focused) button.focus({ preventScroll: true });
+}
+
+function roleNode(row: RoleRow): HTMLElement {
+  const count = row.runs.length;
+  const head = element("span", "agent-head");
+  const name = element("strong", "agent-name");
+  name.append(element("span", "agent-ns", "graft:"), row.agent);
+  head.append(element("span", `agent-state agent-stack-${Math.min(4, count)}`, "◌"), name);
+  if (count > 1) head.append(element("span", "agent-count", `×${count}`));
+  if (row.again) {
+    const status = element("span", "agent-status agent-again");
+    status.append(element("span", "agent-running", "running "), "again");
+    head.append(status);
+  } else head.append(element("span", "agent-status", "running"));
+  const node = element("div", "agent-row");
+  node.append(head, element("span", "agent-desc", row.runs[0].description));
+  return node;
+}
+
+// A fixed panel: two lines of running roles, then the spinner and the roles finished this chapter.
 function renderAgents(dom: TermDom, term: TermState): void {
-  dom.agents.replaceChildren(
-    ...term.agents.map((agent) => {
-      const row = element("div", agent.done ? "agent-row agent-done" : "agent-row");
-      row.append(
-        element("span", "agent-state", agent.done ? "✓" : "◌"),
-        element("strong", undefined, agentName(agent.agent)),
-        element("span", "agent-desc", agent.description),
-        element("span", "agent-status", agent.done ? "done" : "running"),
-      );
-      return row;
-    }),
-  );
-  dom.agents.hidden = term.agents.length === 0;
+  const rows = roleRows(term);
+  dom.live.className = rows.length === 1 ? "agent-live agent-solo" : "agent-live";
+  if (rows.length === 0)
+    dom.live.replaceChildren(
+      element(
+        "div",
+        "agent-idle",
+        term.finishedRoles.length === 0 ? "No agents yet" : "No agents running",
+      ),
+    );
+  else if (rows.length <= 2) dom.live.replaceChildren(...rows.map(roleNode));
+  else
+    dom.live.replaceChildren(
+      roleNode(rows[0]),
+      element("div", "agent-idle", `+${rows.length - 1} more roles running`),
+    );
+  dom.done.textContent =
+    term.finished.length === 0
+      ? ""
+      : `✓ ${[...term.finished]
+          .reverse()
+          .map((entry) => (entry.runs > 1 ? `${entry.agent} ×${entry.runs}` : entry.agent))
+          .join(", ")}`;
 }
 
 function renderSpinner(dom: TermDom, term: TermState): void {
-  const running = term.agents.filter((agent) => !agent.done).length;
-  const label =
-    running === 0 ? "Working" : `Waiting for ${running} agent${running === 1 ? "" : "s"}`;
-  dom.spinner.replaceChildren(element("span", "spin", "✳"), element("span", undefined, label));
+  const running = term.agents.some((agent) => !agent.done);
+  dom.spinner.replaceChildren(
+    element("span", "spin", "✳"),
+    element("span", undefined, running ? "Waiting" : "Working"),
+  );
   dom.spinner.hidden = !term.busy;
 }
 
