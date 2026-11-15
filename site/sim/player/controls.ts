@@ -151,7 +151,7 @@ function speedIcon(shapes: Shape[]): SVGSVGElement {
   return icon;
 }
 
-// Keys pressed in History scroll it or act on its entries, so they never seek.
+// Whether keys pressed on `target` are its own rather than player shortcuts; History's keys scroll it.
 function editable(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&
@@ -333,7 +333,6 @@ export function renderControls(playback: Playback): void {
   }
 }
 
-// Keeps the current skill in view when the trail is one scrolling line.
 function scrollTrail(trail: HTMLElement, item: Element | undefined): void {
   if (!item || trail.scrollWidth <= trail.clientWidth) return;
   const box = trail.getBoundingClientRect();

@@ -157,7 +157,6 @@ function observe(dom: StageDom, node: Element): void {
   dom.observer?.observe(node);
 }
 
-// Redraws the wires on the next frame.
 export function redrawWires(): void {
   const dom = stageDom;
   if (!dom || dom.frame !== undefined) return;
