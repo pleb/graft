@@ -1112,6 +1112,8 @@
   const onComment = new WeakMap();
   let mdReady = false;
   const targets = []; // per file: { old: [], new: [] } of { n, el, code }
+  // Per file, each element that shows a comment icon while its has() is true.
+  const marks = [];
   const sections = [];
 
   const counts = (f) => ({ add: f.add, del: f.del });
@@ -1294,16 +1296,33 @@
     ic.setAttribute("aria-label", title);
     return ic;
   }
+  // A later mark of the same element replaces the earlier one.
+  function mark(fi, host, title, has) {
+    marks[fi].set(host, { title, has, icon: null });
+  }
+  // Adds and removes icons in place, so the page keeps its height and scroll position.
+  function markFile(fi) {
+    for (const [host, m] of marks[fi] || []) {
+      const on = !!comments && m.has();
+      if (on && !m.icon) host.prepend((m.icon = commentIcon(m.title)));
+      else if (!on && m.icon) {
+        m.icon.remove();
+        m.icon = null;
+      }
+    }
+  }
   // A target is one commentable line on one side: clicking it in comment mode comments on it.
   function addTarget(f, fi, side, n, cells, el0, code, pair) {
     const list = targets[fi][side];
     const idx = list.length;
     el0.id = lineId(f, side, n);
     list.push({ n, el: el0, cells, code, pair });
-    const gutter = cells[0];
-    if (comments && (known.has(el0.id) || (el0.dataset.alt && known.has(el0.dataset.alt)))) {
-      gutter.prepend(commentIcon("This line has comments. Turn on comment mode to read them."));
-    }
+    mark(
+      fi,
+      cells[0],
+      "This line has comments. Turn on comment mode to read them.",
+      () => known.has(el0.id) || (el0.dataset.alt != null && known.has(el0.dataset.alt)),
+    );
     for (const c of cells) {
       c.dataset.fi = fi;
       c.dataset.side = side;
@@ -1330,9 +1349,9 @@
     const range = m[0];
     const comment = () => commentAt(hr, f.path + " " + range, h.header);
     onComment.set(hr, comment);
-    if (comments && known.has(hr.id)) {
-      c.prepend(commentIcon("This hunk has comments. Turn on comment mode to read them."));
-    }
+    mark(fi, c, "This hunk has comments. Turn on comment mode to read them.", () =>
+      known.has(hr.id),
+    );
   }
   // Column widths for the wrapped, fixed layout: line number columns sized to the largest number.
   function colgroup(f, table, kinds, gaps) {
@@ -1662,16 +1681,13 @@
     const added = new Set();
     for (const h of f.hunks) for (const l of h.lines) if (l[0] === "+") added.add(l[2]);
     for (const { node: block, start, end, raw } of mdBlocks(f.content, "mdb")) {
-      let has = false;
-      for (let n = start; n <= end; n++) {
-        if (added.has(n)) block.classList.add("chg");
-        if (n > start && known.has(lineId(f, "new", n))) has = true;
-      }
+      for (let n = start; n <= end; n++) if (added.has(n)) block.classList.add("chg");
       box.append(block);
       addTarget(f, fi, "new", start, [block], block, raw);
-      if (comments && has && !block.querySelector(":scope > .cicon")) {
-        block.prepend(commentIcon("This block has comments. Turn on comment mode to read them."));
-      }
+      mark(fi, block, "This block has comments. Turn on comment mode to read them.", () => {
+        for (let n = start; n <= end; n++) if (known.has(lineId(f, "new", n))) return true;
+        return false;
+      });
     }
   }
   // Null when a hunk's lines do not match the content.
@@ -1856,6 +1872,7 @@
     const f = DIFF.files[fi];
     sec.replaceChildren();
     targets[fi] = { old: [], new: [] };
+    marks[fi] = new Map();
     const head = el("div", "fhead");
     const st = f.binary && !f.isImage ? "B" : f.status;
     head.append(el("span", "chip st-" + st, st === "B" ? "Binary" : STATUS[f.status]));
@@ -1864,9 +1881,9 @@
     p.append(f.path);
     p.id = f.id + "-file";
     onComment.set(p, () => commentAt(p, f.path, f.path));
-    if (comments && known.has(p.id)) {
-      p.prepend(commentIcon("This file has comments. Turn on comment mode to read them."));
-    }
+    mark(fi, p, "This file has comments. Turn on comment mode to read them.", () =>
+      known.has(p.id),
+    );
     head.append(p);
     if (f.source !== "committed") head.append(el("span", "src", f.source));
     const c = counts(f);
@@ -1941,6 +1958,7 @@
     body.hidden = collapsed.has(f.path);
     if (f.hunks && body.hidden) head.querySelector(".fold").textContent = "Expand";
     sec.append(body);
+    markFile(fi);
   }
   function renderFiles() {
     const root = $("diffs");
@@ -1956,11 +1974,11 @@
     });
     reportPins();
   }
-  // Re-renders the files that hold any of these comment ids, so their comment icons update.
-  function renderMarked(ids) {
+  // Updates the comment icons of the files that hold any of these comment ids.
+  function markFiles(ids) {
     const list = [...ids];
     DIFF.files.forEach((f, fi) => {
-      if (list.some((id) => id.startsWith(f.id + "-"))) renderFile(sections[fi], fi);
+      if (list.some((id) => id.startsWith(f.id + "-"))) markFile(fi);
     });
     reportPins();
   }
@@ -2357,7 +2375,7 @@
           known.clear();
           for (const id of open) known.add(id);
           store(knownKey, JSON.stringify([...known]));
-          renderMarked(changed);
+          markFiles(changed);
         },
         reveal(id) {
           const t = threads.find((x) => x.id === id);
@@ -2385,7 +2403,7 @@
     } catch {
       anchors = null;
     }
-    renderMarked(known);
+    markFiles(known);
     const act = $("act");
     async function refreshAct() {
       try {

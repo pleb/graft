@@ -2286,14 +2286,24 @@ class FakeElement {
   colSpan = 1;
   style = { setProperty() {} };
   tagName: string;
+  parent: FakeElement | null = null;
   constructor(tagName: string) {
     this.tagName = tagName;
   }
   append(...nodes: (FakeElement | string)[]) {
-    for (const node of nodes) if (typeof node !== "string") this.children.push(node);
+    for (const node of nodes) {
+      if (typeof node === "string") continue;
+      node.parent = this;
+      this.children.push(node);
+    }
   }
   prepend(node: FakeElement) {
+    node.parent = this;
     this.children.unshift(node);
+  }
+  remove() {
+    this.parent?.children.splice(this.parent.children.indexOf(this), 1);
+    this.parent = null;
   }
   setAttribute() {}
   addEventListener() {}
@@ -2308,7 +2318,7 @@ function templateSource(start: string): string {
   return TEMPLATE.slice(from, TEMPLATE.indexOf("\n  }", from) + 5);
 }
 
-// The template's unified rendering, with the given open thread ids.
+// The template's unified rendering and comment icon marking, with the given open thread ids.
 function unifiedRenderer(known: Set<string>) {
   const source = [
     templateSource("const el = "),
@@ -2316,6 +2326,8 @@ function unifiedRenderer(known: Set<string>) {
     templateSource("const td = "),
     templateSource("const onComment = "),
     templateSource("function commentIcon("),
+    templateSource("function mark("),
+    templateSource("function markFile("),
     templateSource("function hunkRow("),
     templateSource("function colgroup("),
     templateSource("function addTarget("),
@@ -2332,17 +2344,21 @@ function unifiedRenderer(known: Set<string>) {
     templateSource("function gapRows("),
     templateSource("function expandRow("),
     templateSource("function renderUnified("),
-    "return { renderUnified, gapState };",
+    "return { renderUnified, gapState, markFile };",
   ].join("\n");
   const document = { createElement: (tag: string) => new FakeElement(tag) };
-  return new Function("document", "known", "comments", "targets", "ICON", source)(
+  return new Function("document", "known", "comments", "targets", "marks", "ICON", source)(
     document,
     known,
     {},
     [{ old: [], new: [] }],
+    [new Map()],
     "",
   );
 }
+
+const icons = (node: FakeElement) =>
+  node.children.filter((child) => child.className === "cicon").length;
 
 // A file's hunks from git's diff of two texts, with the default three lines of context.
 function hunksOf(base: string, next: string) {
@@ -2358,11 +2374,12 @@ function hunksOf(base: string, next: string) {
 describe("template", () => {
   it("marks a hunk row by its new start line and a unified context row by its old-side id", () => {
     const known = new Set(["f-a-old-3", "f-a-hunk-5"]);
-    const { renderUnified } = unifiedRenderer(known);
+    const { renderUnified, markFile } = unifiedRenderer(known);
     const table = new FakeElement("table");
     const header = "@@ -3 +5 @@ context";
     const file = { id: "f-a", path: "a", hunks: [{ header, lines: [[" ", 3, 5, "x"]] }] };
     renderUnified(file, 0, table);
+    markFile(0);
     const hunk = table.children[1];
     expect(hunk.id).toBe("f-a-hunk-5");
     expect(hunk.children[0].children.map((child) => child.className)).toEqual(["cicon"]);
@@ -2370,6 +2387,124 @@ describe("template", () => {
     expect(row.id).toBe("f-a-new-5");
     expect(row.dataset.alt).toBe("f-a-old-3");
     expect(row.children[1].children.map((child) => child.className)).toContain("cicon");
+  });
+
+  it("keeps a unified context row's icon while either its old or new id is open", () => {
+    const known = new Set(["f-a-old-3", "f-a-new-5"]);
+    const { renderUnified, markFile } = unifiedRenderer(known);
+    const table = new FakeElement("table");
+    const file = {
+      id: "f-a",
+      path: "a",
+      hunks: [{ header: "@@ -3 +5 @@", lines: [[" ", 3, 5, "x"]] }],
+    };
+    renderUnified(file, 0, table);
+    markFile(0);
+    const row = table.children[2];
+    const gutter = row.children[1];
+    expect(icons(gutter)).toBe(1);
+    known.delete("f-a-new-5");
+    markFile(0);
+    expect(icons(gutter)).toBe(1);
+    known.add("f-a-new-5");
+    known.delete("f-a-old-3");
+    markFile(0);
+    expect(icons(gutter)).toBe(1);
+    known.delete("f-a-new-5");
+    markFile(0);
+    expect(icons(gutter)).toBe(0);
+    expect(table.children[2]).toBe(row);
+  });
+
+  it("marks a unified context row whose only open id is its old-side data-alt", () => {
+    const known = new Set<string>();
+    const { renderUnified, markFile } = unifiedRenderer(known);
+    const table = new FakeElement("table");
+    const file = {
+      id: "f-a",
+      path: "a",
+      hunks: [{ header: "@@ -3 +5 @@", lines: [[" ", 3, 5, "x"]] }],
+    };
+    renderUnified(file, 0, table);
+    markFile(0);
+    const gutter = table.children[2].children[1];
+    expect(icons(gutter)).toBe(0);
+    known.add("f-a-old-3");
+    markFile(0);
+    expect(icons(gutter)).toBe(1);
+    expect(icons(table.children[1].children[0])).toBe(0);
+    known.add("f-a-hunk-5");
+    markFile(0);
+    expect(icons(table.children[1].children[0])).toBe(1);
+  });
+
+  it("keeps a Markdown block's icon until no line in it has an open thread", () => {
+    const known = new Set(["f-a-new-4", "f-a-new-5"]);
+    const block = new FakeElement("div");
+    const { renderMarkdown, markFile } = new Function(
+      "document",
+      "known",
+      "comments",
+      "targets",
+      "marks",
+      "ICON",
+      "mdBlocks",
+      [
+        templateSource("const lineId = "),
+        templateSource("function commentIcon("),
+        templateSource("function mark("),
+        templateSource("function markFile("),
+        templateSource("function addTarget("),
+        templateSource("function renderMarkdown("),
+        "return { renderMarkdown, markFile };",
+      ].join("\n"),
+    )(
+      { createElement: (tag: string) => new FakeElement(tag) },
+      known,
+      {},
+      [{ old: [], new: [] }],
+      [new Map()],
+      "",
+      () => [{ node: block, start: 3, end: 5, raw: "a\nb\nc\n" }],
+    );
+    renderMarkdown({ id: "f-a", path: "a.md", hunks: [], content: "" }, 0, new FakeElement("div"));
+    markFile(0);
+    expect(block.id).toBe("f-a-new-3");
+    expect(icons(block)).toBe(1);
+    known.delete("f-a-new-4");
+    markFile(0);
+    expect(icons(block)).toBe(1);
+    known.delete("f-a-new-5");
+    markFile(0);
+    expect(icons(block)).toBe(0);
+    known.add("f-a-new-3");
+    markFile(0);
+    expect(icons(block)).toBe(1);
+  });
+
+  it("updates icons after a threads change without re-rendering the file, which reset the page's scroll", () => {
+    const marked: number[] = [];
+    let pins = 0;
+    const markFiles = new Function(
+      "DIFF",
+      "markFile",
+      "renderFile",
+      "reportPins",
+      `${templateSource("function markFiles(")}\nreturn markFiles;`,
+    )(
+      { files: [{ id: "f-a" }, { id: "f-b" }] },
+      (fi: number) => marked.push(fi),
+      () => {
+        throw new Error("re-rendered");
+      },
+      () => pins++,
+    );
+    markFiles(["f-b-new-1"]);
+    expect(marked).toEqual([1]);
+    expect(pins).toBe(1);
+    const handler = /threads\(list\) \{[\s\S]*?\n {8}\},/.exec(TEMPLATE)![0];
+    expect(handler).toContain("markFiles(changed)");
+    expect(handler).not.toContain("renderFile");
   });
 
   it("comments only on registered cells, past data-side markup from rendered Markdown", () => {
