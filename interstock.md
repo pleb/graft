@@ -117,9 +117,9 @@ When a command here fails in a way its step does not name, report its cause and 
    ```bash
    gh workflow run pages.yml -R <owner>/<repo>
    ```
-   When it prints a run URL, the URL's last segment is `<run-id>`. Otherwise list dispatched runs until one created after the dispatch appears, and take its `databaseId`.
+   When it prints a run URL, the URL's last segment is `<run-id>`. Otherwise list dispatched runs, polling for up to two minutes, until one created after the dispatch appears, and take its `databaseId`. When none appears, or more than one was created after the dispatch, report the deploy result as unknown with the runs' URLs, and skip the watch.
    ```bash
-   gh run list --workflow pages.yml --event workflow_dispatch -R <owner>/<repo> --json databaseId,createdAt
+   gh run list --workflow pages.yml --event workflow_dispatch -R <owner>/<repo> --json databaseId,createdAt,url
    ```
    Watch the run, then read its `deploy` job's conclusion. Report success only when it is `success`.
    ```bash

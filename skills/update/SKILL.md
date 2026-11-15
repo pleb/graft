@@ -108,7 +108,7 @@ This is safe because Sync required a clean tree. (`merge --abort` can refuse onc
 
 Run this step for an interstock. When the merged clone has no `interstock.md`, skip it.
 
-Follow `## Offer the simulator`, running the section inside `/graft:update`. When its `GRAFT_SIMULATOR` read fails other than "was not found", keep `HEAD`'s simulator link line and ask the user.
+Follow `## Offer the simulator`, running the section inside `/graft:update`.
 
 Make each property in step 3 of `<target>/interstock.md` true, reading `<dir>` as `<target>` and `<owner>/<repo>` as `<origin-repo>`. Never create the registry, commit or push here.
 
@@ -158,7 +158,7 @@ For a publishing interstock, also check the simulator.
 
 When Node 24 or `npm ci` is unavailable, say so and ask whether to go on.
 
-If it fails, fix what the merge broke, or ask the user. If the user chooses to stop, clear the clone as Merge says.
+If `claude plugin validate` fails, fix what the merge broke, or ask the user. If `npm run test:site` fails, ask whether to fix the scenarios now or go on. If the user chooses to stop, clear the clone as Merge says.
 
 ## Commit and push
 
@@ -181,6 +181,7 @@ Then follow common.md's `## Publish the change` with the branch `graft/update-<Y
 ```
 
 - Require as listed items the incoming changes, each conflict resolution, each compliance fix, and each review finding acted on with its fix.
+- When the user went on past a `test:site` failure, require a note that `npm run test:site` fails and deploys fail until the scenarios pass.
 - When Review ran, keep the PR skill's Graft line; otherwise the Graft line is `_Graft: validated, not AI-reviewed._`.
 
 ## Report
@@ -196,14 +197,14 @@ Then follow common.md's `## Publish the change` with the branch `graft/update-<Y
 
 ## Offer the simulator
 
-Run this only when a step says to. Read the repo's `GRAFT_SIMULATOR` and whether the user is a repo admin.
+Run this only when a step says to. `<origin-repo>` is the `owner/repo` of `<target>`'s `origin` (`git -C <target> remote get-url origin`). Read the repo's `GRAFT_SIMULATOR` and whether the user is a repo admin.
 
 ```bash
 gh variable get GRAFT_SIMULATOR -R <origin-repo>
 gh api repos/<origin-repo> --jq .permissions.admin
 ```
 
-A read that says it "was not found" means unset. When the variable is unset, the admin read prints `true`, and `<target>/interstock.md` has `## Publish the simulator`, offer to follow that section, reading `<dir>` as `<target>` and `<owner>/<repo>` as `<origin-repo>`. The decline answers are **Not now**, which leaves the variable unset, and **Never**, which records the decline.
+A read that says it "was not found" means unset. When either read fails any other way, make no offer. When the variable is unset, the admin read prints `true`, and `<target>/interstock.md` has `## Publish the simulator`, offer to follow that section, reading `<dir>` as `<target>` and `<owner>/<repo>` as `<origin-repo>`. The decline answers are **Not now**, which leaves the variable unset, and **Never**, which records the decline.
 
 ```bash
 gh variable set GRAFT_SIMULATOR --body declined -R <origin-repo>
