@@ -14,8 +14,8 @@ concurrency:
 jobs:
   build:
     name: build
-    # Only pleb/graft's main branch publishes the simulator; users' private copies and other branches skip it.
-    if: github.repository == 'pleb/graft' && github.ref == 'refs/heads/main'
+    # Publishes from main in pleb/graft, or in an interstock whose `GRAFT_SIMULATOR` variable is `publish`; other copies and branches skip it.
+    if: github.ref == 'refs/heads/main' && (github.repository == 'pleb/graft' || vars.GRAFT_SIMULATOR == 'publish')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -40,8 +40,8 @@ jobs:
   deploy:
     name: deploy
     needs: build
-    # Only pleb/graft's main branch publishes the simulator; users' private copies and other branches skip it.
-    if: github.repository == 'pleb/graft' && github.ref == 'refs/heads/main'
+    # Publishes from main in pleb/graft, or in an interstock whose `GRAFT_SIMULATOR` variable is `publish`; other copies and branches skip it.
+    if: github.ref == 'refs/heads/main' && (github.repository == 'pleb/graft' || vars.GRAFT_SIMULATOR == 'publish')
     runs-on: ubuntu-latest
     permissions:
       pages: write
