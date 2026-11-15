@@ -531,6 +531,7 @@
     .side {
       position: static;
       max-height: none;
+      grid-template-rows: none;
     }
   }
 
@@ -1328,6 +1329,7 @@
     renderList();
     sections.forEach((_, fi) => filterSection(fi));
     leaveHidden();
+    followRow();
     reportPins();
   }
   function leaveHidden() {
@@ -1345,10 +1347,17 @@
     filterChanged();
   });
   $("filter").addEventListener("keydown", (e) => {
-    if (e.key !== "Escape" || !$("filter").value) return;
+    if (e.isComposing) return;
+    if (e.key === "Escape" && $("filter").value) {
+      $("filter").value = filter = "";
+      filterChanged();
+    } else if (e.key === "Escape") $("filter").blur();
+    else if (e.key === "Enter") {
+      $("filter").blur();
+      const first = DIFF.files.findIndex((_, fi) => listed(fi));
+      if (!listed(current) && first >= 0) setCurrent(first, true);
+    } else return;
     e.preventDefault();
-    $("filter").value = filter = "";
-    filterChanged();
   });
   $("filter-diffs").checked = paneFilter;
   $("filter-diffs").addEventListener("change", () => {
@@ -1359,10 +1368,12 @@
   $("list-flat").addEventListener("click", () => {
     store("list-layout", "flat");
     renderList();
+    followRow();
   });
   $("list-tree").addEventListener("click", () => {
     store("list-layout", "tree");
     renderList();
+    followRow();
   });
 
   function commentAt(target, label, detail) {
@@ -2082,7 +2093,7 @@
       if (!own.some((id) => known.has(id) && inClosedGap(f, id))) return markFile(fi);
       const y = window.scrollY;
       renderFile(sections[fi], fi);
-      window.scrollTo(window.scrollX, y);
+      window.scrollTo({ left: window.scrollX, top: y, behavior: "instant" });
     });
     reportPins();
   }

@@ -2493,7 +2493,11 @@ describe("template", () => {
     const window = {
       scrollX: 0,
       scrollY: 500,
-      scrollTo: (_x: number, y: number) => calls.scrolled.push(y),
+      // An instant scroll, since a smooth one would run the page's scroll handler as it animates.
+      scrollTo: (options: ScrollToOptions) => {
+        expect(options.behavior).toBe("instant");
+        calls.scrolled.push(options.top!);
+      },
     };
     const markFiles = new Function(
       "DIFF",
@@ -2570,6 +2574,91 @@ describe("template", () => {
     markFiles(["f-a-new-50"]);
     expect(calls.marked).toEqual([0, 0]);
     expect(calls.rendered).toEqual([0]);
+  });
+
+  // The template's file list filter handlers, with files a, b and c, b current and a filter matching only c.
+  function fileFilter() {
+    const calls: string[] = [];
+    const handlers: Record<string, (e?: unknown) => void> = {};
+    const input = {
+      value: "c",
+      blur: () => calls.push("blur"),
+      addEventListener: (type: string, fn: (e?: unknown) => void) =>
+        (handlers["filter " + type] = fn),
+    };
+    const $ = (id: string) =>
+      id === "filter"
+        ? input
+        : { addEventListener: (type: string, fn: () => void) => (handlers[id + " " + type] = fn) };
+    new Function(
+      "$",
+      "DIFF",
+      "renderList",
+      "sections",
+      "filterSection",
+      "leaveHidden",
+      "followRow",
+      "reportPins",
+      "setCurrent",
+      "store",
+      [
+        'let filter = "c";',
+        "const current = 1;",
+        templateSource("function pathMatches("),
+        templateSource("const listed = "),
+        templateSource("function filterChanged("),
+        templateSource('$("filter").addEventListener("keydown"'),
+        templateSource('$("list-flat").addEventListener('),
+        templateSource('$("list-tree").addEventListener('),
+      ].join("\n"),
+    )(
+      $,
+      { files: [{ path: "a" }, { path: "b" }, { path: "c" }] },
+      () => calls.push("renderList"),
+      [],
+      () => {},
+      () => calls.push("leaveHidden"),
+      () => calls.push("followRow"),
+      () => {},
+      (fi: number, scroll: boolean) => calls.push(`setCurrent ${fi} ${scroll}`),
+      () => {},
+    );
+    const key = (k: string, isComposing = false) => {
+      const e = {
+        key: k,
+        isComposing,
+        prevented: false,
+        preventDefault: () => (e.prevented = true),
+      };
+      handlers["filter keydown"](e);
+      return e.prevented;
+    };
+    return { calls, handlers, input, key };
+  }
+
+  it("keeps the current file's row in view after the list is rebuilt by a filter or layout change", () => {
+    const { calls, handlers } = fileFilter();
+    handlers["list-flat click"]();
+    handlers["list-tree click"]();
+    expect(calls).toEqual(["renderList", "followRow", "renderList", "followRow"]);
+  });
+
+  it("clears the filter on Escape, then leaves it on a second Escape so j and k work", () => {
+    const { calls, input, key } = fileFilter();
+    expect(key("Escape")).toBe(true);
+    expect(input.value).toBe("");
+    expect(calls).toEqual(["renderList", "leaveHidden", "followRow"]);
+    expect(key("Escape")).toBe(true);
+    expect(calls.at(-1)).toBe("blur");
+  });
+
+  it("leaves the filter on Enter, going to the first matching file when the current one is not listed", () => {
+    const { calls, key } = fileFilter();
+    expect(key("Enter")).toBe(true);
+    expect(calls).toEqual(["blur", "setCurrent 2 true"]);
+    expect(key("a")).toBe(false);
+    expect(key("Enter", true)).toBe(false);
+    expect(calls).toEqual(["blur", "setCurrent 2 true"]);
   });
 
   it("comments only on registered cells, past data-side markup from rendered Markdown", () => {
