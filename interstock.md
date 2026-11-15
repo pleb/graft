@@ -30,7 +30,7 @@ An interstock clone has these properties. Make each one true in `<dir>`.
   gh api repos/<owner>/<repo>/deployments/<id>/statuses --jq '.[0].state'
   gh api repos/<owner>/<repo>/pages --jq .html_url
   ```
-  - When the state is `success`, `README.md` has the line `[Watch it run in the simulator](<html_url>).`, with the `html_url` GitHub reports, as its own paragraph after the README's opening paragraph.
+  - When the state is `success`, `README.md` has the line `[Watch it run in the simulator](<html_url>).`, with the `html_url` GitHub reports, as its own paragraph after the README's opening paragraph, and no other line linking to the simulator.
   - When the variable "was not found" or reads anything but `publish`, there is no deployment or status, the state is anything but `success`, or Pages returns 404, `README.md` has no line linking to the simulator, whether `https://pleb.github.io/graft/` or an earlier Pages URL of `<owner>/<repo>`. Remove each such line, together with one blank line next to it.
   - When a read fails any other way, keep `HEAD`'s simulator link line as it is and ask the user.
 
@@ -76,7 +76,7 @@ Offer to switch the user's own Graft to the interstock by following `<dir>/agent
 
 Publish the simulator (`site/`) to the GitHub Pages of the interstock `<owner>/<repo>`, cloned at `<dir>`. Take `<owner>/<repo>`, `<dir>`, and whether this runs inside `/graft:update`. Edit no files.
 
-When a command here fails, report its cause and who must act, in place of the rule at the top of this file. Before step 5, the section then ends. From step 5 on, `GRAFT_SIMULATOR` stays `publish`.
+When a command here fails in a way its step does not name, report its cause and who must act, in place of the rule at the top of this file. Before step 5, the section then ends. From step 5 on, `GRAFT_SIMULATOR` stays `publish`.
 
 1. Check the user is a repo admin. Unless it prints `true`, say an admin must follow this section, and stop without setting `GRAFT_SIMULATOR`.
    ```bash
@@ -90,7 +90,7 @@ When a command here fails, report its cause and who must act, in place of the ru
    ```bash
    gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
    ```
-   When it exists, the simulator owns it only when its `build_type` is `workflow` and either `GRAFT_SIMULATOR` reads `publish` or the `github-pages` environment has no deployments (the second command prints `0`). Otherwise say the simulator needs the repo's Pages and the existing site is left as it is, and end.
+   When it exists, the simulator owns it only when its `build_type` is `workflow` and either `GRAFT_SIMULATOR` reads `publish` or the `github-pages` environment has no deployments (the second command prints `0`). A variable read that says it "was not found" means unset. Otherwise say the simulator needs the repo's Pages and the existing site is left as it is, and end.
    ```bash
    gh variable get GRAFT_SIMULATOR -R <owner>/<repo>
    gh api "repos/<owner>/<repo>/deployments?environment=github-pages&per_page=1" --jq length
@@ -113,11 +113,18 @@ When a command here fails, report its cause and who must act, in place of the ru
    ```bash
    gh variable set GRAFT_SIMULATOR --body publish -R <owner>/<repo>
    ```
-6. Outside `/graft:update`, start the deploy, watch its run, and report whether its `deploy` job succeeded.
+6. Outside `/graft:update`, start the deploy.
    ```bash
    gh workflow run pages.yml -R <owner>/<repo>
-   gh run list --workflow pages.yml -R <owner>/<repo> --limit 1 --json databaseId --jq '.[0].databaseId'
+   ```
+   When it prints a run URL, the URL's last segment is `<run-id>`. Otherwise list dispatched runs until one created after the dispatch appears, and take its `databaseId`.
+   ```bash
+   gh run list --workflow pages.yml --event workflow_dispatch -R <owner>/<repo> --json databaseId,createdAt
+   ```
+   Watch the run, then read its `deploy` job's conclusion. Report success only when it is `success`.
+   ```bash
    gh run watch <run-id> -R <owner>/<repo> --exit-status
+   gh run view <run-id> -R <owner>/<repo> --json jobs --jq '.jobs[] | select(.name == "deploy") | .conclusion'
    ```
    Inside `/graft:update`, say the first deploy runs when the update PR merges, and the README link follows on the next update.
 7. Report the Pages URL.
@@ -125,7 +132,7 @@ When a command here fails, report its cause and who must act, in place of the ru
    gh api repos/<owner>/<repo>/pages --jq .html_url
    ```
 
-When the section ends before step 5, ask **Not now**, which leaves `GRAFT_SIMULATOR` unset so `/graft:update` offers this section again, or **Never**, which records the decline.
+When the section ends before step 5, except at step 1, ask **Not now**, which leaves `GRAFT_SIMULATOR` unset so `/graft:update` offers this section again, or **Never**, which records the decline.
 
 ```bash
 gh variable set GRAFT_SIMULATOR --body declined -R <owner>/<repo>
