@@ -15,6 +15,7 @@ import {
   parseHash,
   prExcerpt,
   replay,
+  roleRows,
   seek,
   setPlaying,
   setSpeed,
@@ -593,6 +594,92 @@ describe("background agents", () => {
     expect(rows(5)).toEqual(["b", "c"]);
     expect(rows(7)).toEqual(["b+", "c+"]);
     expect(rows(8)).toEqual([]);
+  });
+});
+
+describe("role rows", () => {
+  // Two workers and a reviewer in parallel, a worker started again in the next chapter, and a
+  // reviewer started again after a third chapter and a new prompt.
+  const scenarios = [
+    scenario("s", "start", [
+      { type: "prompt", text: "/graft:plan x" },
+      { type: "agent.start", id: "a", agent: "graft:worker", description: "A" },
+      { type: "agent.start", id: "b", agent: "worker", description: "B" },
+      { type: "agent.start", id: "r", agent: "graft:reviewer", description: "R" },
+      { type: "agent.done", id: "b" },
+      { type: "chapter", id: "two", title: "Two" },
+      { type: "agent.start", id: "c", agent: "graft:worker", description: "C" },
+      { type: "agent.done", id: "c" },
+      { type: "agent.done", id: "a" },
+      { type: "agent.done", id: "r" },
+      { type: "chapter", id: "three", title: "Three" },
+      { type: "prompt", text: "/graft:plan y" },
+      { type: "agent.start", id: "d", agent: "graft:reviewer", description: "D" },
+      { type: "agent.done", id: "d" },
+      { type: "end" },
+    ]),
+  ];
+  const steps = timeline(new Map(scenarios.map((s) => [s.id, s])), ["s"]);
+  const at = (position: number) => replay(steps, position, repo);
+
+  it("group running runs by bare role, newest run first", () => {
+    expect(roleRows(at(0))).toEqual([]);
+    expect(roleRows(at(4))).toEqual([
+      {
+        agent: "worker",
+        runs: [
+          { id: "b", description: "B" },
+          { id: "a", description: "A" },
+        ],
+        again: false,
+      },
+      { agent: "reviewer", runs: [{ id: "r", description: "R" }], again: false },
+    ]);
+  });
+
+  it("keep a parallel run running and describe it when its sibling finishes", () => {
+    expect(roleRows(at(5))[0]).toEqual({
+      agent: "worker",
+      runs: [{ id: "a", description: "A" }],
+      again: false,
+    });
+  });
+
+  it("mark a role running again once it finished a run, even in an earlier chapter", () => {
+    expect(roleRows(at(7))[0]).toEqual({
+      agent: "worker",
+      runs: [
+        { id: "c", description: "C" },
+        { id: "a", description: "A" },
+      ],
+      again: true,
+    });
+    expect(roleRows(at(8))[0]).toMatchObject({ runs: [{ id: "a" }], again: false });
+    expect(roleRows(at(11))).toEqual([]);
+    expect(roleRows(at(13))).toEqual([
+      { agent: "reviewer", runs: [{ id: "d", description: "D" }], again: true },
+    ]);
+  });
+
+  it("tally finished runs by role for the chapter, resetting on chapter and prompt", () => {
+    expect(at(5).finished).toEqual([{ agent: "worker", runs: 1 }]);
+    expect(at(6).finished).toEqual([]);
+    expect(at(10).finished).toEqual([
+      { agent: "worker", runs: 2 },
+      { agent: "reviewer", runs: 1 },
+    ]);
+    expect(at(11).finished).toEqual([]);
+    expect(at(14).finished).toEqual([{ agent: "reviewer", runs: 1 }]);
+    expect(at(10).finishedRoles).toEqual(["worker", "reviewer"]);
+    expect(at(14).finishedRoles).toEqual(["worker", "reviewer"]);
+  });
+
+  it("are the same after replay as after stepping", () => {
+    let stepped = emptyTerm(repo);
+    for (const [index, step] of steps.entries()) {
+      stepped = applyStep(stepped, step);
+      expect(replay(steps, index + 1, repo)).toEqual(stepped);
+    }
   });
 });
 

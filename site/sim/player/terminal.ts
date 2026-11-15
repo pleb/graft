@@ -1,11 +1,14 @@
 import type { Question } from "../events.ts";
-import type { Line, Pending, Run, Step, TermState } from "./core.ts";
+import { roleRows } from "./core.ts";
+import type { Line, Pending, RoleRow, Run, Step, TermState } from "./core.ts";
 
 type TermDom = {
   log: HTMLElement;
   lines: HTMLElement;
   pending: HTMLElement;
   agents: HTMLElement;
+  live: HTMLElement;
+  done: HTMLElement;
   spinner: HTMLElement;
   input: HTMLElement;
   caption: HTMLElement;
@@ -106,15 +109,22 @@ export function initTerminal(
   log.append(lines, pending);
   const agents = element("div", "term-agents");
   agents.setAttribute("aria-label", "Background agents");
+  const live = element("div", "agent-live");
+  const foot = element("div", "agent-foot");
   const spinner = element("div", "term-spinner");
   spinner.setAttribute("aria-hidden", "true");
+  const done = element("div", "agent-finished");
+  foot.append(spinner, done);
+  agents.append(live, foot);
   const input = element("div", "term-input");
-  root.replaceChildren(bar, log, agents, spinner, input);
+  root.replaceChildren(bar, log, agents, input);
   termDom = {
     log,
     lines,
     pending,
     agents,
+    live,
+    done,
     spinner,
     input,
     caption,
@@ -146,27 +156,55 @@ function renderInput(dom: TermDom, handoff: Pending | undefined): void {
   dom.input.replaceChildren(choices);
 }
 
-function renderAgents(dom: TermDom, term: TermState): void {
-  dom.agents.replaceChildren(
-    ...term.agents.map((agent) => {
-      const row = element("div", agent.done ? "agent-row agent-done" : "agent-row");
-      row.append(
-        element("span", "agent-state", agent.done ? "✓" : "◌"),
-        element("strong", undefined, agentName(agent.agent)),
-        element("span", "agent-desc", agent.description),
-        element("span", "agent-status", agent.done ? "done" : "running"),
-      );
-      return row;
-    }),
+function roleNode(row: RoleRow): HTMLElement {
+  const count = row.runs.length;
+  const node = element("div", "agent-row");
+  const name = element("strong", "agent-name");
+  name.append(element("span", "agent-ns", "graft:"), row.agent);
+  node.append(element("span", `agent-state agent-stack-${Math.min(4, count)}`, "◌"), name);
+  if (count > 1) node.append(element("span", "agent-count", `×${count}`));
+  node.append(
+    row.again
+      ? element("span", "agent-status agent-again", "running again")
+      : element("span", "agent-status", "running"),
+    element("span", "agent-desc", row.runs[0].description),
   );
-  dom.agents.hidden = term.agents.length === 0;
+  return node;
+}
+
+// A fixed panel: two lines of running roles, then the spinner and the roles finished this chapter.
+function renderAgents(dom: TermDom, term: TermState): void {
+  const rows = roleRows(term);
+  dom.live.className = rows.length === 1 ? "agent-live agent-solo" : "agent-live";
+  if (rows.length === 0)
+    dom.live.replaceChildren(
+      element(
+        "div",
+        "agent-idle",
+        term.finishedRoles.length === 0 ? "No agents yet" : "No agents running",
+      ),
+    );
+  else if (rows.length <= 2) dom.live.replaceChildren(...rows.map(roleNode));
+  else
+    dom.live.replaceChildren(
+      roleNode(rows[0]),
+      element("div", "agent-idle", `+${rows.length - 1} more roles running`),
+    );
+  dom.done.textContent =
+    term.finished.length === 0
+      ? ""
+      : `✓ ${[...term.finished]
+          .reverse()
+          .map((entry) => (entry.runs > 1 ? `${entry.agent} ×${entry.runs}` : entry.agent))
+          .join(", ")}`;
 }
 
 function renderSpinner(dom: TermDom, term: TermState): void {
-  const running = term.agents.filter((agent) => !agent.done).length;
-  const label =
-    running === 0 ? "Working" : `Waiting for ${running} agent${running === 1 ? "" : "s"}`;
-  dom.spinner.replaceChildren(element("span", "spin", "✳"), element("span", undefined, label));
+  const running = term.agents.some((agent) => !agent.done);
+  dom.spinner.replaceChildren(
+    element("span", "spin", "✳"),
+    element("span", undefined, running ? "Waiting" : "Working"),
+  );
   dom.spinner.hidden = !term.busy;
 }
 

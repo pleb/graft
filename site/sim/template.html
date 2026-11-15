@@ -556,37 +556,100 @@
         color: var(--term-muted);
       }
       .term-agents {
+        display: grid;
+        grid-template-rows: 42px 21px;
         padding: 4px 16px;
         border-top: 1px dashed var(--term-border);
+      }
+      .agent-live {
+        display: grid;
+        grid-auto-rows: 21px;
+        min-width: 0;
+        overflow: hidden;
+      }
+      .agent-solo {
+        grid-auto-rows: 42px;
       }
       .agent-row {
         display: flex;
         gap: 8px;
+        min-width: 0;
         color: var(--term-fg);
+        white-space: nowrap;
+      }
+      .agent-solo .agent-row {
+        flex-wrap: wrap;
+        row-gap: 0;
+      }
+      .agent-state {
+        flex: none;
+        color: var(--term-yellow);
+      }
+      .agent-stack-2 {
+        text-shadow: 3px -3px 0 rgb(212 167 44 / 0.55);
+      }
+      .agent-stack-3 {
+        text-shadow:
+          3px -3px 0 rgb(212 167 44 / 0.55),
+          6px -6px 0 rgb(212 167 44 / 0.3);
+      }
+      .agent-stack-4 {
+        text-shadow:
+          3px -3px 0 rgb(212 167 44 / 0.55),
+          6px -6px 0 rgb(212 167 44 / 0.3),
+          9px -9px 0 rgb(212 167 44 / 0.18);
+      }
+      .agent-name,
+      .agent-count,
+      .agent-status {
+        flex: none;
+      }
+      .agent-count,
+      .agent-status {
+        color: var(--term-yellow);
+      }
+      .agent-count {
+        font-weight: 600;
+      }
+      .agent-live:not(.agent-solo) .agent-status:not(.agent-again) {
+        display: none;
       }
       .agent-desc {
-        flex: 1;
+        flex: 1 1 0;
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
         color: var(--term-muted);
       }
-      .agent-status {
-        color: var(--term-yellow);
+      .agent-solo .agent-desc {
+        flex-basis: 100%;
+        padding-left: 2ch;
       }
-      .agent-done .agent-state,
-      .agent-done .agent-status {
+      .agent-idle {
+        color: var(--term-muted);
+      }
+      .agent-foot {
+        display: flex;
+        gap: 12px;
+        min-width: 0;
+        white-space: nowrap;
+      }
+      .agent-finished {
+        flex: 1 1 0;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
         color: var(--term-green);
+        text-align: right;
       }
       .term-spinner {
         display: flex;
+        flex: none;
         gap: 8px;
-        padding: 4px 16px;
         color: var(--term-yellow);
       }
-      .term-spinner[hidden],
-      .term-agents[hidden] {
+      .term-spinner[hidden] {
         display: none;
       }
       .spin {
@@ -1059,6 +1122,9 @@
         }
       }
       @media (max-width: 899px) {
+        .agent-ns {
+          display: none;
+        }
         #board {
           grid-template-columns: minmax(0, 1fr);
         }

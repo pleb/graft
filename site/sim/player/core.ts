@@ -26,7 +26,25 @@ export type Line =
   | { kind: "chapter"; title: string }
   | { kind: "handoff"; text: string };
 
-export type AgentRow = { id: string; agent: string; description: string; done: boolean };
+export type AgentRow = {
+  id: string;
+  agent: string;
+  description: string;
+  done: boolean;
+  // Whether its role had finished a run earlier on the walked path when it started.
+  again?: boolean;
+};
+
+// Finished runs of one bare role in the current chapter; the role that finished most recently is last.
+export type Finished = { agent: string; runs: number };
+
+// One panel row per bare role with running runs, in the order its oldest running run started.
+// `runs` are newest first; `again` comes from the newest.
+export type RoleRow = {
+  agent: string;
+  runs: { id: string; description: string }[];
+  again: boolean;
+};
 
 export type Pending = { at: number; choices: Choice[]; chosen?: string };
 
@@ -89,6 +107,9 @@ export type StageState = {
 export type TermState = {
   lines: Line[];
   agents: AgentRow[];
+  finished: Finished[];
+  // Bare roles that have finished a run anywhere on the walked path.
+  finishedRoles: string[];
   caption: string;
   busy: boolean;
   // A hand-off waiting in the input box.
@@ -200,6 +221,8 @@ export function emptyTerm(repo?: Repo): TermState {
   return {
     lines: [],
     agents: [],
+    finished: [],
+    finishedRoles: [],
     caption: "",
     busy: false,
     ended: false,
@@ -429,16 +452,19 @@ export function applyStep(term: TermState, step: Step): TermState {
     case "prompt":
       add({ kind: "prompt", text: event.text });
       next.agents = [];
+      next.finished = [];
       next.busy = true;
       break;
     case "clear":
       next.lines = [];
       next.agents = [];
+      next.finished = [];
       next.busy = false;
       break;
     case "chapter":
       add({ kind: "chapter", title: event.title });
       next.agents = term.agents.filter((agent) => !agent.done);
+      next.finished = [];
       break;
     case "caption":
       next.caption = event.text;
@@ -456,7 +482,13 @@ export function applyStep(term: TermState, step: Step): TermState {
       add({ kind: "agent", agent: event.agent, description: event.description });
       next.agents = [
         ...term.agents.filter((agent) => !agent.done),
-        { id: event.id, agent: event.agent, description: event.description, done: false },
+        {
+          id: event.id,
+          agent: event.agent,
+          description: event.description,
+          done: false,
+          again: term.finishedRoles.includes(bareRole(event.agent)),
+        },
       ];
       break;
     case "agent.done": {
@@ -470,6 +502,17 @@ export function applyStep(term: TermState, step: Step): TermState {
       next.agents = term.agents.map((agent) =>
         agent.id === event.id ? { ...agent, done: true } : agent,
       );
+      // The card, unlike the row, outlives a prompt or `/clear` while its run is still going.
+      const card = findCard(term.stage, event.id);
+      if (card?.kind === "agent" && !card.done) {
+        const role = bareRole(card.agent);
+        const runs = term.finished.find((entry) => entry.agent === role)?.runs ?? 0;
+        next.finished = [
+          ...term.finished.filter((entry) => entry.agent !== role),
+          { agent: role, runs: runs + 1 },
+        ];
+        if (!term.finishedRoles.includes(role)) next.finishedRoles = [...term.finishedRoles, role];
+      }
       break;
     }
     case "handoff":
@@ -488,6 +531,25 @@ export function applyStep(term: TermState, step: Step): TermState {
     clears: term.stage.clears,
   });
   return next;
+}
+
+function bareRole(agent: string): string {
+  return agent.replace(/^graft:/, "");
+}
+
+export function roleRows(term: TermState): RoleRow[] {
+  const rows = new Map<string, RoleRow>();
+  for (const agent of term.agents) {
+    if (agent.done) continue;
+    const role = bareRole(agent.agent);
+    const run = { id: agent.id, description: agent.description };
+    const row = rows.get(role);
+    if (row) {
+      row.runs.unshift(run);
+      row.again = agent.again === true;
+    } else rows.set(role, { agent: role, runs: [run], again: agent.again === true });
+  }
+  return [...rows.values()];
 }
 
 export function replay(steps: Step[], position: number, repo?: Repo): TermState {
@@ -827,7 +889,7 @@ export function finale(
         questions += event.questions.length;
         break;
       case "agent.start": {
-        const role = event.agent.replace(/^graft:/, "");
+        const role = bareRole(event.agent);
         tally.roles.set(role, (tally.roles.get(role) ?? 0) + 1);
         agents++;
         break;
