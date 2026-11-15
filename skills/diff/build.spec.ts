@@ -2991,6 +2991,258 @@ describe("template", () => {
     });
   });
 
+  describe("filters the file list", () => {
+    const pathMatches = new Function(
+      `${templateSource("function pathMatches(")}\nreturn pathMatches;`,
+    )();
+
+    it("matches a case-insensitive substring and treats an empty query as a match", () => {
+      expect(pathMatches("src/Auth/Login.ts", "auth/log")).toBe(true);
+      expect(pathMatches("src/auth/login.ts", "LOGIN")).toBe(true);
+      expect(pathMatches("src/auth/login.ts", "")).toBe(true);
+      expect(pathMatches("src/auth/login.ts", "  ")).toBe(true);
+      expect(pathMatches("src/auth/login.ts", "logout")).toBe(false);
+    });
+
+    it("matches the first letters of consecutive words split at camelCase", () => {
+      expect(pathMatches("src/transactionalDbQuery.ts", "tdq")).toBe(true);
+      expect(pathMatches("src/transactionalDbQuery.ts", "dqt")).toBe(true);
+      expect(pathMatches("src/transactionalDbQuery.ts", "TDQ")).toBe(true);
+      expect(pathMatches("src/transactionalDbQuery.ts", "tq")).toBe(false);
+    });
+
+    it("starts a word at each digit run and after _, - and .", () => {
+      expect(pathMatches("lib/v2api/handler.go", "v2h")).toBe(true);
+      expect(pathMatches("lib/page10x/handler.go", "p1h")).toBe(true);
+      expect(pathMatches("lib/page10x/handler.go", "p0")).toBe(false);
+      expect(pathMatches("db/user_account-store.spec.ts", "uass")).toBe(true);
+      expect(pathMatches("db/user_account-store.spec.ts", "uas")).toBe(true);
+      expect(pathMatches("db/user_account-store.spec.ts", "usa")).toBe(false);
+    });
+
+    // The template's file list, pane filter, scroll pick and keys over the given files, whose
+    // sections' rects come from rects.
+    function filterPage(paths: string[], rects: (fi: number) => { top: number; bottom: number }) {
+      class Node {
+        children: Node[] = [];
+        className = "";
+        textContent: string | number = "";
+        id: string | number = "";
+        open = false;
+        listeners: Record<string, () => void> = {};
+        tagName: string;
+        constructor(tagName: string) {
+          this.tagName = tagName;
+        }
+        append(...nodes: (Node | string)[]) {
+          for (const node of nodes) if (typeof node !== "string") this.children.push(node);
+        }
+        replaceChildren(...nodes: Node[]) {
+          this.children = [];
+          this.append(...nodes);
+        }
+        setAttribute() {}
+        addEventListener(type: string, fn: () => void) {
+          this.listeners[type] = fn;
+        }
+        focus() {
+          calls.focused = true;
+        }
+      }
+      const calls = {
+        current: [] as number[],
+        stored: [] as [string, string | null][],
+        collapsed: [] as number[],
+        views: [] as [number, string][],
+        viewed: [] as number[],
+        focused: false,
+      };
+      const ids = ["files-total", "files-viewed", "file-list", "list-flat", "list-tree", "files"];
+      const nodes: Record<string, Node> = Object.fromEntries(
+        ids.map((id) => [id, new Node("div")]),
+      );
+      nodes.filter = new Node("input");
+      const saved: Record<string, string> = { "dir-closed:src": "1", "list-layout": "tree" };
+      let onKey: (e: unknown) => void = () => {};
+      const document = {
+        createElement: (tag: string) => new Node(tag),
+        addEventListener: (_type: string, fn: (e: unknown) => void) => (onKey = fn),
+      };
+      const sections = paths.map((_, fi) => ({
+        hidden: false,
+        getBoundingClientRect: () => rects(fi),
+      }));
+      const page = new Function(
+        "document",
+        "$",
+        "DIFF",
+        "load",
+        "store",
+        "sections",
+        "calls",
+        "isViewed",
+        "fileLink",
+        [
+          "let current = 0;",
+          "const noChanges = '';",
+          "const imgDialog = null;",
+          "const collapsed = new Set();",
+          "const wrap = true;",
+          "const setWrap = () => {};",
+          "const setCollapsed = (fi) => calls.collapsed.push(fi);",
+          "const setView = (fi, v) => calls.views.push([fi, v]);",
+          "const setViewed = (fi) => calls.viewed.push(fi);",
+          "const setCurrent = (fi) => calls.current.push((current = fi));",
+          templateSource("const el = "),
+          templateSource("function pathMatches("),
+          templateSource("let filter = "),
+          templateSource("let paneFilter = "),
+          templateSource("const listed = "),
+          templateSource("function renderList("),
+          templateSource("const filterSection = "),
+          templateSource("function leaveHidden("),
+          templateSource("function scrolledTo("),
+          templateSource("function step("),
+          templateSource('document.addEventListener("keydown", (e) => {'),
+          `return {
+            renderList, leaveHidden, scrolledTo,
+            filter(text, pane) {
+              filter = text;
+              paneFilter = pane;
+              sections.forEach((_, fi) => filterSection(fi));
+            },
+            get current() { return current; },
+            set current(fi) { current = fi; },
+          };`,
+        ].join("\n"),
+      )(
+        document,
+        (id: string) => nodes[id],
+        { files: paths.map((path) => ({ path })), fileList: "flat" },
+        (key: string) => saved[key] ?? null,
+        (key: string, value: string | null) => calls.stored.push([key, value]),
+        sections,
+        calls,
+        () => false,
+        (_f: unknown, fi: number, label: string) =>
+          Object.assign(new Node("li"), { id: fi, textContent: label }),
+      );
+      const key = (k: string) =>
+        onKey({ key: k, target: { closest: () => null }, preventDefault() {} });
+      return { page, nodes, sections, calls, key };
+    }
+    const PATHS = ["docs/readme.md", "src/transactionalDbQuery.ts", "src/util.ts", "src/db.ts"];
+    const below = (fi: number) => ({ top: fi * 500, bottom: fi * 500 + 400 });
+
+    it("lists only matching files in a tree that leaves saved folder states alone", () => {
+      const { page, nodes, calls } = filterPage(PATHS, below);
+      const details = () =>
+        nodes["file-list"].children
+          .map((n) => n.children[0])
+          .find((d) => d?.children[0].textContent === "src")!;
+      page.renderList();
+      expect(nodes["files-total"].textContent).toBe(4);
+      expect(details().open).toBe(false);
+      page.filter("tdq", false);
+      page.renderList();
+      expect(nodes["files-total"].textContent).toBe("1 of 4");
+      expect(nodes["file-list"].children).toHaveLength(1);
+      expect(details().open).toBe(true);
+      expect(details().children[1].children.map((n) => n.textContent)).toEqual([
+        "transactionalDbQuery.ts",
+      ]);
+      details().listeners.toggle?.();
+      expect(calls.stored).toEqual([]);
+      page.filter("nothing", false);
+      page.renderList();
+      expect(nodes["file-list"].children.map((n) => n.textContent)).toEqual(["No files match."]);
+      page.filter("", false);
+      page.renderList();
+      expect(details().open).toBe(false);
+      details().listeners.toggle();
+      expect(calls.stored).toEqual([["dir-closed:src", "1"]]);
+    });
+
+    it("steps j and k over files the filter leaves out, with or without the pane filter", () => {
+      for (const pane of [false, true]) {
+        const { page, key } = filterPage(PATHS, below);
+        page.filter("db", pane);
+        page.current = 0;
+        key("j");
+        expect(page.current).toBe(1);
+        key("j");
+        expect(page.current).toBe(3);
+        key("j");
+        expect(page.current).toBe(3);
+        key("k");
+        expect(page.current).toBe(1);
+        key("k");
+        expect(page.current).toBe(1);
+      }
+    });
+
+    it("moves current off a file the pane filter hides, and only then", () => {
+      // Files 0 and 1 sit above the viewport; file 2 reaches into it.
+      const rects = (fi: number) => ({ top: fi * 500 - 1200, bottom: fi * 500 - 800 });
+      const { page, calls } = filterPage(PATHS, rects);
+      page.current = 1;
+      page.filter("util", false);
+      page.leaveHidden();
+      expect(calls.current).toEqual([]);
+      page.filter("db", true);
+      page.leaveHidden();
+      expect(calls.current).toEqual([]);
+      page.filter("util", true);
+      page.leaveHidden();
+      expect(page.current).toBe(2);
+      // With no visible file reaching the viewport, the last visible one above it.
+      page.current = 1;
+      page.filter("readme", true);
+      page.leaveHidden();
+      expect(page.current).toBe(0);
+    });
+
+    it("never picks a hidden section on scroll, even file 0 with the page at the top", () => {
+      const { page, sections } = filterPage(PATHS, below);
+      const rect = (fi: number, top: number) =>
+        (sections[fi].getBoundingClientRect = () => ({ top, bottom: top + 400 }));
+      page.filter("src/", true);
+      expect(page.scrolledTo(sections)).toBe(1);
+      sections.forEach((_, fi) => rect(fi, 0));
+      expect(page.scrolledTo(sections)).toBe(3);
+      sections[3].hidden = true;
+      expect(page.scrolledTo(sections)).toBe(2);
+      page.current = 2;
+      page.filter("nothing", true);
+      expect(page.scrolledTo(sections)).toBe(2);
+    });
+
+    it("leaves a file the pane filter hides alone on x, v, u and s", () => {
+      const { page, calls, key } = filterPage(PATHS, below);
+      page.filter("db", true);
+      page.current = 0;
+      for (const k of ["x", "v", "u", "s"]) key(k);
+      expect(calls).toMatchObject({ collapsed: [], viewed: [], views: [] });
+      page.current = 1;
+      for (const k of ["x", "v", "u", "s"]) key(k);
+      expect(calls).toMatchObject({
+        collapsed: [1],
+        viewed: [1],
+        views: [
+          [1, "unified"],
+          [1, "split"],
+        ],
+      });
+    });
+
+    it("opens the file list and focuses the filter on /", () => {
+      const { nodes, calls, key } = filterPage(PATHS, below);
+      key("/");
+      expect(nodes.files.open).toBe(true);
+      expect(calls.focused).toBe(true);
+    });
+  });
+
   describe("rebuilds a Markdown file's old source", () => {
     const oldSource = new Function(`${templateSource("function oldSource(")}\nreturn oldSource;`)();
     function rebuilt(dir: string, over: Partial<BuildInput> = {}): Map<string, string | null> {
