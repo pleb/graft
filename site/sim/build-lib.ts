@@ -1,13 +1,15 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import vm from "node:vm";
-import type { Event, Repo, Scenario } from "./events.ts";
+import type { Event, Repo, Scenario, Site } from "./events.ts";
 
 export class BuildError extends Error {}
 
 export type Loaded = { scenarios: Scenario[]; repo: Repo };
+
+export type PageData = Loaded & { site: Site };
 
 export type PlayerFile = { name: string; text: string };
 
@@ -31,6 +33,51 @@ export async function loadScenarios(dir: string): Promise<Loaded> {
   const repoPath = join(root, REPO_FILE);
   const repo = existsSync(repoPath) ? ((await defaultExport(repoPath)) as Repo) : EMPTY_REPO;
   return { scenarios, repo };
+}
+
+const UPSTREAM = "pleb/graft";
+const REPO_NAME = /^[\w.-]+\/[\w.-]+$/;
+const INSTALL_HEADING = "## Install";
+const INSTALL_PREFIX = "Claude, install Graft";
+
+// The install lines that name agent-install.md in `repo`: the public form, then the private one.
+export function installLines(repo: string): string[] {
+  return [
+    `${INSTALL_PREFIX} https://raw.githubusercontent.com/${repo}/main/agent-install.md`,
+    `${INSTALL_PREFIX} by reading agent-install.md from ${repo} with gh api -H "Accept: application/vnd.github.raw" repos/${repo}/contents/agent-install.md`,
+  ];
+}
+
+// The repo is `repo`, else the one INTERSTOCK-MODS.md's first line names, else pleb/graft.
+export function resolveSite(root: string, repo?: string): Site {
+  let resolved = repo;
+  const modsPath = join(root, "INTERSTOCK-MODS.md");
+  if (resolved === undefined && existsSync(modsPath)) {
+    const first = readFileSync(modsPath, "utf8").split("\n")[0];
+    resolved = first.match(/[\w.-]+\/[\w.-]+/)?.[0];
+    if (resolved === undefined)
+      throw new BuildError(`${modsPath}: the first line names no owner/repo`);
+  }
+  resolved ??= UPSTREAM;
+  if (!REPO_NAME.test(resolved)) throw new BuildError(`${resolved} is not an owner/repo`);
+
+  const lines = readFileSync(join(root, "README.md"), "utf8").split(/\r?\n/);
+  const start = lines.indexOf(INSTALL_HEADING);
+  if (start === -1) throw new BuildError(`README.md has no ${INSTALL_HEADING} section`);
+  const end = lines.findIndex((line, at) => at > start && line.startsWith("## "));
+  const found = lines
+    .slice(start + 1, end === -1 ? undefined : end)
+    .filter((line) => line.startsWith(INSTALL_PREFIX));
+  if (found.length !== 1)
+    throw new BuildError(
+      `README.md's ${INSTALL_HEADING} section holds ${found.length} lines starting "${INSTALL_PREFIX}", not 1`,
+    );
+  const installLine = found[0];
+  if (!installLines(resolved).includes(installLine))
+    throw new BuildError(
+      `README.md's install line does not name agent-install.md in ${resolved}: ${installLine}`,
+    );
+  return { repo: resolved, installLine };
 }
 
 type Indexed = { event: Event; index: number };
@@ -532,9 +579,9 @@ export function linkPlayer(files: PlayerFile[]): string {
   return `<script>\n${body}\n</script>`;
 }
 
-export function renderPage(template: string, loaded: Loaded, player: string): string {
+export function renderPage(template: string, data: PageData, player: string): string {
   const values: Record<string, string> = {
-    __SIM_DATA__: scriptJson(loaded),
+    __SIM_DATA__: scriptJson(data),
     __SIM_PLAYER__: player,
   };
   for (const placeholder of Object.keys(values))

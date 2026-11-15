@@ -71,3 +71,6 @@ export type Scenario = {
 
 // The default export of `<scenarios dir>/repo.ts`.
 export type Repo = { name: string; files: Record<string, string> };
+
+// The GitHub repo the page is built for and the install line from its README.
+export type Site = { repo: string; installLine: string };
