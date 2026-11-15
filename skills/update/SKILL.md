@@ -41,7 +41,9 @@ git -C <target> fetch upstream
 git -C <target> log --oneline HEAD..upstream/main
 ```
 
-With nothing new, say Graft is up to date and stop. If Sync pulled any commits and the target is `~/.my-graft`, first ask the user to run `/reload-plugins`.
+The target is an interstock when the registry is `INTERSTOCK-MODS.md`.
+
+With nothing new, say Graft is up to date, follow `## Offer the simulator` for an interstock, running the section outside `/graft:update`, and stop. If Sync pulled any commits and the target is `~/.my-graft`, first ask the user to run `/reload-plugins`.
 
 Otherwise, summarise the incoming changes in a few lines from the commit subjects and the files they change.
 
@@ -67,7 +69,7 @@ Merge Graft into the clone without committing.
 git -C <target> merge --no-ff --no-commit upstream/main
 ```
 
-Then mirror upstream's `site/`.
+When the registry is `MODS.md`, mirror upstream's `site/`.
 
 ```bash
 git -C <target> rm -rfq --ignore-unmatch -- site
@@ -79,9 +81,9 @@ Only when `git -C <target> cat-file -e upstream/main:site` succeeds, restore it 
 git -C <target> restore --source=upstream/main --staged --worktree -- site
 ```
 
-Merge, never rebase.
+In an interstock, `site/` merges under the mod rule below like any other file. Merge, never rebase.
 
-The target is an interstock when the registry is `INTERSTOCK-MODS.md`. For the rest of the update, follow `<target>/AGENTS.md` (paths relative to the clone) if it exists, resolving it first if it is conflicted. For an interstock, resolve a conflicted `<target>/interstock.md` next.
+For the rest of the update, follow `<target>/AGENTS.md` (paths relative to the clone) if it exists, resolving it first if it is conflicted. For an interstock, resolve a conflicted `<target>/interstock.md` next.
 
 For each conflicted file, list the mods that changed it.
 
@@ -105,6 +107,8 @@ This is safe because Sync required a clean tree. (`merge --abort` can refuse onc
 ## Interstock compliance
 
 Run this step for an interstock. When the merged clone has no `interstock.md`, skip it.
+
+Follow `## Offer the simulator`, running the section inside `/graft:update`. When its `GRAFT_SIMULATOR` read fails other than "was not found", keep `HEAD`'s simulator link line and ask the user.
 
 Make each property in step 3 of `<target>/interstock.md` true, reading `<dir>` as `<target>` and `<owner>/<repo>` as `<origin-repo>`. Never create the registry, commit or push here.
 
@@ -130,7 +134,7 @@ Run this step when the registry has at least one mod row. Stage everything.
 git -C <target> add -A
 ```
 
-Run `graft:reviewer` and `graft:adversarial-reviewer` in parallel, both on `common.reviewerModel`, else Opus. The target is the staged merge against upstream, with `<target>` by absolute path and the conflicted files named. The intent is the registry rows, the Merge decisions, and that upstream's incoming changes land intact. For an interstock, it also includes step 3 of the merged `interstock.md` and the compliance fixes. Tell the reviewers and the worker that `site/`, `npm run test:site` and type errors confined to `site/` are out of scope.
+Run `graft:reviewer` and `graft:adversarial-reviewer` in parallel, both on `common.reviewerModel`, else Opus. The target is the staged merge against upstream, with `<target>` by absolute path and the conflicted files named. The intent is the registry rows, the Merge decisions, and that upstream's incoming changes land intact. For an interstock, it also includes step 3 of the merged `interstock.md` and the compliance fixes. Unless the target is a publishing interstock (its `GRAFT_SIMULATOR` reads `publish`), tell the reviewers and the worker that `site/`, `npm run test:site` and type errors confined to `site/` are out of scope.
 
 ```bash
 git -C <target> diff --cached upstream/main
@@ -145,6 +149,14 @@ Check the marketplace, the plugin manifest, and every agent and skill.
 ```bash
 claude plugin validate --strict <target>
 ```
+
+For a publishing interstock, also check the simulator.
+
+```bash
+(cd <target> && npm ci && npm run test:site)
+```
+
+When Node 24 or `npm ci` is unavailable, say so and ask whether to go on.
 
 If it fails, fix what the merge broke, or ask the user. If the user chooses to stop, clear the clone as Merge says.
 
@@ -181,3 +193,18 @@ Then follow common.md's `## Publish the change` with the branch `graft/update-<Y
 - For a shared stock, the PR URL and that it needs merging with a merge commit, not squash or rebase. When no PR was raised, the branch, with the PR guidance above (the Graft line chosen and the items filled in) as the arguments to pass to `/graft:pr`.
 - When `## Personal clone` set the gh default, say so.
 - When the target is `~/.my-graft`, ask the user to run `/reload-plugins`.
+
+## Offer the simulator
+
+Run this only when a step says to. Read the repo's `GRAFT_SIMULATOR` and whether the user is a repo admin.
+
+```bash
+gh variable get GRAFT_SIMULATOR -R <origin-repo>
+gh api repos/<origin-repo> --jq .permissions.admin
+```
+
+A read that says it "was not found" means unset. When the variable is unset, the admin read prints `true`, and `<target>/interstock.md` has `## Publish the simulator`, offer to follow that section, reading `<dir>` as `<target>` and `<owner>/<repo>` as `<origin-repo>`. The decline answers are **Not now**, which leaves the variable unset, and **Never**, which records the decline.
+
+```bash
+gh variable set GRAFT_SIMULATOR --body declined -R <origin-repo>
+```

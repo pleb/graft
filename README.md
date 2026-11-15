@@ -90,7 +90,7 @@ An interstock (in horticulture, the middle piece of a double graft) is an organi
 Claude, install Graft https://raw.githubusercontent.com/pleb/graft/main/interstock.md
 ```
 
-Colleagues then install with the command in the interstock repo's README.
+Colleagues then install with the command in the interstock repo's README. Creation offers to publish the simulator to the interstock's GitHub Pages, a caretaker can follow `interstock.md`'s Publish the simulator section later, and mods then keep its scenarios current.
 
 A caretaker keeps the interstock current by running `/graft:update` and `/graft:modify` in a clone of its repo. There, and in a clone of `pleb/graft`, both commands raise a PR to merge instead of pushing to `main` as they do in your own copy. `/graft:update` also keeps the interstock in line with `interstock.md`.
 
