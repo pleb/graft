@@ -1974,13 +1974,26 @@
     });
     reportPins();
   }
-  // Updates the comment icons of the files that hold any of these comment ids.
+  // Updates the comment icons of the files that hold any of these comment ids. A newly open line
+  // in a closed context gap has no row, so its file re-renders to open the gap, keeping the scroll.
   function markFiles(ids) {
     const list = [...ids];
     DIFF.files.forEach((f, fi) => {
-      if (list.some((id) => id.startsWith(f.id + "-"))) markFile(fi);
+      const own = list.filter((id) => id.startsWith(f.id + "-"));
+      if (!own.length) return;
+      if (!own.some((id) => known.has(id) && inClosedGap(f, id))) return markFile(fi);
+      const y = window.scrollY;
+      renderFile(sections[fi], fi);
+      window.scrollTo(window.scrollX, y);
     });
     reportPins();
+  }
+  function inClosedGap(f, id) {
+    const m = /^(f-[A-Za-z0-9_]*)-(old|new)-(\d+)$/.exec(id);
+    if (!m || m[1] !== f.id || !f.hunks || targetFor("#" + id)) return false;
+    if (!["unified", "split"].includes(fileView(f))) return false;
+    const col = m[2] === "old" ? 1 : 2;
+    return (gapsOf(f) || []).some((g) => g.lines.some((l) => l[col] === +m[3]));
   }
   function loadFile(fi) {
     const f = DIFF.files[fi];

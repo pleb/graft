@@ -2344,7 +2344,7 @@ function unifiedRenderer(known: Set<string>) {
     templateSource("function gapRows("),
     templateSource("function expandRow("),
     templateSource("function renderUnified("),
-    "return { renderUnified, gapState, markFile };",
+    "return { renderUnified, gapState, gapsOf, markFile };",
   ].join("\n");
   const document = { createElement: (tag: string) => new FakeElement(tag) };
   return new Function("document", "known", "comments", "targets", "marks", "ICON", source)(
@@ -2482,29 +2482,94 @@ describe("template", () => {
     expect(icons(block)).toBe(1);
   });
 
-  it("updates icons after a threads change without re-rendering the file, which reset the page's scroll", () => {
-    const marked: number[] = [];
-    let pins = 0;
+  // The template's markFiles, with a page scrolled to y = 500.
+  function iconUpdater(deps: { known: Set<string>; targetFor: () => unknown; gaps: unknown }) {
+    const calls = {
+      marked: [] as number[],
+      rendered: [] as number[],
+      scrolled: [] as number[],
+      pins: 0,
+    };
+    const window = {
+      scrollX: 0,
+      scrollY: 500,
+      scrollTo: (_x: number, y: number) => calls.scrolled.push(y),
+    };
     const markFiles = new Function(
       "DIFF",
+      "known",
       "markFile",
       "renderFile",
       "reportPins",
-      `${templateSource("function markFiles(")}\nreturn markFiles;`,
+      "sections",
+      "targetFor",
+      "fileView",
+      "gapsOf",
+      "window",
+      [
+        templateSource("function markFiles("),
+        templateSource("function inClosedGap("),
+        "return markFiles;",
+      ].join("\n"),
     )(
-      { files: [{ id: "f-a" }, { id: "f-b" }] },
-      (fi: number) => marked.push(fi),
-      () => {
-        throw new Error("re-rendered");
+      {
+        files: [
+          { id: "f-a", hunks: [] },
+          { id: "f-b", hunks: [] },
+        ],
       },
-      () => pins++,
+      deps.known,
+      (fi: number) => calls.marked.push(fi),
+      (_section: unknown, fi: number) => {
+        calls.rendered.push(fi);
+        window.scrollY = 0;
+      },
+      () => calls.pins++,
+      [{}, {}],
+      deps.targetFor,
+      () => "unified",
+      () => deps.gaps,
+      window,
     );
+    return { markFiles, calls };
+  }
+
+  it("updates icons after a threads change without re-rendering the file, which reset the page's scroll", () => {
+    const known = new Set(["f-b-new-1"]);
+    const gaps = [{ at: 0, lines: [[" ", 1, 1, "x"]] }];
+    const { markFiles, calls } = iconUpdater({ known, targetFor: () => ({}), gaps });
     markFiles(["f-b-new-1"]);
-    expect(marked).toEqual([1]);
-    expect(pins).toBe(1);
+    expect(calls).toEqual({ marked: [1], rendered: [], scrolled: [], pins: 1 });
     const handler = /threads\(list\) \{[\s\S]*?\n {8}\},/.exec(TEMPLATE)![0];
     expect(handler).toContain("markFiles(changed)");
     expect(handler).not.toContain("renderFile");
+  });
+
+  it("re-renders a file to open the closed gap that holds a line a threads change opened, keeping the scroll", () => {
+    const base = lines("line", 100);
+    const next = base.replace("line 50\n", "fifty\n");
+    const file = { id: "f-a", path: "a", hunks: hunksOf(base, next), content: next };
+    const known = new Set<string>();
+    const { renderUnified, gapsOf } = unifiedRenderer(known);
+    const ids = () => {
+      const table = new FakeElement("table");
+      renderUnified(file, 0, table);
+      return table.children.map((row) => row.id);
+    };
+    expect(ids()).not.toContain("f-a-new-10");
+    known.add("f-a-new-10");
+    const { markFiles, calls } = iconUpdater({ known, targetFor: () => null, gaps: gapsOf(file) });
+    markFiles(["f-a-new-10"]);
+    expect(calls).toEqual({ marked: [], rendered: [0], scrolled: [500], pins: 1 });
+    expect(ids()).toContain("f-a-new-10");
+
+    // A resolved line, or one outside every gap, keeps the in-place update.
+    known.delete("f-a-new-10");
+    markFiles(["f-a-new-10"]);
+    known.add("f-a-new-50");
+    markFiles(["f-a-new-50"]);
+    expect(calls.marked).toEqual([0, 0]);
+    expect(calls.rendered).toEqual([0]);
   });
 
   it("comments only on registered cells, past data-side markup from rendered Markdown", () => {
