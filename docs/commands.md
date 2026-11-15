@@ -35,7 +35,7 @@ Your clone is `~/.my-graft`, the local copy of your private `my-graft` repo that
 
 `[issues]` takes GitHub issues as `#N`, `owner/repo#N` or an issue URL. Graft reads each one and links it as Resolves (the work closes it) or Related (linked only). A pull request raised later carries a `Resolves` line for each open Resolves issue.
 
-`[reviewer model]` picks the model for the reviewer agents: `fable`, `opus` or `sonnet`. Without one, Graft uses [`common.reviewerModel`](./settings.md#settings), which defaults to `opus`.
+`[reviewer model]` picks the model for the reviewer agents: `fable`, `opus` or `sonnet`. Without one, Graft uses [`common.reviewerModel`](./settings.md#commonreviewermodel), which defaults to `opus`.
 
 ## /graft:research
 
@@ -97,7 +97,7 @@ Runs `/graft:execute` and makes the calls you would usually make, asking only wh
 /graft:diff [mode: batch (default) | auto]
 ```
 
-Publishes the current branch's changes against the default branch, uncommitted ones included, as a private claude.ai artifact you can comment on line by line. It needs the claude.ai Artifact tools in Claude Code. Send each comment to Claude from the page; plain comments do not reach the session. In `batch` mode, Claude replies in each thread and changes code only when you reply with a go-ahead or press Finish review. In `auto` mode, it applies each comment as it arrives. [`diff.comments`](./settings.md#settings) sets the default mode.
+Publishes the current branch's changes against the default branch, uncommitted ones included, as a private claude.ai artifact you can comment on line by line. It needs the claude.ai Artifact tools in Claude Code. Send each comment to Claude from the page; plain comments do not reach the session. In `batch` mode, Claude replies in each thread and changes code only when you reply with a go-ahead or press Finish review. In `auto` mode, it applies each comment as it arrives. [`diff.comments`](./settings.md#diffcomments) sets the default mode.
 
 ## /graft:pr
 
@@ -105,7 +105,7 @@ Publishes the current branch's changes against the default branch, uncommitted o
 /graft:pr [guidance] [state: draft (default) | ready-state (pr.state: ready)]
 ```
 
-Pushes the branch and opens a pull request, following the repo's PR template when it has one. A new PR opens in the state the arguments name, else in the state [`pr.state`](./settings.md#settings) sets (draft by default). When the branch already has a PR, Graft rewrites its title and body instead, and changes its state only when the arguments name one. It stops if the working tree has uncommitted changes. Anything else you write is guidance for the description.
+Pushes the branch and opens a pull request, following the repo's PR template when it has one. A new PR opens in the state the arguments name, else in the state [`pr.state`](./settings.md#prstate) sets (draft by default). When the branch already has a PR, Graft rewrites its title and body instead, and changes its state only when the arguments name one. It stops if the working tree has uncommitted changes. Anything else you write is guidance for the description.
 
 ## /graft:review
 
@@ -121,7 +121,7 @@ Gets two reviews of a change, one from a reviewer looking for bugs and one from 
 /graft:update [mode: ask (default) | auto]
 ```
 
-Merges the latest Graft from upstream (the repo your clone takes updates from: `pleb/graft`, or your organisation's [interstock](../README.md#interstocks), its shared copy of Graft) into your clone, keeping your mods. A mod is a change you made to your clone with `/graft:modify`. In `ask` mode it lists what is new and asks before merging; [`update.mode`](./settings.md#settings) sets the default. When a conflict touches a mod, Graft resolves it so the mod's recorded intent still holds, and asks when it cannot. When you have mods, a reviewer and an adversarial reviewer check the merge before it is committed. The merge is pushed to your `my-graft` repo, or raised as a PR when you run it in a clone of an interstock or of `pleb/graft`. It needs Claude Code 2.1.273 or later.
+Merges the latest Graft from upstream (the repo your clone takes updates from: `pleb/graft`, or your organisation's [interstock](../README.md#interstocks), its shared copy of Graft) into your clone, keeping your mods. A mod is a change you made to your clone with `/graft:modify`. In `ask` mode it lists what is new and asks before merging; [`update.mode`](./settings.md#updatemode) sets the default. When a conflict touches a mod, Graft resolves it so the mod's recorded intent still holds, and asks when it cannot. When you have mods, a reviewer and an adversarial reviewer check the merge before it is committed. The merge is pushed to your `my-graft` repo, or raised as a PR when you run it in a clone of an interstock or of `pleb/graft`. It needs Claude Code 2.1.273 or later.
 
 ## /graft:modify
 

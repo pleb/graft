@@ -61,7 +61,7 @@ Describe a mod in plain words, such as `/graft:modify when a plan touches a data
 
 `/graft:update` merges new Graft into your clone from its upstream, the repo it takes updates from: `pleb/graft`, or your organisation's [interstock](#interstocks) (a shared copy of Graft). When a conflict touches a mod, Graft resolves it so the mod still does what you recorded, and asks when it can't. `/graft:modify` and `/graft:update` need Claude Code 2.1.273 or later.
 
-At the start of a session, Graft tells you when your clone is behind its upstream and suggests `/graft:update`. The check only reads from upstream; it never fetches into or changes your clone. [Update notices](./docs/settings.md#update-notices) covers how often it looks and how to quiet it.
+At the start of a session, Graft tells you when your clone is behind its upstream and suggests `/graft:update`. The check only reads from upstream; it never fetches into or changes your clone. [Update notices](./docs/settings.md#updatenotify) covers how often it looks and how to quiet it.
 
 `/graft:uninstall` removes the plugin and deletes `~/.my-graft`, but first shows you what is uncommitted there and asks. Your `my-graft` repo on GitHub stays.
 
