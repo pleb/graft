@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { parseCatalog } from "./settings-catalog.ts";
+import { parseCatalog, parseSettingsPage } from "./settings-catalog.ts";
 
 const TABLE = `## Settings
 
@@ -194,18 +194,6 @@ describe("parseCatalog", () => {
     });
   });
 
-  it("with isDefaultListed, reads a row that lists its default and refuses one that does not", () => {
-    const listed = TABLE.replace("`never`", "`never`, `ask`");
-    expect(parseCatalog(listed, { isDefaultListed: true })).toMatchObject({
-      isParsed: true,
-      settings: [{ values: ["always", "never", "ask"], defaultValue: "ask" }],
-    });
-    expect(parseCatalog(TABLE, { isDefaultListed: true })).toMatchObject({
-      isParsed: false,
-      error: expect.stringContaining("the default is not listed"),
-    });
-  });
-
   describe("text", () => {
     const TEXT = TABLE.replace(
       "| Does one.    |\n",
@@ -237,14 +225,6 @@ describe("parseCatalog", () => {
       });
       expect(parseCatalog(TEXT.replace("| text |", "| text, `a` |"))).toMatchObject({
         isParsed: false,
-      });
-    });
-
-    it("with isDefaultListed, reads a text row without listing its default", () => {
-      const listed = TEXT.replace("`never`", "`never`, `ask`");
-      expect(parseCatalog(listed, { isDefaultListed: true })).toMatchObject({
-        isParsed: true,
-        settings: [{}, { key: "b.two", values: [], isText: true }],
       });
     });
 
@@ -319,32 +299,178 @@ describe("parseCatalog", () => {
       },
     );
   });
+});
 
-  it("matches the README's settings table to common.md", () => {
+const PAGE = `# Settings
+
+Intro with a bullet:
+
+- not a setting.
+
+## First
+
+Prose before the section's first entry.
+
+### \`a.one\`
+
+Does one. Over two lines.
+
+- \`ask\` (default)
+- \`always\`: always does it.
+- \`never\`
+
+Prose after the bullets.
+
+### \`b.two\`
+
+Names it. Applies only when \`a.one\` is \`never\`.
+
+- Any text (default: \`Other model\`)
+
+## After
+
+- not a setting either.
+`;
+
+describe("parseSettingsPage", () => {
+  it("reads text, bare and free-text bullets, a condition, and ignores prose around entries", () => {
+    expect(parseSettingsPage(PAGE)).toEqual([
+      {
+        key: "a.one",
+        skill: "a",
+        name: "one",
+        values: ["always", "never"],
+        defaultValue: "ask",
+        description: "Does one. Over two lines.",
+      },
+      {
+        key: "b.two",
+        skill: "b",
+        name: "two",
+        values: [],
+        isText: true,
+        defaultValue: "Other model",
+        description: "Names it.",
+        shownWhen: { key: "a.one", value: "never" },
+      },
+    ]);
+  });
+
+  it("reads a condition sentence that wraps across lines", () => {
+    expect(
+      parseSettingsPage(
+        PAGE.replace("Names it. Applies only when", "Names it.\nApplies only\nwhen"),
+      ).map(({ description, shownWhen }) => ({ description, shownWhen }))[1],
+    ).toEqual({ description: "Names it.", shownWhen: { key: "a.one", value: "never" } });
+  });
+
+  it("reads a condition on the default", () => {
+    expect(
+      parseSettingsPage(PAGE.replace("is `never`.", "is `ask`.")).map(({ shownWhen }) => shownWhen),
+    ).toEqual([undefined, { key: "a.one", value: "ask" }]);
+  });
+
+  it.each([
+    ["an unreadable heading", "### `a.one`", "### a.one", "cannot read the heading"],
+    ["an unreadable bullet", "- `never`\n", "- never\n", "cannot read the bullet"],
+    ["a comma-list bullet", "- `never`\n", "- `never`, `x`\n", "cannot read the bullet"],
+    ["a bullet after the prose", "Prose after the bullets.", "- x", "cannot read the bullet"],
+    [
+      "a second free-text bullet",
+      "`Other model`)\n",
+      "`Other model`)\n- Any text (default: `x`)\n",
+      "cannot read the bullet",
+    ],
+    ["free text with a value", "`Other model`)\n", "`Other model`)\n- `x`\n", "mixes free text"],
+    [
+      "a condition not last in the summary",
+      "is `never`.",
+      "is `never`. Then more.",
+      "cannot read the condition",
+    ],
+    [
+      "a condition in another wording",
+      "Applies only when",
+      "Applies when",
+      "cannot read the condition",
+    ],
+    [
+      "a condition after the bullets",
+      "Prose after the bullets.",
+      "Applies only when `b.two` is `x`.",
+      "cannot read the condition",
+    ],
+    ["a missing summary", "Does one. Over two lines.\n\n", "", "has no summary"],
+    [
+      "a summary that runs into the bullets",
+      "Over two lines.\n\n",
+      "Over two lines.\n",
+      "runs into the bullets",
+    ],
+    [
+      "a wrapped condition after the bullets",
+      "Prose after the bullets.",
+      "Applies only\nwhen `b.two` is `x`.",
+      "cannot read the condition in a.one: Applies only when `b.two` is `x`.",
+    ],
+    [
+      "an indented continuation of a bullet",
+      "- `ask` (default)\n",
+      "- `ask`\n  (default)\n",
+      "a bullet continues onto the next line",
+    ],
+    [
+      "a continued comma list",
+      "- `never`\n",
+      "- `never`,\n  `x`\n",
+      "a bullet continues onto the next line",
+    ],
+    [
+      "a continued free-text bullet",
+      "`Other model`)\n",
+      "`Other model`)\n  and more\n",
+      "a bullet continues onto the next line",
+    ],
+    ["a duplicate key", "### `b.two`", "### `a.one`", "the key is listed twice"],
+    ["a duplicate value", "- `never`\n", "- `always`\n", "a value is listed twice"],
+    ["a default listed as a value", "- `never`\n", "- `ask`\n", "a value is listed twice"],
+    ["no default", "- `ask` (default)\n", "", "exactly one default"],
+    ["two defaults", "- `never`\n", "- `never` (default)\n", "exactly one default"],
+    ["a condition on an unknown key", "`a.one` is", "`c.three` is", "unknown key"],
+    [
+      "a condition on a value the key cannot take",
+      "is `never`.",
+      "is `sometimes`.",
+      "which it cannot be",
+    ],
+  ])("refuses %s", (_, from, to, error) => {
+    expect(PAGE).toContain(from);
+    expect(() => parseSettingsPage(PAGE.replace(from, to))).toThrow(error);
+  });
+
+  it("refuses a page with no settings", () => {
+    expect(() => parseSettingsPage("# Settings\n")).toThrow("no settings");
+  });
+
+  it("matches docs/settings.md to common.md", () => {
     const common = parseCatalog(readFileSync(new URL("./common.md", import.meta.url), "utf8"));
-    const readme = parseCatalog(readFileSync(new URL("../README.md", import.meta.url), "utf8"), {
-      isDefaultListed: true,
-    });
+    const docs = parseSettingsPage(
+      readFileSync(new URL("../docs/settings.md", import.meta.url), "utf8"),
+    );
 
     expect(common).toMatchObject({ isParsed: true });
-    expect(readme).toMatchObject({ isParsed: true });
-    if (!common.isParsed || !readme.isParsed) {
+    if (!common.isParsed) {
       return;
     }
-    expect(readme.settings.map(({ key, defaultValue }) => ({ key, defaultValue }))).toEqual(
-      common.settings.map(({ key, defaultValue }) => ({ key, defaultValue })),
+    expect(new Set(docs.map(({ key }) => key))).toEqual(
+      new Set(common.settings.map(({ key }) => key)),
     );
-    expect(readme.settings.map(({ shownWhen }) => shownWhen)).toEqual(
-      common.settings.map(({ shownWhen }) => shownWhen),
-    );
-    readme.settings.forEach((setting, i) => {
-      const expected = common.settings[i]!;
-      expect(setting.isText, setting.key).toBe(expected.isText);
-      if (!expected.isText) {
-        expect(new Set(setting.values), setting.key).toEqual(
-          new Set([...expected.values, expected.defaultValue]),
-        );
-      }
-    });
+    for (const expected of common.settings) {
+      const setting = docs.find(({ key }) => key === expected.key)!;
+      expect(setting.defaultValue, expected.key).toBe(expected.defaultValue);
+      expect(new Set(setting.values), expected.key).toEqual(new Set(expected.values));
+      expect(setting.isText, expected.key).toBe(expected.isText);
+      expect(setting.shownWhen, expected.key).toEqual(expected.shownWhen);
+    }
   });
 });
