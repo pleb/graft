@@ -2286,14 +2286,24 @@ class FakeElement {
   colSpan = 1;
   style = { setProperty() {} };
   tagName: string;
+  parent: FakeElement | null = null;
   constructor(tagName: string) {
     this.tagName = tagName;
   }
   append(...nodes: (FakeElement | string)[]) {
-    for (const node of nodes) if (typeof node !== "string") this.children.push(node);
+    for (const node of nodes) {
+      if (typeof node === "string") continue;
+      node.parent = this;
+      this.children.push(node);
+    }
   }
   prepend(node: FakeElement) {
+    node.parent = this;
     this.children.unshift(node);
+  }
+  remove() {
+    this.parent?.children.splice(this.parent.children.indexOf(this), 1);
+    this.parent = null;
   }
   setAttribute() {}
   addEventListener() {}
@@ -2308,7 +2318,7 @@ function templateSource(start: string): string {
   return TEMPLATE.slice(from, TEMPLATE.indexOf("\n  }", from) + 5);
 }
 
-// The template's unified rendering, with the given open thread ids.
+// The template's unified rendering and comment icon marking, with the given open thread ids.
 function unifiedRenderer(known: Set<string>) {
   const source = [
     templateSource("const el = "),
@@ -2316,6 +2326,8 @@ function unifiedRenderer(known: Set<string>) {
     templateSource("const td = "),
     templateSource("const onComment = "),
     templateSource("function commentIcon("),
+    templateSource("function mark("),
+    templateSource("function markFile("),
     templateSource("function hunkRow("),
     templateSource("function colgroup("),
     templateSource("function addTarget("),
@@ -2332,17 +2344,21 @@ function unifiedRenderer(known: Set<string>) {
     templateSource("function gapRows("),
     templateSource("function expandRow("),
     templateSource("function renderUnified("),
-    "return { renderUnified, gapState };",
+    "return { renderUnified, gapState, gapsOf, markFile };",
   ].join("\n");
   const document = { createElement: (tag: string) => new FakeElement(tag) };
-  return new Function("document", "known", "comments", "targets", "ICON", source)(
+  return new Function("document", "known", "comments", "targets", "marks", "ICON", source)(
     document,
     known,
     {},
     [{ old: [], new: [] }],
+    [new Map()],
     "",
   );
 }
+
+const icons = (node: FakeElement) =>
+  node.children.filter((child) => child.className === "cicon").length;
 
 // A file's hunks from git's diff of two texts, with the default three lines of context.
 function hunksOf(base: string, next: string) {
@@ -2358,11 +2374,12 @@ function hunksOf(base: string, next: string) {
 describe("template", () => {
   it("marks a hunk row by its new start line and a unified context row by its old-side id", () => {
     const known = new Set(["f-a-old-3", "f-a-hunk-5"]);
-    const { renderUnified } = unifiedRenderer(known);
+    const { renderUnified, markFile } = unifiedRenderer(known);
     const table = new FakeElement("table");
     const header = "@@ -3 +5 @@ context";
     const file = { id: "f-a", path: "a", hunks: [{ header, lines: [[" ", 3, 5, "x"]] }] };
     renderUnified(file, 0, table);
+    markFile(0);
     const hunk = table.children[1];
     expect(hunk.id).toBe("f-a-hunk-5");
     expect(hunk.children[0].children.map((child) => child.className)).toEqual(["cicon"]);
@@ -2370,6 +2387,278 @@ describe("template", () => {
     expect(row.id).toBe("f-a-new-5");
     expect(row.dataset.alt).toBe("f-a-old-3");
     expect(row.children[1].children.map((child) => child.className)).toContain("cicon");
+  });
+
+  it("keeps a unified context row's icon while either its old or new id is open", () => {
+    const known = new Set(["f-a-old-3", "f-a-new-5"]);
+    const { renderUnified, markFile } = unifiedRenderer(known);
+    const table = new FakeElement("table");
+    const file = {
+      id: "f-a",
+      path: "a",
+      hunks: [{ header: "@@ -3 +5 @@", lines: [[" ", 3, 5, "x"]] }],
+    };
+    renderUnified(file, 0, table);
+    markFile(0);
+    const row = table.children[2];
+    const gutter = row.children[1];
+    expect(icons(gutter)).toBe(1);
+    known.delete("f-a-new-5");
+    markFile(0);
+    expect(icons(gutter)).toBe(1);
+    known.add("f-a-new-5");
+    known.delete("f-a-old-3");
+    markFile(0);
+    expect(icons(gutter)).toBe(1);
+    known.delete("f-a-new-5");
+    markFile(0);
+    expect(icons(gutter)).toBe(0);
+    expect(table.children[2]).toBe(row);
+  });
+
+  it("marks a unified context row whose only open id is its old-side data-alt", () => {
+    const known = new Set<string>();
+    const { renderUnified, markFile } = unifiedRenderer(known);
+    const table = new FakeElement("table");
+    const file = {
+      id: "f-a",
+      path: "a",
+      hunks: [{ header: "@@ -3 +5 @@", lines: [[" ", 3, 5, "x"]] }],
+    };
+    renderUnified(file, 0, table);
+    markFile(0);
+    const gutter = table.children[2].children[1];
+    expect(icons(gutter)).toBe(0);
+    known.add("f-a-old-3");
+    markFile(0);
+    expect(icons(gutter)).toBe(1);
+    expect(icons(table.children[1].children[0])).toBe(0);
+    known.add("f-a-hunk-5");
+    markFile(0);
+    expect(icons(table.children[1].children[0])).toBe(1);
+  });
+
+  it("keeps a Markdown block's icon until no line in it has an open thread", () => {
+    const known = new Set(["f-a-new-4", "f-a-new-5"]);
+    const block = new FakeElement("div");
+    const { renderMarkdown, markFile } = new Function(
+      "document",
+      "known",
+      "comments",
+      "targets",
+      "marks",
+      "ICON",
+      "mdBlocks",
+      [
+        templateSource("const lineId = "),
+        templateSource("function commentIcon("),
+        templateSource("function mark("),
+        templateSource("function markFile("),
+        templateSource("function addTarget("),
+        templateSource("function renderMarkdown("),
+        "return { renderMarkdown, markFile };",
+      ].join("\n"),
+    )(
+      { createElement: (tag: string) => new FakeElement(tag) },
+      known,
+      {},
+      [{ old: [], new: [] }],
+      [new Map()],
+      "",
+      () => [{ node: block, start: 3, end: 5, raw: "a\nb\nc\n" }],
+    );
+    renderMarkdown({ id: "f-a", path: "a.md", hunks: [], content: "" }, 0, new FakeElement("div"));
+    markFile(0);
+    expect(block.id).toBe("f-a-new-3");
+    expect(icons(block)).toBe(1);
+    known.delete("f-a-new-4");
+    markFile(0);
+    expect(icons(block)).toBe(1);
+    known.delete("f-a-new-5");
+    markFile(0);
+    expect(icons(block)).toBe(0);
+    known.add("f-a-new-3");
+    markFile(0);
+    expect(icons(block)).toBe(1);
+  });
+
+  // The template's markFiles, with a page scrolled to y = 500.
+  function iconUpdater(deps: { known: Set<string>; targetFor: () => unknown; gaps: unknown }) {
+    const calls = {
+      marked: [] as number[],
+      rendered: [] as number[],
+      scrolled: [] as number[],
+      pins: 0,
+    };
+    const window = {
+      scrollX: 0,
+      scrollY: 500,
+      // An instant scroll, since a smooth one would run the page's scroll handler as it animates.
+      scrollTo: (options: ScrollToOptions) => {
+        expect(options.behavior).toBe("instant");
+        calls.scrolled.push(options.top!);
+      },
+    };
+    const markFiles = new Function(
+      "DIFF",
+      "known",
+      "markFile",
+      "renderFile",
+      "reportPins",
+      "sections",
+      "targetFor",
+      "fileView",
+      "gapsOf",
+      "window",
+      [
+        templateSource("function markFiles("),
+        templateSource("function inClosedGap("),
+        "return markFiles;",
+      ].join("\n"),
+    )(
+      {
+        files: [
+          { id: "f-a", hunks: [] },
+          { id: "f-b", hunks: [] },
+        ],
+      },
+      deps.known,
+      (fi: number) => calls.marked.push(fi),
+      (_section: unknown, fi: number) => {
+        calls.rendered.push(fi);
+        window.scrollY = 0;
+      },
+      () => calls.pins++,
+      [{}, {}],
+      deps.targetFor,
+      () => "unified",
+      () => deps.gaps,
+      window,
+    );
+    return { markFiles, calls };
+  }
+
+  it("updates icons after a threads change without re-rendering the file, which reset the page's scroll", () => {
+    const known = new Set(["f-b-new-1"]);
+    const gaps = [{ at: 0, lines: [[" ", 1, 1, "x"]] }];
+    const { markFiles, calls } = iconUpdater({ known, targetFor: () => ({}), gaps });
+    markFiles(["f-b-new-1"]);
+    expect(calls).toEqual({ marked: [1], rendered: [], scrolled: [], pins: 1 });
+    const handler = /threads\(list\) \{[\s\S]*?\n {8}\},/.exec(TEMPLATE)![0];
+    expect(handler).toContain("markFiles(changed)");
+    expect(handler).not.toContain("renderFile");
+  });
+
+  it("re-renders a file to open the closed gap that holds a line a threads change opened, keeping the scroll", () => {
+    const base = lines("line", 100);
+    const next = base.replace("line 50\n", "fifty\n");
+    const file = { id: "f-a", path: "a", hunks: hunksOf(base, next), content: next };
+    const known = new Set<string>();
+    const { renderUnified, gapsOf } = unifiedRenderer(known);
+    const ids = () => {
+      const table = new FakeElement("table");
+      renderUnified(file, 0, table);
+      return table.children.map((row) => row.id);
+    };
+    expect(ids()).not.toContain("f-a-new-10");
+    known.add("f-a-new-10");
+    const { markFiles, calls } = iconUpdater({ known, targetFor: () => null, gaps: gapsOf(file) });
+    markFiles(["f-a-new-10"]);
+    expect(calls).toEqual({ marked: [], rendered: [0], scrolled: [500], pins: 1 });
+    expect(ids()).toContain("f-a-new-10");
+
+    // A resolved line, or one outside every gap, keeps the in-place update.
+    known.delete("f-a-new-10");
+    markFiles(["f-a-new-10"]);
+    known.add("f-a-new-50");
+    markFiles(["f-a-new-50"]);
+    expect(calls.marked).toEqual([0, 0]);
+    expect(calls.rendered).toEqual([0]);
+  });
+
+  // The template's file list filter handlers, with files a, b and c, b current and a filter matching only c.
+  function fileFilter() {
+    const calls: string[] = [];
+    const handlers: Record<string, (e?: unknown) => void> = {};
+    const input = {
+      value: "c",
+      blur: () => calls.push("blur"),
+      addEventListener: (type: string, fn: (e?: unknown) => void) =>
+        (handlers["filter " + type] = fn),
+    };
+    const $ = (id: string) =>
+      id === "filter"
+        ? input
+        : { addEventListener: (type: string, fn: () => void) => (handlers[id + " " + type] = fn) };
+    new Function(
+      "$",
+      "DIFF",
+      "renderList",
+      "sections",
+      "filterSection",
+      "leaveHidden",
+      "followRow",
+      "reportPins",
+      "setCurrent",
+      "store",
+      [
+        'let filter = "c";',
+        "const current = 1;",
+        templateSource("function pathMatches("),
+        templateSource("const listed = "),
+        templateSource("function filterChanged("),
+        templateSource('$("filter").addEventListener("keydown"'),
+        templateSource('$("list-flat").addEventListener('),
+        templateSource('$("list-tree").addEventListener('),
+      ].join("\n"),
+    )(
+      $,
+      { files: [{ path: "a" }, { path: "b" }, { path: "c" }] },
+      () => calls.push("renderList"),
+      [],
+      () => {},
+      () => calls.push("leaveHidden"),
+      () => calls.push("followRow"),
+      () => {},
+      (fi: number, scroll: boolean) => calls.push(`setCurrent ${fi} ${scroll}`),
+      () => {},
+    );
+    const key = (k: string, isComposing = false) => {
+      const e = {
+        key: k,
+        isComposing,
+        prevented: false,
+        preventDefault: () => (e.prevented = true),
+      };
+      handlers["filter keydown"](e);
+      return e.prevented;
+    };
+    return { calls, handlers, input, key };
+  }
+
+  it("keeps the current file's row in view after the list is rebuilt by a filter or layout change", () => {
+    const { calls, handlers } = fileFilter();
+    handlers["list-flat click"]();
+    handlers["list-tree click"]();
+    expect(calls).toEqual(["renderList", "followRow", "renderList", "followRow"]);
+  });
+
+  it("clears the filter on Escape, then leaves it on a second Escape so j and k work", () => {
+    const { calls, input, key } = fileFilter();
+    expect(key("Escape")).toBe(true);
+    expect(input.value).toBe("");
+    expect(calls).toEqual(["renderList", "leaveHidden", "followRow"]);
+    expect(key("Escape")).toBe(true);
+    expect(calls.at(-1)).toBe("blur");
+  });
+
+  it("leaves the filter on Enter, going to the first matching file when the current one is not listed", () => {
+    const { calls, key } = fileFilter();
+    expect(key("Enter")).toBe(true);
+    expect(calls).toEqual(["blur", "setCurrent 2 true"]);
+    expect(key("a")).toBe(false);
+    expect(key("Enter", true)).toBe(false);
+    expect(calls).toEqual(["blur", "setCurrent 2 true"]);
   });
 
   it("comments only on registered cells, past data-side markup from rendered Markdown", () => {
@@ -2762,6 +3051,284 @@ describe("template", () => {
       ]);
       const tail = Array.from({ length: 47 }, (_, i) => `f-a-new-${i + 54}`);
       expect(rows(new Set(["f-a-old-99"]))).toEqual(["expand 0", ...hunk, ...tail]);
+    });
+  });
+
+  describe("follows the current file in the file list", () => {
+    const followTop = new Function(`${templateSource("function followTop(")}\nreturn followTop;`)();
+    // The list's band runs from 100 (below the sticky header) to 400.
+    const follow = (top: number, bottom: number, scrollTop = 500) =>
+      followTop({ top, bottom }, 100, 400, scrollTop);
+
+    it("leaves the list alone while the row is fully in the band", () => {
+      expect(follow(100, 128)).toBeNull();
+      expect(follow(372, 400)).toBeNull();
+    });
+
+    it("brings a row under the sticky header down to the band's top", () => {
+      expect(follow(90, 118)).toBe(490);
+      expect(follow(-300, -272)).toBe(100);
+    });
+
+    it("brings a row below the band up to its bottom", () => {
+      expect(follow(390, 418)).toBe(518);
+      expect(follow(900, 928)).toBe(1028);
+    });
+
+    it("keeps the top of a row taller than the band in view", () => {
+      expect(follow(150, 600)).toBe(550);
+    });
+  });
+
+  describe("filters the file list", () => {
+    const pathMatches = new Function(
+      `${templateSource("function pathMatches(")}\nreturn pathMatches;`,
+    )();
+
+    it("matches a case-insensitive substring and treats an empty query as a match", () => {
+      expect(pathMatches("src/Auth/Login.ts", "auth/log")).toBe(true);
+      expect(pathMatches("src/auth/login.ts", "LOGIN")).toBe(true);
+      expect(pathMatches("src/auth/login.ts", "")).toBe(true);
+      expect(pathMatches("src/auth/login.ts", "  ")).toBe(true);
+      expect(pathMatches("src/auth/login.ts", "logout")).toBe(false);
+    });
+
+    it("matches the first letters of consecutive words split at camelCase", () => {
+      expect(pathMatches("src/transactionalDbQuery.ts", "tdq")).toBe(true);
+      expect(pathMatches("src/transactionalDbQuery.ts", "dqt")).toBe(true);
+      expect(pathMatches("src/transactionalDbQuery.ts", "TDQ")).toBe(true);
+      expect(pathMatches("src/transactionalDbQuery.ts", "tq")).toBe(false);
+    });
+
+    it("starts a word at each digit run and after _, - and .", () => {
+      expect(pathMatches("lib/v2api/handler.go", "v2h")).toBe(true);
+      expect(pathMatches("lib/page10x/handler.go", "p1h")).toBe(true);
+      expect(pathMatches("lib/page10x/handler.go", "p0")).toBe(false);
+      expect(pathMatches("db/user_account-store.spec.ts", "uass")).toBe(true);
+      expect(pathMatches("db/user_account-store.spec.ts", "uas")).toBe(true);
+      expect(pathMatches("db/user_account-store.spec.ts", "usa")).toBe(false);
+    });
+
+    // The template's file list, pane filter, scroll pick and keys over the given files, whose
+    // sections' rects come from rects.
+    function filterPage(paths: string[], rects: (fi: number) => { top: number; bottom: number }) {
+      class Node {
+        children: Node[] = [];
+        className = "";
+        textContent: string | number = "";
+        id: string | number = "";
+        open = false;
+        listeners: Record<string, () => void> = {};
+        tagName: string;
+        constructor(tagName: string) {
+          this.tagName = tagName;
+        }
+        append(...nodes: (Node | string)[]) {
+          for (const node of nodes) if (typeof node !== "string") this.children.push(node);
+        }
+        replaceChildren(...nodes: Node[]) {
+          this.children = [];
+          this.append(...nodes);
+        }
+        setAttribute() {}
+        addEventListener(type: string, fn: () => void) {
+          this.listeners[type] = fn;
+        }
+        focus() {
+          calls.focused = true;
+        }
+      }
+      const calls = {
+        current: [] as number[],
+        stored: [] as [string, string | null][],
+        collapsed: [] as number[],
+        views: [] as [number, string][],
+        viewed: [] as number[],
+        focused: false,
+      };
+      const ids = ["files-total", "files-viewed", "file-list", "list-flat", "list-tree", "files"];
+      const nodes: Record<string, Node> = Object.fromEntries(
+        ids.map((id) => [id, new Node("div")]),
+      );
+      nodes.filter = new Node("input");
+      const saved: Record<string, string> = { "dir-closed:src": "1", "list-layout": "tree" };
+      let onKey: (e: unknown) => void = () => {};
+      const document = {
+        createElement: (tag: string) => new Node(tag),
+        addEventListener: (_type: string, fn: (e: unknown) => void) => (onKey = fn),
+      };
+      const sections = paths.map((_, fi) => ({
+        hidden: false,
+        getBoundingClientRect: () => rects(fi),
+      }));
+      const page = new Function(
+        "document",
+        "$",
+        "DIFF",
+        "load",
+        "store",
+        "sections",
+        "calls",
+        "isViewed",
+        "fileLink",
+        [
+          "let current = 0;",
+          "const noChanges = '';",
+          "const imgDialog = null;",
+          "const collapsed = new Set();",
+          "const wrap = true;",
+          "const setWrap = () => {};",
+          "const setCollapsed = (fi) => calls.collapsed.push(fi);",
+          "const setView = (fi, v) => calls.views.push([fi, v]);",
+          "const setViewed = (fi) => calls.viewed.push(fi);",
+          "const setCurrent = (fi) => calls.current.push((current = fi));",
+          templateSource("const el = "),
+          templateSource("function pathMatches("),
+          templateSource("let filter = "),
+          templateSource("let paneFilter = "),
+          templateSource("const listed = "),
+          templateSource("function renderList("),
+          templateSource("const filterSection = "),
+          templateSource("function leaveHidden("),
+          templateSource("function scrolledTo("),
+          templateSource("function step("),
+          templateSource('document.addEventListener("keydown", (e) => {'),
+          `return {
+            renderList, leaveHidden, scrolledTo,
+            filter(text, pane) {
+              filter = text;
+              paneFilter = pane;
+              sections.forEach((_, fi) => filterSection(fi));
+            },
+            get current() { return current; },
+            set current(fi) { current = fi; },
+          };`,
+        ].join("\n"),
+      )(
+        document,
+        (id: string) => nodes[id],
+        { files: paths.map((path) => ({ path })), fileList: "flat" },
+        (key: string) => saved[key] ?? null,
+        (key: string, value: string | null) => calls.stored.push([key, value]),
+        sections,
+        calls,
+        () => false,
+        (_f: unknown, fi: number, label: string) =>
+          Object.assign(new Node("li"), { id: fi, textContent: label }),
+      );
+      const key = (k: string) =>
+        onKey({ key: k, target: { closest: () => null }, preventDefault() {} });
+      return { page, nodes, sections, calls, key };
+    }
+    const PATHS = ["docs/readme.md", "src/transactionalDbQuery.ts", "src/util.ts", "src/db.ts"];
+    const below = (fi: number) => ({ top: fi * 500, bottom: fi * 500 + 400 });
+
+    it("lists only matching files in a tree that leaves saved folder states alone", () => {
+      const { page, nodes, calls } = filterPage(PATHS, below);
+      const details = () =>
+        nodes["file-list"].children
+          .map((n) => n.children[0])
+          .find((d) => d?.children[0].textContent === "src")!;
+      page.renderList();
+      expect(nodes["files-total"].textContent).toBe(4);
+      expect(details().open).toBe(false);
+      page.filter("tdq", false);
+      page.renderList();
+      expect(nodes["files-total"].textContent).toBe("1 of 4");
+      expect(nodes["file-list"].children).toHaveLength(1);
+      expect(details().open).toBe(true);
+      expect(details().children[1].children.map((n) => n.textContent)).toEqual([
+        "transactionalDbQuery.ts",
+      ]);
+      details().listeners.toggle?.();
+      expect(calls.stored).toEqual([]);
+      page.filter("nothing", false);
+      page.renderList();
+      expect(nodes["file-list"].children.map((n) => n.textContent)).toEqual(["No files match."]);
+      page.filter("", false);
+      page.renderList();
+      expect(details().open).toBe(false);
+      details().listeners.toggle();
+      expect(calls.stored).toEqual([["dir-closed:src", "1"]]);
+    });
+
+    it("steps j and k over files the filter leaves out, with or without the pane filter", () => {
+      for (const pane of [false, true]) {
+        const { page, key } = filterPage(PATHS, below);
+        page.filter("db", pane);
+        page.current = 0;
+        key("j");
+        expect(page.current).toBe(1);
+        key("j");
+        expect(page.current).toBe(3);
+        key("j");
+        expect(page.current).toBe(3);
+        key("k");
+        expect(page.current).toBe(1);
+        key("k");
+        expect(page.current).toBe(1);
+      }
+    });
+
+    it("moves current off a file the pane filter hides, and only then", () => {
+      // Files 0 and 1 sit above the viewport; file 2 reaches into it.
+      const rects = (fi: number) => ({ top: fi * 500 - 1200, bottom: fi * 500 - 800 });
+      const { page, calls } = filterPage(PATHS, rects);
+      page.current = 1;
+      page.filter("util", false);
+      page.leaveHidden();
+      expect(calls.current).toEqual([]);
+      page.filter("db", true);
+      page.leaveHidden();
+      expect(calls.current).toEqual([]);
+      page.filter("util", true);
+      page.leaveHidden();
+      expect(page.current).toBe(2);
+      // With no visible file reaching the viewport, the last visible one above it.
+      page.current = 1;
+      page.filter("readme", true);
+      page.leaveHidden();
+      expect(page.current).toBe(0);
+    });
+
+    it("never picks a hidden section on scroll, even file 0 with the page at the top", () => {
+      const { page, sections } = filterPage(PATHS, below);
+      const rect = (fi: number, top: number) =>
+        (sections[fi].getBoundingClientRect = () => ({ top, bottom: top + 400 }));
+      page.filter("src/", true);
+      expect(page.scrolledTo(sections)).toBe(1);
+      sections.forEach((_, fi) => rect(fi, 0));
+      expect(page.scrolledTo(sections)).toBe(3);
+      sections[3].hidden = true;
+      expect(page.scrolledTo(sections)).toBe(2);
+      page.current = 2;
+      page.filter("nothing", true);
+      expect(page.scrolledTo(sections)).toBe(2);
+    });
+
+    it("leaves a file the pane filter hides alone on x, v, u and s", () => {
+      const { page, calls, key } = filterPage(PATHS, below);
+      page.filter("db", true);
+      page.current = 0;
+      for (const k of ["x", "v", "u", "s"]) key(k);
+      expect(calls).toMatchObject({ collapsed: [], viewed: [], views: [] });
+      page.current = 1;
+      for (const k of ["x", "v", "u", "s"]) key(k);
+      expect(calls).toMatchObject({
+        collapsed: [1],
+        viewed: [1],
+        views: [
+          [1, "unified"],
+          [1, "split"],
+        ],
+      });
+    });
+
+    it("opens the file list and focuses the filter on /", () => {
+      const { nodes, calls, key } = filterPage(PATHS, below);
+      key("/");
+      expect(nodes.files.open).toBe(true);
+      expect(calls.focused).toBe(true);
     });
   });
 

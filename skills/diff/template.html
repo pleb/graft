@@ -476,6 +476,7 @@
     position: sticky;
     top: calc(env(safe-area-inset-top, 0px) + 12px);
     display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     gap: 12px;
     max-height: calc(100vh - 24px);
     min-width: 0;
@@ -485,6 +486,12 @@
     max-height: none;
     overflow: auto;
     min-height: 0;
+  }
+  .files > summary {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--surface);
   }
   .finish {
     background: var(--surface);
@@ -524,6 +531,7 @@
     .side {
       position: static;
       max-height: none;
+      grid-template-rows: none;
     }
   }
 
@@ -535,17 +543,39 @@
     justify-content: space-between;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px 0;
+    padding: 8px 12px 6px;
+    position: sticky;
+    top: var(--files-head, 0px);
+    z-index: 1;
+    background: var(--surface);
+  }
+  .files .bar + ol {
+    padding-top: 0;
   }
   .files .bar .seg button {
     padding: 3px 10px;
     font-size: 12px;
   }
+  .files .bar .seg {
+    flex: none;
+  }
+  .files .bar input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 13px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--fg);
+  }
   .files .count {
     color: var(--muted);
     font-weight: 400;
   }
-  .files li.cur > a {
+  .files li.cur > a,
+  .files .dir > details:not([open]):has(li.cur) > summary {
     background: var(--sunken);
     box-shadow: inset 2px 0 0 var(--accent);
   }
@@ -1028,6 +1058,9 @@
           </div>
         </div>
         <label class="mcheck"><input type="checkbox" id="wrap" /> Wrap lines</label>
+        <label class="mcheck"
+          ><input type="checkbox" id="filter-diffs" /> Filter hides diffs too</label
+        >
       </div>
     </div>
     <div class="proto" style="flex-basis: 100%">
@@ -1051,11 +1084,19 @@
             >Files (<span id="files-total"></span>) <span class="count" id="files-viewed"></span
           ></span>
         </summary>
-        <div class="bar">
+        <div class="bar" id="list-bar">
           <div class="seg" role="group" aria-label="File list layout">
             <button type="button" id="list-flat" aria-pressed="true">Flat</button>
             <button type="button" id="list-tree" aria-pressed="false">Tree</button>
           </div>
+          <input
+            type="search"
+            id="filter"
+            placeholder="Filter"
+            aria-label="Filter files"
+            autocomplete="off"
+            spellcheck="false"
+          />
         </div>
         <ol id="file-list"></ol>
       </details>
@@ -1067,7 +1108,8 @@
         ><span>Unified</span> <span class="k"><kbd>s</kbd></span
         ><span>Side-by-side</span> <span class="k"><kbd>v</kbd></span
         ><span>Toggle viewed</span> <span class="k"><kbd>w</kbd></span
-        ><span>Wrap lines</span>
+        ><span>Wrap lines</span> <span class="k"><kbd>/</kbd></span
+        ><span>Filter files</span>
       </div>
     </aside>
     <main class="diffs" id="diffs"></main>
@@ -1112,6 +1154,8 @@
   const onComment = new WeakMap();
   let mdReady = false;
   const targets = []; // per file: { old: [], new: [] } of { n, el, code }
+  // Per file, each element that shows a comment icon while its has() is true.
+  const marks = [];
   const sections = [];
 
   const counts = (f) => ({ add: f.add, del: f.del });
@@ -1202,6 +1246,21 @@
     li.append(a);
     return li;
   }
+  // True when the query is empty, a substring of the path, or the first letters of consecutive
+  // words in it, so "tdq" finds "src/transactionalDbQuery.ts".
+  function pathMatches(path, query) {
+    const q = query.trim().toLowerCase();
+    if (!q || path.toLowerCase().includes(q)) return true;
+    const words = path.split(/[/.\-_\s]+|(?<=[a-z])(?=[A-Z])|(?<=\D)(?=\d)/).filter(Boolean);
+    return words
+      .map((w) => w[0])
+      .join("")
+      .toLowerCase()
+      .includes(q);
+  }
+  let filter = "";
+  let paneFilter = load("filter-diffs") === "1";
+  const listed = (fi) => pathMatches(DIFF.files[fi].path, filter);
   function renderList() {
     const tree = (load("list-layout") ?? DIFF.fileList) === "tree";
     $("list-flat").setAttribute("aria-pressed", String(!tree));
@@ -1215,12 +1274,19 @@
     $("files-viewed").textContent = "· " + viewed + " viewed";
     const ol = $("file-list");
     ol.replaceChildren();
+    const shown = [];
+    DIFF.files.forEach((f, fi) => listed(fi) && shown.push([f, fi]));
+    if (filter) $("files-total").textContent = shown.length + " of " + DIFF.files.length;
+    if (!shown.length) {
+      ol.append(el("li", "note", "No files match."));
+      return;
+    }
     if (!tree) {
-      DIFF.files.forEach((f, fi) => ol.append(fileLink(f, fi, f.path)));
+      for (const [f, fi] of shown) ol.append(fileLink(f, fi, f.path));
       return;
     }
     const root = { dirs: new Map(), files: [] };
-    DIFF.files.forEach((f, fi) => {
+    shown.forEach(([f, fi]) => {
       const parts = f.path.split("/");
       let node = root;
       for (const d of parts.slice(0, -1)) {
@@ -1243,8 +1309,10 @@
         }
         const li = el("li", "dir");
         const d = el("details");
-        d.open = load("dir-closed:" + path) !== "1";
-        d.addEventListener("toggle", () => store("dir-closed:" + path, d.open ? null : "1"));
+        // Folders open while a filter is set, without touching their saved states.
+        d.open = !!filter || load("dir-closed:" + path) !== "1";
+        if (!filter)
+          d.addEventListener("toggle", () => store("dir-closed:" + path, d.open ? null : "1"));
         d.append(el("summary", null, label));
         const sub = el("ol");
         build(n, sub, path + "/");
@@ -1256,13 +1324,56 @@
     };
     build(root, ol, "");
   }
+  const filterSection = (fi) => (sections[fi].hidden = paneFilter && !listed(fi));
+  function filterChanged() {
+    renderList();
+    sections.forEach((_, fi) => filterSection(fi));
+    leaveHidden();
+    followRow();
+    reportPins();
+  }
+  function leaveHidden() {
+    if (!sections[current]?.hidden) return;
+    let above = -1;
+    for (let fi = 0; fi < sections.length; fi++) {
+      if (sections[fi].hidden) continue;
+      if (sections[fi].getBoundingClientRect().bottom > 0) return setCurrent(fi, false);
+      above = fi;
+    }
+    if (above >= 0) setCurrent(above, false);
+  }
+  $("filter").addEventListener("input", () => {
+    filter = $("filter").value.trim();
+    filterChanged();
+  });
+  $("filter").addEventListener("keydown", (e) => {
+    if (e.isComposing) return;
+    if (e.key === "Escape" && $("filter").value) {
+      $("filter").value = filter = "";
+      filterChanged();
+    } else if (e.key === "Escape") $("filter").blur();
+    else if (e.key === "Enter") {
+      $("filter").blur();
+      const first = DIFF.files.findIndex((_, fi) => listed(fi));
+      if (!listed(current) && first >= 0) setCurrent(first, true);
+    } else return;
+    e.preventDefault();
+  });
+  $("filter-diffs").checked = paneFilter;
+  $("filter-diffs").addEventListener("change", () => {
+    paneFilter = $("filter-diffs").checked;
+    store("filter-diffs", paneFilter ? "1" : null);
+    filterChanged();
+  });
   $("list-flat").addEventListener("click", () => {
     store("list-layout", "flat");
     renderList();
+    followRow();
   });
   $("list-tree").addEventListener("click", () => {
     store("list-layout", "tree");
     renderList();
+    followRow();
   });
 
   function commentAt(target, label, detail) {
@@ -1294,16 +1405,33 @@
     ic.setAttribute("aria-label", title);
     return ic;
   }
+  // A later mark of the same element replaces the earlier one.
+  function mark(fi, host, title, has) {
+    marks[fi].set(host, { title, has, icon: null });
+  }
+  // Adds and removes icons in place, so the page keeps its height and scroll position.
+  function markFile(fi) {
+    for (const [host, m] of marks[fi] || []) {
+      const on = !!comments && m.has();
+      if (on && !m.icon) host.prepend((m.icon = commentIcon(m.title)));
+      else if (!on && m.icon) {
+        m.icon.remove();
+        m.icon = null;
+      }
+    }
+  }
   // A target is one commentable line on one side: clicking it in comment mode comments on it.
   function addTarget(f, fi, side, n, cells, el0, code, pair) {
     const list = targets[fi][side];
     const idx = list.length;
     el0.id = lineId(f, side, n);
     list.push({ n, el: el0, cells, code, pair });
-    const gutter = cells[0];
-    if (comments && (known.has(el0.id) || (el0.dataset.alt && known.has(el0.dataset.alt)))) {
-      gutter.prepend(commentIcon("This line has comments. Turn on comment mode to read them."));
-    }
+    mark(
+      fi,
+      cells[0],
+      "This line has comments. Turn on comment mode to read them.",
+      () => known.has(el0.id) || (el0.dataset.alt != null && known.has(el0.dataset.alt)),
+    );
     for (const c of cells) {
       c.dataset.fi = fi;
       c.dataset.side = side;
@@ -1330,9 +1458,9 @@
     const range = m[0];
     const comment = () => commentAt(hr, f.path + " " + range, h.header);
     onComment.set(hr, comment);
-    if (comments && known.has(hr.id)) {
-      c.prepend(commentIcon("This hunk has comments. Turn on comment mode to read them."));
-    }
+    mark(fi, c, "This hunk has comments. Turn on comment mode to read them.", () =>
+      known.has(hr.id),
+    );
   }
   // Column widths for the wrapped, fixed layout: line number columns sized to the largest number.
   function colgroup(f, table, kinds, gaps) {
@@ -1662,16 +1790,13 @@
     const added = new Set();
     for (const h of f.hunks) for (const l of h.lines) if (l[0] === "+") added.add(l[2]);
     for (const { node: block, start, end, raw } of mdBlocks(f.content, "mdb")) {
-      let has = false;
-      for (let n = start; n <= end; n++) {
-        if (added.has(n)) block.classList.add("chg");
-        if (n > start && known.has(lineId(f, "new", n))) has = true;
-      }
+      for (let n = start; n <= end; n++) if (added.has(n)) block.classList.add("chg");
       box.append(block);
       addTarget(f, fi, "new", start, [block], block, raw);
-      if (comments && has && !block.querySelector(":scope > .cicon")) {
-        block.prepend(commentIcon("This block has comments. Turn on comment mode to read them."));
-      }
+      mark(fi, block, "This block has comments. Turn on comment mode to read them.", () => {
+        for (let n = start; n <= end; n++) if (known.has(lineId(f, "new", n))) return true;
+        return false;
+      });
     }
   }
   // Null when a hunk's lines do not match the content.
@@ -1856,6 +1981,7 @@
     const f = DIFF.files[fi];
     sec.replaceChildren();
     targets[fi] = { old: [], new: [] };
+    marks[fi] = new Map();
     const head = el("div", "fhead");
     const st = f.binary && !f.isImage ? "B" : f.status;
     head.append(el("span", "chip st-" + st, st === "B" ? "Binary" : STATUS[f.status]));
@@ -1864,9 +1990,9 @@
     p.append(f.path);
     p.id = f.id + "-file";
     onComment.set(p, () => commentAt(p, f.path, f.path));
-    if (comments && known.has(p.id)) {
-      p.prepend(commentIcon("This file has comments. Turn on comment mode to read them."));
-    }
+    mark(fi, p, "This file has comments. Turn on comment mode to read them.", () =>
+      known.has(p.id),
+    );
     head.append(p);
     if (f.source !== "committed") head.append(el("span", "src", f.source));
     const c = counts(f);
@@ -1941,6 +2067,8 @@
     body.hidden = collapsed.has(f.path);
     if (f.hunks && body.hidden) head.querySelector(".fold").textContent = "Expand";
     sec.append(body);
+    markFile(fi);
+    filterSection(fi);
   }
   function renderFiles() {
     const root = $("diffs");
@@ -1956,13 +2084,25 @@
     });
     reportPins();
   }
-  // Re-renders the files that hold any of these comment ids, so their comment icons update.
-  function renderMarked(ids) {
+  // A newly open line in a closed context gap has no row, so its file re-renders to open the gap.
+  function markFiles(ids) {
     const list = [...ids];
     DIFF.files.forEach((f, fi) => {
-      if (list.some((id) => id.startsWith(f.id + "-"))) renderFile(sections[fi], fi);
+      const own = list.filter((id) => id.startsWith(f.id + "-"));
+      if (!own.length) return;
+      if (!own.some((id) => known.has(id) && inClosedGap(f, id))) return markFile(fi);
+      const y = window.scrollY;
+      renderFile(sections[fi], fi);
+      window.scrollTo({ left: window.scrollX, top: y, behavior: "instant" });
     });
     reportPins();
+  }
+  function inClosedGap(f, id) {
+    const m = /^(f-[A-Za-z0-9_]*)-(old|new)-(\d+)$/.exec(id);
+    if (!m || m[1] !== f.id || !f.hunks || targetFor("#" + id)) return false;
+    if (!["unified", "split"].includes(fileView(f))) return false;
+    const col = m[2] === "old" ? 1 : 2;
+    return (gapsOf(f) || []).some((g) => g.lines.some((l) => l[col] === +m[3]));
   }
   function loadFile(fi) {
     const f = DIFF.files[fi];
@@ -2019,10 +2159,41 @@
     document
       .querySelectorAll("#file-list li:not(.dir)")
       .forEach((li) => li.classList.toggle("cur", li.id === "li-" + DIFF.files[current].id));
+    followRow();
     if (!scroll) return;
     // The scroll this starts must not move the current file on to a short file below it.
     jumpUntil = Date.now() + 300;
     scrollToEl(sections[current], "start");
+  }
+  // Scrolls only the list, never the page, to keep the current file's row below its sticky header.
+  function followRow() {
+    const files = $("files");
+    let row = $("li-" + DIFF.files[current].id);
+    if (!files.open || !row) return;
+    // Chrome still gives rows in a closed folder a box, so the outermost closed folder is found by markup.
+    let closed = row.closest("details:not([open])");
+    while (closed) {
+      row = closed.firstElementChild;
+      closed = closed.parentElement.closest("details:not([open])");
+    }
+    const box = files.getBoundingClientRect();
+    const head = files.querySelector(":scope > summary").offsetHeight + $("list-bar").offsetHeight;
+    const top = box.top + files.clientTop;
+    const next = followTop(
+      row.getBoundingClientRect(),
+      top + head,
+      top + files.clientHeight,
+      files.scrollTop,
+    );
+    if (next != null) files.scrollTop = next;
+  }
+  // The scrollTop that brings a row's rect inside the band from bandTop to bandBottom by the
+  // nearest edge, or null when it is inside already.
+  function followTop(row, bandTop, bandBottom, scrollTop) {
+    if (row.top < bandTop) return scrollTop - (bandTop - row.top);
+    if (row.bottom > bandBottom)
+      return scrollTop + Math.min(row.bottom - bandBottom, row.top - bandTop);
+    return null;
   }
   // Offscreen file bodies only have estimated heights, so a smooth scroll to a far target misses
   // as the files it passes render. A far target is jumped to, then realigned once those files settle.
@@ -2050,24 +2221,37 @@
       if (scrollTick) return;
       scrollTick = requestAnimationFrame(() => {
         scrollTick = 0;
-        const secs = document.querySelectorAll("section.file");
-        let best = 0;
-        secs.forEach((s, i) => {
-          if (s.getBoundingClientRect().top < 40) best = i;
-        });
+        const best = scrolledTo(document.querySelectorAll("section.file"));
         if (best !== current) setCurrent(best, false);
       });
     },
     { passive: true },
   );
+  // Hidden sections have zero rects, so they are skipped.
+  function scrolledTo(secs) {
+    let best = -1;
+    secs.forEach((s, i) => {
+      if (!s.hidden && (best < 0 || s.getBoundingClientRect().top < 40)) best = i;
+    });
+    return best < 0 ? current : best;
+  }
+  function step(dir) {
+    let fi = current + dir;
+    while (fi >= 0 && fi < DIFF.files.length && !listed(fi)) fi += dir;
+    return fi >= 0 && fi < DIFF.files.length ? fi : current;
+  }
 
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey || imgDialog?.open) return;
     if (e.target.closest && e.target.closest("input, textarea, select, [contenteditable]")) return;
     if (!DIFF.files.length) return;
     const k = e.key;
-    if (k === "j") setCurrent(current + 1, true);
-    else if (k === "k") setCurrent(current - 1, true);
+    if (k === "j") setCurrent(step(1), true);
+    else if (k === "k") setCurrent(step(-1), true);
+    else if (k === "/") {
+      $("files").open = true;
+      $("filter").focus();
+    } else if (["x", "u", "s", "v"].includes(k) && sections[current]?.hidden) return;
     else if (k === "x") {
       const f = DIFF.files[current];
       setCollapsed(current, !collapsed.has(f.path));
@@ -2308,6 +2492,9 @@
   }
 
   if (window.matchMedia("(max-width: 860px)").matches) $("files").open = false;
+  new ResizeObserver(([e]) =>
+    $("files").style.setProperty("--files-head", e.target.offsetHeight + "px"),
+  ).observe($("files").querySelector(":scope > summary"));
   // An image file with no previewed side carries its stubs in the manifest, so it is loaded already.
   for (const f of DIFF.files) {
     if (!f.isImage || f.data != null) continue;
@@ -2357,10 +2544,15 @@
           known.clear();
           for (const id of open) known.add(id);
           store(knownKey, JSON.stringify([...known]));
-          renderMarked(changed);
+          markFiles(changed);
         },
         reveal(id) {
           const t = threads.find((x) => x.id === id);
+          const file = /#(f-[A-Za-z0-9_]*)/.exec(t?.anchor || "");
+          if (file && $(file[1])?.matches("section.file[hidden]")) {
+            $("filter").value = filter = "";
+            filterChanged();
+          }
           if (t) expandTo(t.anchor);
           const target = t && (targetFor(t.anchor) || loadingSection(t.anchor));
           if (!target) return;
@@ -2385,7 +2577,7 @@
     } catch {
       anchors = null;
     }
-    renderMarked(known);
+    markFiles(known);
     const act = $("act");
     async function refreshAct() {
       try {
