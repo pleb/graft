@@ -15,14 +15,14 @@ function argumentHint(skill: string): string | undefined {
   return quoted ? quoted[2] : value;
 }
 
-// Maps each `## /graft:<name>` heading in docs/commands.md to the first line of its first ```text block.
+// Maps each `### /graft:<name>` heading in docs/commands.md to the first line of its first ```text block.
 function signatures(markdown: string): Map<string, string | undefined> {
   const found = new Map<string, string | undefined>();
-  for (const section of markdown.split(/^## /m).slice(1)) {
+  for (const section of markdown.split(/^### /m).slice(1)) {
     const heading = section.slice(0, section.indexOf("\n")).trim();
     if (heading.startsWith("/graft:")) {
       if (found.has(heading)) {
-        throw new Error(`docs/commands.md has more than one ## ${heading} section`);
+        throw new Error(`docs/commands.md has more than one ### ${heading} section`);
       }
       found.set(heading, /^```text\n(.*)$/m.exec(section)?.[1]);
     }

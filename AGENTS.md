@@ -23,4 +23,4 @@ When merging, move settings and commands a clone added to the README:
 - A setting from the README's settings table goes in `docs/settings.md` under the `##` section for its command: a ``### `skill.name` `` heading, a summary paragraph, then one single-line bullet per value. Exactly one bullet reads ``- `value` (default): what it does.``; the rest read ``- `value`: what it does.``
 - If the setting only applies when another is set, the summary's last sentence is ``Applies only when `other.key` is `value`.`` in that wording.
 - A free-text setting has the single bullet ``- Any text (default: `<value>`)``.
-- A command from the README's command list goes in `docs/commands.md` as a `## /graft:name` section, with a link to it in the list at the top.
+- A command from the README's command list goes in `docs/commands.md` as a `### /graft:name` section under the `##` group it belongs to, with a link to it under the same group in the list at the top.

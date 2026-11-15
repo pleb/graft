@@ -37,7 +37,9 @@ Your clone is `~/.my-graft`, the local copy of your private `my-graft` repo that
 
 `[reviewer model]` picks the model for the reviewer agents: `fable`, `opus` or `sonnet`. Without one, Graft uses [`common.reviewerModel`](./settings.md#commonreviewermodel), which defaults to `opus`.
 
-## /graft:research
+## Plan and build
+
+### /graft:research
 
 ```text
 /graft:research [research path | research name | question] [issues] [reviewer model: sonnet | opus (default) | fable]
@@ -46,10 +48,10 @@ Your clone is `~/.my-graft`, the local copy of your private `my-graft` repo that
 Investigates a question with you before anything is planned, and never changes code. Researcher agents read code and sources, experimenter agents run code in throwaway git worktrees, and an adversarial reviewer challenges what they found before the research concludes. The report is written to `.claude/graft/research/<name>/report.md` as the research goes. Pass its name to `/graft:plan` or `/graft:execute` to plan from it, or pass it back to `/graft:research` to continue.
 
 ```text
-/graft:research why do static site deploys take ten minutes
+/graft:research which testing framework should we use? compare maintainability, speed and ecosystem
 ```
 
-## /graft:plan
+### /graft:plan
 
 ```text
 /graft:plan [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]
@@ -61,7 +63,7 @@ Works out a plan with you, starting from a one-line topic, a full spec or a rese
 /graft:plan deployment of the static site under /web to an azure static website using bicep
 ```
 
-## /graft:orchestrate
+### /graft:orchestrate
 
 ```text
 /graft:orchestrate [plan path | plan name | task] [issues] [reviewer model: sonnet | opus (default) | fable]
@@ -75,7 +77,7 @@ Run `/clear` between `/graft:plan` and `/graft:orchestrate`, so the build starts
 /graft:orchestrate deploy-static-site-to-azure
 ```
 
-## /graft:execute
+### /graft:execute
 
 ```text
 /graft:execute [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr request]
@@ -83,7 +85,7 @@ Run `/clear` between `/graft:plan` and `/graft:orchestrate`, so the build starts
 
 Plans and then orchestrates in one session, with no `/clear` in between. Use it for work small enough that the plan and the build fit in one conversation. You still answer the plan's questions, but once the plan is written it runs a review of the plan instead of asking whether to, then starts building. Add a PR request, such as `open a pr`, to raise one at the end.
 
-## /graft:yolo
+### /graft:yolo
 
 ```text
 /graft:yolo [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr guidance]
@@ -91,7 +93,9 @@ Plans and then orchestrates in one session, with no `/clear` in between. Use it 
 
 Runs `/graft:execute` and makes the calls you would usually make, asking only when the request is unclear. Each decision it makes without asking is recorded in the plan's `## Decisions`. It ends in a pull request, ready for review unless the arguments name a state, with screenshots when it can capture them. Before it starts, it commits uncommitted changes related to the work and stashes the unrelated ones. Once the PR is raised it puts the stash back if it applies cleanly; otherwise its closing summary names the stash it left.
 
-## /graft:diff
+## Review and ship
+
+### /graft:diff
 
 ```text
 /graft:diff [mode: batch (default) | auto]
@@ -99,7 +103,7 @@ Runs `/graft:execute` and makes the calls you would usually make, asking only wh
 
 Publishes the current branch's changes against the default branch, uncommitted ones included, as a private claude.ai artifact you can comment on line by line. It needs the claude.ai Artifact tools in Claude Code. Send each comment to Claude from the page; plain comments do not reach the session. In `batch` mode, Claude replies in each thread and changes code only when you reply with a go-ahead or press Finish review. In `auto` mode, it applies each comment as it arrives. [`diff.comments`](./settings.md#diffcomments) sets the default mode.
 
-## /graft:pr
+### /graft:pr
 
 ```text
 /graft:pr [guidance] [state: draft (default) | ready-state (pr.state: ready)]
@@ -107,7 +111,7 @@ Publishes the current branch's changes against the default branch, uncommitted o
 
 Pushes the branch and opens a pull request, following the repo's PR template when it has one. A new PR opens in the state the arguments name, else in the state [`pr.state`](./settings.md#prstate) sets (draft by default). When the branch already has a PR, Graft rewrites its title and body instead, and changes its state only when the arguments name one. It stops if the working tree has uncommitted changes. Anything else you write is guidance for the description.
 
-## /graft:review
+### /graft:review
 
 ```text
 /graft:review [pr number | url] [reviewer model: sonnet | opus (default) | fable]
@@ -115,7 +119,9 @@ Pushes the branch and opens a pull request, following the repo's PR template whe
 
 Gets two reviews of a change, one from a reviewer looking for bugs and one from an adversarial reviewer looking for reasons it should not ship, and combines them into one list with a severity for each finding. Reviewing a PR needs a clone of the PR's repo. With no PR named, it offers the current branch's PR if there is one; otherwise it reviews the current branch against the default branch, plus uncommitted and untracked changes. Afterwards you can post the findings you pick to the PR as comments, or have `/graft:execute` fix them.
 
-## /graft:update
+## Change and update your copy
+
+### /graft:update
 
 ```text
 /graft:update [mode: ask (default) | auto]
@@ -123,15 +129,19 @@ Gets two reviews of a change, one from a reviewer looking for bugs and one from 
 
 Merges the latest Graft from upstream (the repo your clone takes updates from: `pleb/graft`, or your organisation's [interstock](../README.md#interstocks), its shared copy of Graft) into your clone, keeping your mods. A mod is a change you made to your clone with `/graft:modify`. In `ask` mode it lists what is new and asks before merging; [`update.mode`](./settings.md#updatemode) sets the default. When a conflict touches a mod, Graft resolves it so the mod's recorded intent still holds, and asks when it cannot. When you have mods, a reviewer and an adversarial reviewer check the merge before it is committed. The merge is pushed to your `my-graft` repo, or raised as a PR when you run it in a clone of an interstock or of `pleb/graft`. It needs Claude Code 2.1.273 or later.
 
-## /graft:modify
+### /graft:modify
 
 ```text
 /graft:modify [when... do...]
 ```
 
-Changes your copy of Graft, one mod at a time. Each mod is recorded with its intent in `MODS.md` so `/graft:update` can keep it. Describe the behaviour you want, for example `/graft:modify when a plan touches a database, add a rollback milestone`. Graft settles the change with you, implements it, has a reviewer and an adversarial reviewer check it, then commits it and pushes it to your `my-graft` repo. Run it in a clone of an interstock or of `pleb/graft` and it raises a PR instead. Like update, it needs Claude Code 2.1.273 or later.
+Changes your copy of Graft, one mod at a time. Each mod is recorded with its intent in `MODS.md` so `/graft:update` can keep it. Describe the behaviour you want. Graft settles the change with you, implements it, has a reviewer and an adversarial reviewer check it, then commits it and pushes it to your `my-graft` repo. Run it in a clone of an interstock or of `pleb/graft` and it raises a PR instead. Like update, it needs Claude Code 2.1.273 or later.
 
-## /graft:tune
+```text
+/graft:modify after raising a pr, monitor the ci checks and fix anything that fails
+```
+
+### /graft:tune
 
 ```text
 /graft:tune [guidance] [window: 14 days (default) | <n> days]
@@ -139,18 +149,20 @@ Changes your copy of Graft, one mod at a time. Each mod is recorded with its int
 
 Reads your `/graft:plan`, `/graft:orchestrate`, `/graft:execute` and `/graft:yolo` runs from the last 14 days (or the window you give) for corrections you keep making to how Graft works. A correction counts only when it shows up in at least two tasks across at least two sessions. You pick which findings to keep, and each one becomes a mod through `/graft:modify`.
 
-## /graft:uninstall
+## Settings and removal
 
-```text
-/graft:uninstall
-```
-
-Removes Graft from Claude Code and deletes `~/.my-graft`, after asking first. Before it asks, it shows the output of `git status --short --branch` for the clone (its branch, uncommitted changes and untracked files) and lists any files under `.claude/graft/` or `.claude/plans/` that deleting the clone would delete. It does not list stashes, other branches or ignored files. Your `my-graft` repo on GitHub stays, so installing again later brings your mods back.
-
-## /graft-settings
+### /graft-settings
 
 ```text
 /graft-settings
 ```
 
 Opens a pane in Claude Code that edits Graft's defaults and per-repo overrides in `~/.my-graft/graft-settings.json`. Each change is committed and pushed to your `my-graft` repo. Where the pane cannot open, the command prints the current settings instead. [Graft settings](./settings.md) lists every setting and how the settings files combine.
+
+### /graft:uninstall
+
+```text
+/graft:uninstall
+```
+
+Removes Graft from Claude Code and deletes `~/.my-graft`, after asking first. Before it asks, it shows the output of `git status --short --branch` for the clone (its branch, uncommitted changes and untracked files) and lists any files under `.claude/graft/` or `.claude/plans/` that deleting the clone would delete. It does not list stashes, other branches or ignored files. Your `my-graft` repo on GitHub stays, so installing again later brings your mods back.
