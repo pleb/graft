@@ -4,7 +4,7 @@ Settings change how Graft's commands behave. To make Graft ask fewer questions, 
 
 ## Change a setting
 
-Run `/graft-settings` to open the settings pane. It sets your defaults, or overrides for one repo or folder, in `~/.my-graft/graft-settings.json` (your copy of Graft), then commits and pushes. It pulls first, so it needs to reach your `my-graft` repo, and it won't save while `~/.my-graft` has uncommitted or unpushed changes or isn't on `main`.
+Run `/graft-settings` to open the settings pane. It sets your defaults, or overrides for one repo or folder, in `~/.my-graft/graft-settings.json` (your copy of Graft), then commits and pushes. It won't save when it can't reach your `my-graft` repo, or while `~/.my-graft` has uncommitted or unpushed changes or isn't on `main`.
 
 You can also edit that file yourself, then commit and push it. Settings nest by command, so `pr.state` is written `{ "pr": { "state": "ready" } }`. To see each setting's value in a repo and which file set it:
 

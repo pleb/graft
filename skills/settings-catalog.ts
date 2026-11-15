@@ -1,11 +1,7 @@
-// `parseCatalog` parses the `## Settings` table in common.md. An optional
-// `Shown when` column after Default names the setting a row depends on. A
-// Values cell of the bare word `text` marks a free-text setting, which lists no
-// values. `parseSettingsPage` parses docs/settings.md, where each `###` heading
-// names a setting and starts an entry: a summary paragraph, optionally ending
-// in the condition sentence, then one bullet per value or one free-text bullet.
-// Keep this file free of JSX and Node or claude-code imports: hooks/register.tsx
-// and vitest both load it.
+// `parseCatalog` reads the `## Settings` table in common.md; `parseSettingsPage`
+// reads docs/settings.md and throws on an entry it cannot read. Keep this file
+// free of JSX and Node or claude-code imports: hooks/register.tsx and vitest both
+// load it.
 
 export type CatalogSetting = {
   key: string;
@@ -151,7 +147,6 @@ const VALUE_BULLET = /^- `([^`]+)`( \(default\))?(?:: (\S.*))?$/;
 const TEXT_BULLET = /^- Any text \(default: `([^`]+)`\)$/;
 const FENCE = /^\s*(```|~~~)/;
 
-// Parses the entries in docs/settings.md and throws on any it cannot read.
 export function parseSettingsPage(markdown: string): CatalogSetting[] {
   const settings: CatalogSetting[] = [];
   let entry: string[] | undefined;

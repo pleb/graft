@@ -18,4 +18,9 @@ When this clone's `origin` is `pleb/graft` (`git remote get-url origin`), test c
 
 When this clone's `origin` is `pleb/graft` and a change alters what a scenario in `site/sim/scenarios/` shows, update the scenario in the same change and make `npm run test:site` pass.
 
-When merging, carry across settings and commands a clone added to the README. A setting from the README's settings table goes in `docs/settings.md` under the `##` section for its command, as a ``### `skill.name` `` heading followed by a summary paragraph, then one single-line bullet per value: ``- `value` (default): what it does.`` for exactly one value and ``- `value`: what it does.`` for the rest. If the setting only applies when another is set, the summary's last sentence is ``Applies only when `other.key` is `value`.`` in that wording. A free-text setting has the single bullet ``- Any text (default: `<value>`)``. A command from the README's command list goes in `docs/commands.md` as a `## /graft:name` section, with a link to it in the list at the top.
+When merging, move settings and commands a clone added to the README:
+
+- A setting from the README's settings table goes in `docs/settings.md` under the `##` section for its command: a ``### `skill.name` `` heading, a summary paragraph, then one single-line bullet per value. Exactly one bullet reads ``- `value` (default): what it does.``; the rest read ``- `value`: what it does.``
+- If the setting only applies when another is set, the summary's last sentence is ``Applies only when `other.key` is `value`.`` in that wording.
+- A free-text setting has the single bullet ``- Any text (default: `<value>`)``.
+- A command from the README's command list goes in `docs/commands.md` as a `## /graft:name` section, with a link to it in the list at the top.
