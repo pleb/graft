@@ -16,13 +16,23 @@ import {
   prExcerpt,
   replay,
   roleRows,
+  runHistory,
   seek,
   setPlaying,
   setSpeed,
   startPath,
   timeline,
 } from "../player/core.ts";
-import type { Card, Clock, Playback, Run, Step, View } from "../player/core.ts";
+import type {
+  Card,
+  Clock,
+  HistoryItem,
+  HistorySkill,
+  Playback,
+  Run,
+  Step,
+  View,
+} from "../player/core.ts";
 
 const FIXTURES = [startScenario, continueScenario, helperScenario];
 
@@ -715,6 +725,165 @@ describe("busy", () => {
     expect(replay(steps, handoff).busy).toBe(true);
     expect(replay(steps, handoff + 1).busy).toBe(false);
     expect(replay(steps, handoff + 2).busy).toBe(true);
+  });
+});
+
+describe("run history", () => {
+  const byId = new Map(FIXTURES.map((s) => [s.id, s]));
+  const steps = timeline(byId, ["start", "continue"]);
+  const items = (skills: HistorySkill[]): HistoryItem[] =>
+    skills.flatMap((skill) => skill.chapters.flatMap((chapter) => chapter.items));
+  const wires = (skills: HistorySkill[]) =>
+    items(skills)
+      .filter((item) => item.wire)
+      .map((item) => [item.card, item.index]);
+
+  it("groups items by skill, then chapter, in step order", () => {
+    const skills = runHistory(byId, steps, steps.length);
+    expect(
+      skills.map((skill) => ({
+        skill: skill.skill,
+        at: skill.at,
+        index: skill.index,
+        chapters: skill.chapters.map((chapter) => ({
+          title: chapter.title,
+          index: chapter.index,
+          kinds: chapter.items.map((item) => `${item.index}:${item.kind}`),
+        })),
+      })),
+    ).toEqual([
+      {
+        skill: "plan",
+        at: 0,
+        index: 0,
+        chapters: [
+          { title: undefined, index: undefined, kinds: ["0:prompt"] },
+          { title: "Draft", index: 1, kinds: ["2:say", "3:answers", "4:file", "5:file"] },
+          {
+            title: "Build",
+            index: 6,
+            kinds: [
+              "7:branch",
+              "8:agentStart",
+              "9:agentStart",
+              "10:file",
+              "11:agentDone",
+              "12:agentDone",
+              "13:commit",
+              "14:handoff",
+            ],
+          },
+        ],
+      },
+      {
+        skill: "pr",
+        at: 1,
+        index: 16,
+        chapters: [
+          {
+            title: undefined,
+            index: undefined,
+            kinds: ["16:prompt", "17:tool", "18:say", "19:prOpen"],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("leaves out captions, the /clear step and the end", () => {
+    const shown = new Set(items(runHistory(byId, steps, steps.length)).map((item) => item.index));
+    const left = steps
+      .map((step, index) => ({ type: step.event.type, index }))
+      .filter(({ index }) => !shown.has(index))
+      .map(({ type }) => type);
+    expect(left).toEqual(["chapter", "chapter", "clear", "end"]);
+  });
+
+  it("names the runs of finish and commit items, and the chosen hand-off command", () => {
+    const found = items(runHistory(byId, steps, steps.length));
+    expect(found.find((item) => item.index === 8)).toMatchObject({
+      kind: "agentStart",
+      runs: ["w1"],
+      card: "w1",
+      description: "Limiter middleware",
+    });
+    expect(found.find((item) => item.index === 12)).toMatchObject({
+      kind: "agentDone",
+      runs: ["w2"],
+      card: "w2",
+      agent: "worker",
+      description: "Config and env docs",
+      report: "Documented RATE_LIMIT.",
+    });
+    expect(found.find((item) => item.kind === "commit")).toMatchObject({
+      runs: ["w1", "w2"],
+      card: "commit:c1",
+      id: "c1",
+    });
+    expect(found.find((item) => item.kind === "handoff")).toMatchObject({ chosen: "/graft:pr" });
+  });
+
+  it("marks one wire target per anchored card: a file's latest edit and pr.open", () => {
+    const skills = runHistory(byId, steps, steps.length);
+    expect(wires(skills)).toEqual([
+      [PLAN, 5],
+      ["README.md", 10],
+      ["pr:7", 19],
+    ]);
+    const stage = replay(steps, steps.length, repo).stage;
+    for (const found of stage.cards.filter((each) => each.anchor))
+      expect(items(skills).filter((item) => item.wire && item.card === found.key)).toHaveLength(1);
+    // Before the edit, the create is the target.
+    expect(wires(runHistory(byId, steps, 5))).toEqual([[PLAN, 4]]);
+  });
+
+  it("marks a lone agent's start, not its finish, as its wire target", () => {
+    const scenarios = [
+      scenario("s", "start", [
+        { type: "prompt", text: "/graft:plan x" },
+        { type: "agent.start", id: "a", agent: "researcher", description: "Look" },
+        { type: "agent.done", id: "a" },
+        { type: "end" },
+      ]),
+    ];
+    const lone = new Map(scenarios.map((s) => [s.id, s]));
+    const walked = timeline(lone, ["s"]);
+    expect(wires(runHistory(lone, walked, walked.length))).toEqual([["a", 1]]);
+  });
+
+  it("marks review's pr.seed as the PR's wire target, with its own item", () => {
+    const walked = timeline(byId, ["helper"]);
+    const skills = runHistory(byId, walked, walked.length);
+    expect(items(skills).map((item) => item.kind)).toEqual([
+      "prompt",
+      "prSeed",
+      "agentStart",
+      "agentDone",
+      "prComment",
+    ]);
+    expect(wires(skills)).toEqual([["pr:42", 1]]);
+  });
+
+  it("cuts at the position", () => {
+    expect(runHistory(byId, steps, 0)).toEqual([]);
+    const found = items(runHistory(byId, steps, 5));
+    expect(found.map((item) => item.index)).toEqual([0, 2, 3, 4]);
+  });
+
+  it("matches stepping when rebuilt at each position", async () => {
+    const { playback, view } = setup(FIXTURES);
+    startPath(playback, ["start", "continue"], true);
+    await vi.runAllTimersAsync();
+    const full = items(runHistory(byId, steps, steps.length));
+    const bare = (found: HistoryItem[]) => found.map(({ wire: _wire, ...item }) => item);
+    let shown = 0;
+    for (const { position } of view.commits) {
+      const found = items(runHistory(playback.byId, playback.steps, position));
+      expect(found.length - shown).toBeLessThanOrEqual(1);
+      shown = found.length;
+      expect(bare(found)).toEqual(bare(full.slice(0, found.length)));
+    }
+    expect(shown).toBe(full.length);
   });
 });
 

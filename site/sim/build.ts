@@ -6,7 +6,15 @@ import { BuildError, check, linkPlayer, loadScenarios, renderPage } from "./buil
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 // Dependency order: each file imports only from files before it.
-const PLAYER = ["core.ts", "terminal.ts", "stage.ts", "finale.ts", "controls.ts", "main.ts"];
+const PLAYER = [
+  "core.ts",
+  "terminal.ts",
+  "history.ts",
+  "stage.ts",
+  "finale.ts",
+  "controls.ts",
+  "main.ts",
+];
 const USAGE = "Usage: node site/sim/build.ts [--scenarios <dir>] [--out <dir>]";
 
 function fail(message: string): never {

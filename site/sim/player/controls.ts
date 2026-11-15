@@ -151,10 +151,13 @@ function speedIcon(shapes: Shape[]): SVGSVGElement {
   return icon;
 }
 
+// Keys pressed in History scroll it or act on its entries, so they never seek.
 function editable(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&
-    (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(target.tagName))
+    (target.isContentEditable ||
+      /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(target.tagName) ||
+      target.closest("#history") !== null)
   );
 }
 
@@ -172,13 +175,14 @@ export function engage(): void {
   if (controlsDom) fold(controlsDom, true);
 }
 
+// Returns the handlers wrapped to fold the picker, for other controls that act the same way.
 export function initControls(
   entries: HTMLElement,
   root: HTMLElement,
   scenarios: Scenario[],
   speed: Speed,
   given: ControlHandlers,
-): void {
+): ControlHandlers {
   const handlers: ControlHandlers = {
     ...given,
     start: (id) => (engage(), given.start(id)),
@@ -271,6 +275,7 @@ export function initControls(
     else return;
     event.preventDefault();
   });
+  return handlers;
 }
 function drawPath(dom: ControlsDom, playback: Playback): void {
   dom.drawn = playback.path;

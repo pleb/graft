@@ -304,19 +304,176 @@ function topLevelNames(file: string, code: string): string[] {
   return names;
 }
 
+// Browser globals the player may use bare, which a top-level name of the joined scope would hide.
+const BROWSER_GLOBALS = new Set([
+  "window",
+  "self",
+  "document",
+  "history",
+  "location",
+  "navigator",
+  "screen",
+  "visualViewport",
+  "localStorage",
+  "sessionStorage",
+  "performance",
+  "crypto",
+  "console",
+  "requestAnimationFrame",
+  "cancelAnimationFrame",
+  "setTimeout",
+  "clearTimeout",
+  "setInterval",
+  "clearInterval",
+  "queueMicrotask",
+  "structuredClone",
+  "fetch",
+  "matchMedia",
+  "getComputedStyle",
+  "scrollX",
+  "scrollY",
+  "scrollTo",
+  "scrollBy",
+  "innerWidth",
+  "innerHeight",
+  "devicePixelRatio",
+  "CSS",
+  "ResizeObserver",
+  "MutationObserver",
+  "IntersectionObserver",
+  "Element",
+  "HTMLElement",
+  "HTMLButtonElement",
+  "HTMLInputElement",
+  "HTMLAnchorElement",
+  "SVGSVGElement",
+  "Node",
+  "NodeFilter",
+  "Event",
+  "CustomEvent",
+  "KeyboardEvent",
+  "MouseEvent",
+  "URL",
+  "URLSearchParams",
+  "DOMRect",
+  "Array",
+  "Object",
+  "String",
+  "Number",
+  "Boolean",
+  "Symbol",
+  "Map",
+  "Set",
+  "WeakMap",
+  "Promise",
+  "JSON",
+  "Math",
+  "Date",
+  "RegExp",
+  "Error",
+  "Infinity",
+  "NaN",
+  "undefined",
+]);
+
+// Characters after which a `/` starts a regular expression rather than a division.
+const REGEX_AFTER = "(,=:[!&|?{};+-*%<>~^";
+
+// Identifiers the code reads bare: not after a `.`, not object keys, not inside strings, comments
+// or regular expressions.
+function bareReferences(code: string): Set<string> {
+  const found = new Set<string>();
+  // Brace depths at which a template literal's `${` opened.
+  const templates: number[] = [];
+  let depth = 0;
+  let previous = "";
+  const skipString = (at: number, quote: string): number => {
+    for (at++; at < code.length && code[at] !== quote; at++) if (code[at] === "\\") at++;
+    return at;
+  };
+  // From inside a template literal, the index of its end or of the `${` that pauses it.
+  const skipTemplate = (at: number): number => {
+    for (; at < code.length; at++) {
+      if (code[at] === "\\") at++;
+      else if (code[at] === "`") return at;
+      else if (code.startsWith("${", at)) {
+        templates.push(depth);
+        depth++;
+        return at + 1;
+      }
+    }
+    return at;
+  };
+  for (let at = 0; at < code.length; at++) {
+    const char = code[at];
+    if (/\s/.test(char)) continue;
+    if (char === '"' || char === "'") at = skipString(at, char);
+    else if (char === "`") at = skipTemplate(at + 1);
+    else if (code.startsWith("//", at))
+      at = code.indexOf("\n", at) === -1 ? code.length : code.indexOf("\n", at);
+    else if (code.startsWith("/*", at))
+      at = code.indexOf("*/", at) === -1 ? code.length : code.indexOf("*/", at) + 1;
+    else if (char === "/" && (previous === "" || REGEX_AFTER.includes(previous))) {
+      let inClass = false;
+      for (at++; at < code.length; at++) {
+        if (code[at] === "\\") at++;
+        else if (code[at] === "[") inClass = true;
+        else if (code[at] === "]") inClass = false;
+        else if (code[at] === "/" && !inClass) break;
+      }
+    } else if (char === "{") depth++;
+    else if (char === "}") {
+      depth--;
+      if (templates.at(-1) === depth) {
+        templates.pop();
+        at = skipTemplate(at + 1);
+      }
+    } else if (/[A-Za-z_$]/.test(char)) {
+      const name = code.slice(at).match(/^[A-Za-z_$][\w$]*/)![0];
+      const key = /^\s*:/.test(code.slice(at + name.length)) && "{,".includes(previous);
+      if (previous !== "." && !key) found.add(name);
+      at += name.length - 1;
+      previous = "a";
+      continue;
+    }
+    previous = char;
+  }
+  return found;
+}
+
+// Names an import clause binds, such as `a` and `c` in `{ a, b as c }`.
+function importedNames(clause: string): string[] {
+  return clause
+    .replace(/^type\s+/, "")
+    .replace(/[{}]/g, "")
+    .split(",")
+    .map((part) =>
+      part
+        .trim()
+        .replace(/^type\s+/, "")
+        .split(/\s+as\s+/)
+        .at(-1)!,
+    )
+    .filter((name) => name !== "");
+}
+
 // Joins the player files, in dependency order, into one classic script.
 export function linkPlayer(files: PlayerFile[]): string {
   const owners = new Map<string, string>();
   const parts: string[] = [];
+  const uses: { file: string; imported: Set<string>; code: string }[] = [];
   for (const file of files) {
+    const imported = new Set<string>();
     let code = stripTypeScriptTypes(file.text);
     code = code.replace(IMPORT, (statement, clause: string, _quote: string, from: string) => {
       if (/^\*\s*as\b/.test(clause) || /,\s*\*\s*as\b/.test(clause))
         throw new BuildError(`${file.name}: namespace import: ${statement.trim()}`);
       if (!SIBLING.test(from))
         throw new BuildError(`${file.name}: import from outside player/: ${statement.trim()}`);
+      for (const name of importedNames(clause)) imported.add(name);
       return "";
     });
+    uses.push({ file: file.name, imported, code });
     code = code.replace(EXPORT_DECLARATION, "$1");
     const leftover = code.match(LEFTOVER);
     if (leftover)
@@ -329,6 +486,14 @@ export function linkPlayer(files: PlayerFile[]): string {
     }
     parts.push(`// ${file.name}\n${code.trim()}`);
   }
+  for (const { file, imported, code } of uses)
+    for (const name of bareReferences(code)) {
+      const owner = owners.get(name);
+      if (owner !== undefined && owner !== file && !imported.has(name) && BROWSER_GLOBALS.has(name))
+        throw new BuildError(
+          `${owner}: top-level name ${name} hides the browser global ${name}, which ${file} uses`,
+        );
+    }
   const body = `(() => {\n"use strict";\n${parts.join("\n\n")}\n})();`;
   if (/<\/script|<!--/i.test(body))
     throw new BuildError("The player holds </script or <!--, which would end its script early");

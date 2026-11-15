@@ -1,10 +1,12 @@
 import { basename, chips } from "./core.ts";
 import type { Card, Playback, StageState } from "./core.ts";
+import { shownHistory } from "./history.ts";
 import { element } from "./terminal.ts";
 
 type StageDom = {
   board: HTMLElement;
   terminal: HTMLElement;
+  history: HTMLElement;
   left: HTMLElement;
   right: HTMLElement;
   timeline: HTMLElement;
@@ -155,7 +157,8 @@ function observe(dom: StageDom, node: Element): void {
   dom.observer?.observe(node);
 }
 
-function scheduleWires(): void {
+// Redraws the wires on the next frame.
+export function redrawWires(): void {
   const dom = stageDom;
   if (!dom || dom.frame !== undefined) return;
   dom.frame = requestAnimationFrame(() => {
@@ -169,6 +172,7 @@ export function initStage(): void {
   const dom: StageDom = {
     board: document.getElementById("board")!,
     terminal: document.getElementById("terminal")!,
+    history: document.getElementById("history")!,
     left: document.getElementById("cards-left")!,
     right: document.getElementById("cards-right")!,
     timeline: document.getElementById("timeline")!,
@@ -182,18 +186,20 @@ export function initStage(): void {
   };
   stageDom = dom;
   if (typeof ResizeObserver === "function") {
-    dom.observer = new ResizeObserver(scheduleWires);
+    dom.observer = new ResizeObserver(redrawWires);
     observe(dom, dom.terminal);
+    observe(dom, dom.history);
     observe(dom, dom.board);
   }
-  dom.terminal.addEventListener("scroll", scheduleWires, { capture: true, passive: true });
+  dom.terminal.addEventListener("scroll", redrawWires, { capture: true, passive: true });
+  dom.history.addEventListener("scroll", redrawWires, { capture: true, passive: true });
   dom.narrow.addEventListener("change", () => {
     dom.placed = "";
     if (dom.state) place(dom, dom.state);
-    scheduleWires();
+    redrawWires();
   });
-  window.addEventListener("resize", scheduleWires);
-  void document.fonts?.ready.then(scheduleWires);
+  window.addEventListener("resize", redrawWires);
+  void document.fonts?.ready.then(redrawWires);
 }
 
 function isCommits(unit: Card[]): boolean {
@@ -298,7 +304,7 @@ export function renderStage(playback: Playback): void {
     dom.nodes.set(card.key, { card, chip, node });
   }
   place(dom, state);
-  scheduleWires();
+  redrawWires();
 }
 
 type Point = { x: number; y: number };
@@ -328,8 +334,10 @@ function drawWires(dom: StageDom): void {
   const state = dom.state;
   if (!state || dom.narrow.matches) return;
   const board = dom.board.getBoundingClientRect();
-  const term = dom.terminal.getBoundingClientRect();
-  const log = dom.terminal.querySelector(".term-log")?.getBoundingClientRect() ?? term;
+  // While History shows, wires end on its entries instead of the terminal's lines.
+  const shown = shownHistory();
+  const term = (shown ? dom.history : dom.terminal).getBoundingClientRect();
+  const log = (shown ?? dom.terminal.querySelector(".term-log"))?.getBoundingClientRect() ?? term;
   const lines = dom.terminal.querySelector(".term-lines")?.children;
   dom.wires.setAttribute("width", String(board.width));
   dom.wires.setAttribute("height", String(board.height));
@@ -349,7 +357,11 @@ function drawWires(dom: StageDom): void {
     const at = places.get(card.key);
     if (!at || dom.chips.has(card.key)) continue;
     if (card.anchor) {
-      const line = card.anchor.clears === state.clears ? lines?.[card.anchor.line] : undefined;
+      const line = shown
+        ? shown.querySelector(`[data-wire="${CSS.escape(card.key)}"]`)
+        : card.anchor.clears === state.clears
+          ? lines?.[card.anchor.line]
+          : undefined;
       let y = term.top + 18;
       if (line) {
         const rect = line.getBoundingClientRect();

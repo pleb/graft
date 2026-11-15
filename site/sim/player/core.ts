@@ -772,6 +772,157 @@ export function choose(playback: Playback, at: number, next: string): void {
   jump(playback, handoff + 1);
 }
 
+// One History entry. Agent start, finish and commit items name the runs they belong to.
+export type HistoryItem = {
+  // The index of the step it shows.
+  index: number;
+  // The key of the card it changes.
+  card?: string;
+  // Set on the one item per anchored card that the card's wire ends on in History.
+  wire?: boolean;
+} & (
+  | { kind: "prompt"; text: string }
+  | { kind: "say"; text: string }
+  | { kind: "tool"; name: string; args: string; result?: string }
+  | { kind: "answers"; questions: Question[] }
+  | { kind: "agentStart"; runs: string[]; agent: string; description: string }
+  | { kind: "agentDone"; runs: string[]; agent: string; description: string; report?: string }
+  | { kind: "commit"; runs: string[]; id: string; subject: string }
+  | { kind: "file"; path: string; created: boolean }
+  | { kind: "branch"; name: string }
+  | { kind: "prOpen"; number: number; title: string; draft: boolean }
+  | { kind: "prSeed"; number: number; title: string }
+  | { kind: "prComment"; number: number; text: string }
+  | { kind: "handoff"; text: string; chosen?: string }
+);
+
+// Items before a skill's first chapter sit in a chapter with no title.
+export type HistoryChapter = { index?: number; title?: string; items: HistoryItem[] };
+
+export type HistorySkill = { at: number; index: number; skill: string; chapters: HistoryChapter[] };
+
+function historyItem(step: Step, index: number, stage: StageState): HistoryItem | undefined {
+  const event = step.event;
+  switch (event.type) {
+    case "prompt":
+    case "say":
+      return { index, kind: event.type, text: event.text };
+    case "tool":
+      return { index, kind: "tool", name: event.name, args: event.args, result: event.result };
+    case "ask":
+      return { index, kind: "answers", questions: event.questions };
+    case "agent.start":
+      return {
+        index,
+        card: event.id,
+        kind: "agentStart",
+        runs: [event.id],
+        agent: event.agent,
+        description: event.description,
+      };
+    case "agent.done": {
+      const card = findCard(stage, event.id);
+      return {
+        index,
+        card: event.id,
+        kind: "agentDone",
+        runs: [event.id],
+        agent: card?.kind === "agent" ? card.agent : event.id,
+        description: card?.kind === "agent" ? card.description : "",
+        report: event.report,
+      };
+    }
+    case "git.commit":
+      return {
+        index,
+        card: `commit:${event.id}`,
+        kind: "commit",
+        runs: event.by ?? [],
+        id: event.id,
+        subject: event.subject,
+      };
+    case "file.create":
+    case "file.modify":
+      return {
+        index,
+        card: event.path,
+        kind: "file",
+        path: event.path,
+        created: event.type === "file.create",
+      };
+    case "git.branch":
+      return { index, kind: "branch", name: event.name };
+    case "pr.open":
+      return {
+        index,
+        card: `pr:${event.number}`,
+        kind: "prOpen",
+        number: event.number,
+        title: event.title,
+        draft: event.draft,
+      };
+    case "pr.seed":
+      return {
+        index,
+        card: `pr:${event.number}`,
+        kind: "prSeed",
+        number: event.number,
+        title: event.title,
+      };
+    case "pr.comment":
+      return {
+        index,
+        card: `pr:${event.number}`,
+        kind: "prComment",
+        number: event.number,
+        text: event.text,
+      };
+    case "handoff":
+      return { index, kind: "handoff", text: event.text, chosen: step.chosen };
+    default:
+      return undefined;
+  }
+}
+
+// The walked path before `position` as skills, then chapters, then items in step order.
+export function runHistory(
+  byId: Map<string, Scenario>,
+  steps: Step[],
+  position: number,
+): HistorySkill[] {
+  const skills: HistorySkill[] = [];
+  // Per card, the item from the step that set its current anchor.
+  const targets = new Map<string, HistoryItem>();
+  let term = emptyTerm();
+  steps.slice(0, position).forEach((step, index) => {
+    const before = term.stage;
+    term = applyStep(term, step);
+    if (skills.at(-1)?.at !== step.at) {
+      const scenario = byId.get(step.scenario);
+      skills.push({
+        at: step.at,
+        index,
+        skill: scenario ? skillName(scenario) : step.scenario,
+        chapters: [],
+      });
+    }
+    const chapters = skills.at(-1)!.chapters;
+    if (step.event.type === "chapter") {
+      chapters.push({ index, title: step.event.title, items: [] });
+      return;
+    }
+    const item = historyItem(step, index, before);
+    if (!item) return;
+    if (chapters.length === 0) chapters.push({ items: [] });
+    chapters.at(-1)!.items.push(item);
+    if (item.card === undefined) return;
+    const anchor = findCard(term.stage, item.card)?.anchor;
+    if (anchor && anchor !== findCard(before, item.card)?.anchor) targets.set(item.card, item);
+  });
+  for (const [key, item] of targets) if (findCard(term.stage, key)?.anchor) item.wire = true;
+  return skills;
+}
+
 export type RecapLine = { skill: string; text: string };
 
 export type Finale = {

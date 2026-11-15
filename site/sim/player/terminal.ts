@@ -14,6 +14,8 @@ type TermDom = {
   caption: HTMLElement;
   rendered: Line[];
   handoff?: Pending;
+  // Other places that show the hand-off's choices; `dropped` runs when focus leaves with them.
+  mirrors: { slot: HTMLElement; dropped(): void }[];
   reduced: boolean;
   choose(at: number, next: string): void;
 };
@@ -129,19 +131,38 @@ export function initTerminal(
     input,
     caption,
     rendered: [],
+    mirrors: [],
     reduced,
     choose,
   };
 }
 
+// Shows the hand-off's choices in `slot` too, in step with the terminal input.
+export function mirrorChoices(slot: HTMLElement, dropped: () => void): void {
+  const dom = termDom;
+  if (!dom) return;
+  dom.mirrors.push({ slot, dropped });
+  renderInput(dom, dom.handoff);
+}
+
 function renderInput(dom: TermDom, handoff: Pending | undefined): void {
   dom.handoff = handoff;
+  for (const { slot, dropped } of dom.mirrors) {
+    const focused = slot.contains(document.activeElement);
+    replaceChoices(slot, handoff ? [handoffChoices(handoff, dom.choose)] : []);
+    slot.hidden = !handoff;
+    if (focused && !slot.contains(document.activeElement)) dropped();
+  }
   if (!handoff) {
     const mark = element("span", "term-mark", "›");
     const typed = element("span", "term-typed");
     dom.input.replaceChildren(mark, typed, element("span", "term-caret"));
     return;
   }
+  replaceChoices(dom.input, [handoffChoices(handoff, dom.choose)]);
+}
+
+function handoffChoices(handoff: Pending, choose: (at: number, next: string) => void): HTMLElement {
   const choices = element("div", "term-choices");
   choices.setAttribute("role", "group");
   choices.setAttribute("aria-label", "Run next");
@@ -150,10 +171,23 @@ function renderInput(dom: TermDom, handoff: Pending | undefined): void {
     const button = element("button", "term-choice", choice.command) as HTMLButtonElement;
     button.type = "button";
     button.setAttribute("aria-pressed", String(choice.command === handoff.chosen));
-    button.addEventListener("click", () => dom.choose(handoff.at, choice.next));
+    button.addEventListener("click", () => choose(handoff.at, choice.next));
     choices.append(button);
   }
-  dom.input.replaceChildren(choices);
+  return choices;
+}
+
+// Replaces `root`'s content, moving focus from a choice button to the new one for the same command.
+function replaceChoices(root: HTMLElement, nodes: HTMLElement[]): void {
+  const active = document.activeElement;
+  const focused =
+    active instanceof HTMLElement && root.contains(active) && active.matches(".term-choice")
+      ? active.textContent
+      : undefined;
+  root.replaceChildren(...nodes);
+  if (focused === undefined) return;
+  for (const button of root.querySelectorAll<HTMLElement>(".term-choice"))
+    if (button.textContent === focused) button.focus({ preventScroll: true });
 }
 
 function roleNode(row: RoleRow): HTMLElement {

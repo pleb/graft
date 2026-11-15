@@ -12,7 +12,8 @@ import {
 } from "./core.ts";
 import type { Clock, Playback, SimData, View } from "./core.ts";
 import { hideFinale, initFinale, showFinale } from "./finale.ts";
-import { initStage, renderStage } from "./stage.ts";
+import { initHistory, renderHistory } from "./history.ts";
+import { initStage, redrawWires, renderStage } from "./stage.ts";
 import { initTerminal, playTermStep, renderTerm } from "./terminal.ts";
 
 function main(): void {
@@ -25,6 +26,7 @@ function main(): void {
   };
   const show = (playback: Playback): void => {
     renderTerm(playback.term);
+    renderHistory(playback);
     renderStage(playback);
     if (playback.term.ended) showFinale(playback);
     else hideFinale();
@@ -52,7 +54,7 @@ function main(): void {
   initStage();
   initFinale();
   const fit = fitPanel();
-  initControls(
+  const handlers = initControls(
     document.getElementById("entries")!,
     document.getElementById("controls")!,
     data.scenarios,
@@ -74,6 +76,12 @@ function main(): void {
         if (open) revealPanel();
       },
     },
+  );
+  initHistory(
+    document.getElementById("panel")!,
+    document.getElementById("tabs")!,
+    document.getElementById("history")!,
+    { seek: handlers.seek, view: redrawWires },
   );
 
   const open = (): void => {
