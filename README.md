@@ -4,6 +4,8 @@ Graft is a Claude Code plugin that takes a task from idea to pull request. It pl
 
 [Watch it run in the simulator](https://pleb.github.io/graft/).
 
+Quick reference: [commands](./docs/commands.md) and [settings](./docs/settings.md).
+
 ## Why Graft
 
 Your changes to Graft, which it calls mods, survive its updates. Install gives you a private GitHub repo holding your own copy, and an update merges into it by what each mod is meant to do. `/graft:tune` learns from the corrections you keep making and offers to turn them into mods. [Make it yours](#make-it-yours) covers how.
