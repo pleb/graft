@@ -4,7 +4,8 @@ Graft is a Claude Code plugin that takes a task from idea to pull request. It pl
 
 [Watch it run in the simulator](https://pleb.github.io/graft/).
 
-Quick reference: [commands](./docs/commands.md) and [settings](./docs/settings.md).
+> [!TIP]
+> Quick reference: [commands](./docs/commands.md) and [settings](./docs/settings.md).
 
 ## Why Graft
 
