@@ -119,11 +119,15 @@ function fitPanel(): () => void {
   return fit;
 }
 
-// Scrolls the page so the panel's bottom, and so the terminal input, is in view.
+// Scrolls the page toward the panel's bottom, and so the terminal input, but never past the
+// top of the picker's selected entry, which the reader reopened the picker to see.
 function revealPanel(): void {
   const below =
     document.getElementById("panel")!.getBoundingClientRect().bottom - window.innerHeight;
-  if (below > 0) window.scrollBy(0, below);
+  const selected = document.querySelector("#entries [aria-pressed=true]");
+  const room = selected ? selected.getBoundingClientRect().top : Infinity;
+  const by = Math.min(Math.max(below, 0), room);
+  if (by !== 0) window.scrollBy(0, by);
 }
 
 main();
