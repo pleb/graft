@@ -476,6 +476,7 @@
     position: sticky;
     top: calc(env(safe-area-inset-top, 0px) + 12px);
     display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     gap: 12px;
     max-height: calc(100vh - 24px);
     min-width: 0;
@@ -485,6 +486,12 @@
     max-height: none;
     overflow: auto;
     min-height: 0;
+  }
+  .files > summary {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--surface);
   }
   .finish {
     background: var(--surface);
@@ -535,7 +542,14 @@
     justify-content: space-between;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px 0;
+    padding: 8px 12px 6px;
+    position: sticky;
+    top: var(--files-head, 0px);
+    z-index: 1;
+    background: var(--surface);
+  }
+  .files .bar + ol {
+    padding-top: 0;
   }
   .files .bar .seg button {
     padding: 3px 10px;
@@ -545,7 +559,8 @@
     color: var(--muted);
     font-weight: 400;
   }
-  .files li.cur > a {
+  .files li.cur > a,
+  .files .dir > details:not([open]):has(li.cur) > summary {
     background: var(--sunken);
     box-shadow: inset 2px 0 0 var(--accent);
   }
@@ -1051,7 +1066,7 @@
             >Files (<span id="files-total"></span>) <span class="count" id="files-viewed"></span
           ></span>
         </summary>
-        <div class="bar">
+        <div class="bar" id="list-bar">
           <div class="seg" role="group" aria-label="File list layout">
             <button type="button" id="list-flat" aria-pressed="true">Flat</button>
             <button type="button" id="list-tree" aria-pressed="false">Tree</button>
@@ -2050,10 +2065,42 @@
     document
       .querySelectorAll("#file-list li:not(.dir)")
       .forEach((li) => li.classList.toggle("cur", li.id === "li-" + DIFF.files[current].id));
+    followRow();
     if (!scroll) return;
     // The scroll this starts must not move the current file on to a short file below it.
     jumpUntil = Date.now() + 300;
     scrollToEl(sections[current], "start");
+  }
+  // Keeps the current file's row, or the nearest visible folder row holding it, in view below the
+  // list's sticky header. Scrolling only the list keeps the page where it is.
+  function followRow() {
+    const files = $("files");
+    let row = $("li-" + DIFF.files[current].id);
+    if (!files.open || !row) return;
+    // Chrome still gives rows in a closed folder a box, so the outermost closed folder is found by markup.
+    let closed = row.closest("details:not([open])");
+    while (closed) {
+      row = closed.firstElementChild;
+      closed = closed.parentElement.closest("details:not([open])");
+    }
+    const box = files.getBoundingClientRect();
+    const head = files.querySelector(":scope > summary").offsetHeight + $("list-bar").offsetHeight;
+    const top = box.top + files.clientTop;
+    const next = followTop(
+      row.getBoundingClientRect(),
+      top + head,
+      top + files.clientHeight,
+      files.scrollTop,
+    );
+    if (next != null) files.scrollTop = next;
+  }
+  // The scrollTop that brings a row's rect inside the band from bandTop to bandBottom by the
+  // nearest edge, or null when it is inside already.
+  function followTop(row, bandTop, bandBottom, scrollTop) {
+    if (row.top < bandTop) return scrollTop - (bandTop - row.top);
+    if (row.bottom > bandBottom)
+      return scrollTop + Math.min(row.bottom - bandBottom, row.top - bandTop);
+    return null;
   }
   // Offscreen file bodies only have estimated heights, so a smooth scroll to a far target misses
   // as the files it passes render. A far target is jumped to, then realigned once those files settle.
@@ -2339,6 +2386,9 @@
   }
 
   if (window.matchMedia("(max-width: 860px)").matches) $("files").open = false;
+  new ResizeObserver(([e]) =>
+    $("files").style.setProperty("--files-head", e.target.offsetHeight + "px"),
+  ).observe($("files").querySelector(":scope > summary"));
   // An image file with no previewed side carries its stubs in the manifest, so it is loaded already.
   for (const f of DIFF.files) {
     if (!f.isImage || f.data != null) continue;

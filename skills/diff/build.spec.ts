@@ -2965,6 +2965,32 @@ describe("template", () => {
     });
   });
 
+  describe("follows the current file in the file list", () => {
+    const followTop = new Function(`${templateSource("function followTop(")}\nreturn followTop;`)();
+    // The list's band runs from 100 (below the sticky header) to 400.
+    const follow = (top: number, bottom: number, scrollTop = 500) =>
+      followTop({ top, bottom }, 100, 400, scrollTop);
+
+    it("leaves the list alone while the row is fully in the band", () => {
+      expect(follow(100, 128)).toBeNull();
+      expect(follow(372, 400)).toBeNull();
+    });
+
+    it("brings a row under the sticky header down to the band's top", () => {
+      expect(follow(90, 118)).toBe(490);
+      expect(follow(-300, -272)).toBe(100);
+    });
+
+    it("brings a row below the band up to its bottom", () => {
+      expect(follow(390, 418)).toBe(518);
+      expect(follow(900, 928)).toBe(1028);
+    });
+
+    it("keeps the top of a row taller than the band in view", () => {
+      expect(follow(150, 600)).toBe(550);
+    });
+  });
+
   describe("rebuilds a Markdown file's old source", () => {
     const oldSource = new Function(`${templateSource("function oldSource(")}\nreturn oldSource;`)();
     function rebuilt(dir: string, over: Partial<BuildInput> = {}): Map<string, string | null> {
