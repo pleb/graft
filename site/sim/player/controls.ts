@@ -9,6 +9,8 @@ export type ControlHandlers = {
   toggle(): void;
   restart(): void;
   seek(position: number): void;
+  // Called after the entry picker folds away or reopens.
+  picker(open: boolean): void;
 };
 
 type ControlsDom = {
@@ -18,8 +20,14 @@ type ControlsDom = {
   trail: HTMLElement;
   scrubber: HTMLInputElement;
   ticks: HTMLElement;
+  entries: HTMLElement;
+  change: HTMLButtonElement;
+  // Whether a reader action folded the entry picker away on narrow screens.
+  folded: boolean;
   // The path the trail and ticks were drawn for.
   drawn?: string[];
+  // The trail index last scrolled into view.
+  current?: number;
   handlers: ControlHandlers;
 };
 
@@ -40,13 +48,17 @@ const HELPER_LEADS: Record<string, string> = {
 const SPEED_LABELS: Record<Speed, string> = { slow: "Slow", medium: "Medium", fast: "Fast" };
 const SVG_NS = "http://www.w3.org/2000/svg";
 type Shape = [tag: string, attributes: Record<string, string>];
-// A turtle for slow and a rabbit for fast, as filled shapes on a 24 by 24 grid.
+// A turtle for slow, a gauge for medium and a rabbit for fast, as filled shapes on a 24 by 24 grid.
 const SPEED_ICONS: Partial<Record<Speed, Shape[]>> = {
   slow: [
     ["path", { d: "M2 17.5a8.5 8.5 0 0 1 17 0z" }],
     ["circle", { cx: "20", cy: "13", r: "2.7" }],
     ["rect", { x: "3.8", y: "16", width: "3.4", height: "4.5", rx: "1.4" }],
     ["rect", { x: "13.6", y: "16", width: "3.4", height: "4.5", rx: "1.4" }],
+  ],
+  medium: [
+    ["path", { d: "M3 17a9 9 0 0 1 18 0h-3a6 6 0 0 0-12 0z" }],
+    ["rect", { x: "11", y: "7", width: "2", height: "10", rx: "1" }],
   ],
   fast: [
     ["ellipse", { cx: "10", cy: "16", rx: "7", ry: "5" }],
@@ -146,13 +158,34 @@ function editable(target: EventTarget | null): boolean {
   );
 }
 
+function fold(dom: ControlsDom, folded: boolean): void {
+  if (dom.folded === folded) return;
+  dom.folded = folded;
+  const focused = dom.entries.contains(document.activeElement);
+  dom.entries.classList.toggle("entries-folded", folded);
+  dom.handlers.picker(!folded);
+  if (folded && focused && dom.entries.getClientRects().length === 0) dom.change.focus();
+}
+
+// Folds the entry picker on narrow screens once the reader acts.
+export function engage(): void {
+  if (controlsDom) fold(controlsDom, true);
+}
+
 export function initControls(
   entries: HTMLElement,
   root: HTMLElement,
   scenarios: Scenario[],
   speed: Speed,
-  handlers: ControlHandlers,
+  given: ControlHandlers,
 ): void {
+  const handlers: ControlHandlers = {
+    ...given,
+    start: (id) => (engage(), given.start(id)),
+    speed: (value) => (engage(), given.speed(value)),
+    toggle: () => (engage(), given.toggle()),
+    seek: (position) => (engage(), given.seek(position)),
+  };
   const primary = ordered(scenarios, "start", Object.keys(HINTS)).map((scenario) =>
     entryCard(scenario, () => handlers.start(scenario.id)),
   );
@@ -177,13 +210,16 @@ export function initControls(
     const node = button("ctl-speed", "", () => handlers.speed(value));
     const shapes = SPEED_ICONS[value];
     if (shapes) node.append(speedIcon(shapes));
-    node.append(SPEED_LABELS[value]);
+    node.append(element("span", "ctl-label", SPEED_LABELS[value]));
+    node.setAttribute("aria-label", SPEED_LABELS[value]);
     node.dataset.speed = value;
     node.setAttribute("aria-pressed", String(value === speed));
     return node;
   });
   const play = button("ctl-play", "", () => handlers.toggle());
-  const restart = button("ctl-restart", "↺ Restart", () => handlers.restart());
+  const restart = button("ctl-restart", "", () => handlers.restart());
+  restart.append(element("span", "ctl-label", "↺ Restart"));
+  restart.setAttribute("aria-label", "Restart");
 
   const trail = element("ol", "ctl-trail");
   trail.setAttribute("aria-label", "Skills walked");
@@ -192,17 +228,26 @@ export function initControls(
   scrubber.min = "0";
   scrubber.step = "1";
   scrubber.setAttribute("aria-label", "Position in the walked path");
-  scrubber.addEventListener("input", () => handlers.seek(Number(scrubber.value)));
+  // A drag folds the picker only when it ends, so the range stays under the finger.
+  scrubber.addEventListener("input", () => given.seek(Number(scrubber.value)));
+  scrubber.addEventListener("change", engage);
   const ticks = element("div", "ctl-ticks");
   ticks.setAttribute("aria-hidden", "true");
   const scrub = element("div", "ctl-scrub");
   scrub.append(scrubber, ticks);
   const buttons = element("div", "ctl-buttons");
   buttons.append(play, restart);
-  const playback = element("div", "ctl-playback");
-  playback.append(buttons, group("Speed", "ctl-speeds", speeds));
+  const playback = group("Play and speed", "ctl-playback", [
+    buttons,
+    group("Speed", "ctl-speeds", speeds),
+  ]);
+  const change = button("ctl-change", "Change start", () => {
+    const dom = controlsDom!;
+    fold(dom, false);
+    dom.entries.querySelector<HTMLElement>("[aria-pressed=true]")?.focus({ preventScroll: true });
+  });
 
-  root.replaceChildren(trail, scrub, playback);
+  root.replaceChildren(trail, change, scrub, playback);
   controlsDom = {
     starts: [...primary, ...helpers],
     speeds,
@@ -210,6 +255,9 @@ export function initControls(
     trail,
     scrubber,
     ticks,
+    entries,
+    change,
+    folded: false,
     handlers,
   };
 
@@ -226,6 +274,7 @@ export function initControls(
 }
 function drawPath(dom: ControlsDom, playback: Playback): void {
   dom.drawn = playback.path;
+  dom.current = undefined;
   const found = marks(playback.byId, playback.steps);
   const total = Math.max(1, playback.steps.length);
   dom.trail.replaceChildren(
@@ -240,7 +289,7 @@ function drawPath(dom: ControlsDom, playback: Playback): void {
   dom.ticks.replaceChildren(
     ...found.map((mark) => {
       const tick = element("span", `ctl-tick ctl-tick-${mark.kind}`);
-      tick.style.left = `${(mark.index / total) * 100}%`;
+      tick.style.insetInlineStart = `${(mark.index / total) * 100}%`;
       tick.title = mark.label;
       return tick;
     }),
@@ -273,4 +322,17 @@ export function renderControls(playback: Playback): void {
     if (index === current) item.setAttribute("aria-current", "step");
     else item.removeAttribute("aria-current");
   });
+  if (dom.current !== current) {
+    dom.current = current;
+    scrollTrail(dom.trail, dom.trail.children[current]);
+  }
+}
+
+// Keeps the current skill in view when the trail is one scrolling line.
+function scrollTrail(trail: HTMLElement, item: Element | undefined): void {
+  if (!item || trail.scrollWidth <= trail.clientWidth) return;
+  const box = trail.getBoundingClientRect();
+  const rect = item.getBoundingClientRect();
+  if (rect.left < box.left) trail.scrollLeft -= box.left - rect.left;
+  else if (rect.right > box.right) trail.scrollLeft += rect.right - box.right;
 }

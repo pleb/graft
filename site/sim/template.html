@@ -330,6 +330,9 @@
         height: 16px;
         fill: currentColor;
       }
+      .ctl-speed[data-speed="medium"] .ctl-speed-icon {
+        display: none;
+      }
       .ctl-speed[aria-pressed="true"] {
         background: var(--info-bg);
         border-color: var(--info-border);
@@ -391,6 +394,9 @@
         height: 8px;
         background: var(--accent);
       }
+      .ctl-change {
+        display: none;
+      }
       #stage {
         max-width: 1440px;
         margin: 0 auto;
@@ -414,8 +420,7 @@
         --term-pick: #121d2f;
         position: relative;
         z-index: 3;
-        grid-row: 1;
-        grid-column: 2;
+        grid-area: 1 / 1;
         align-self: start;
         width: 100%;
         overflow: hidden;
@@ -932,11 +937,17 @@
       #timeline {
         display: none;
       }
+      #panel {
+        grid-row: 1;
+        grid-column: 2;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        min-width: 0;
+      }
       #finale {
         position: relative;
         z-index: 4;
-        grid-row: 1;
-        grid-column: 2;
+        grid-area: 1 / 1;
         min-height: 100%;
         padding: 20px;
         border: 1px solid var(--border);
@@ -1125,18 +1136,18 @@
         .agent-ns {
           display: none;
         }
-        #board {
-          grid-template-columns: minmax(0, 1fr);
+        #stage {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto 44px;
+          align-items: start;
         }
-        #terminal,
-        #finale,
+        #board,
         #controls {
-          grid-column: 1;
-        }
-        #controls {
-          margin: 14px 0 0;
+          display: contents;
         }
         #entries {
+          grid-row: 1;
+          grid-column: 1 / -1;
           gap: 8px;
           margin: 0 0 12px;
           padding: 12px 0 10px;
@@ -1155,6 +1166,174 @@
         }
         .entry {
           scroll-snap-align: start;
+        }
+        #entries.entries-folded {
+          display: none;
+        }
+        .ctl-trail {
+          grid-row: 2;
+          grid-column: 1 / -1;
+          align-self: center;
+          flex-wrap: nowrap;
+          min-width: 0;
+          overflow-x: auto;
+          scrollbar-width: none;
+          white-space: nowrap;
+        }
+        .ctl-trail::-webkit-scrollbar {
+          display: none;
+        }
+        .ctl-trail-item {
+          flex: none;
+        }
+        .ctl-trail-skill {
+          min-width: 44px;
+          min-height: 44px;
+        }
+        #entries.entries-folded ~ #board .ctl-trail {
+          grid-column: 1;
+        }
+        #entries.entries-folded ~ #board .ctl-change {
+          display: inline-flex;
+        }
+        .ctl-change {
+          grid-row: 2;
+          grid-column: 2 / 4;
+          align-items: center;
+          min-height: 44px;
+          margin-left: 8px;
+          padding: 0 12px;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          background: var(--surface);
+          font-size: 14px;
+          white-space: nowrap;
+        }
+        .ctl-playback {
+          grid-row: 3;
+          grid-column: 1 / -1;
+          flex-wrap: nowrap;
+          gap: 8px;
+          margin: 4px 0 6px;
+        }
+        .ctl-play {
+          min-width: 96px;
+          min-height: 44px;
+        }
+        .ctl-restart {
+          min-width: 44px;
+          min-height: 44px;
+          padding: 0 10px;
+        }
+        .ctl-speed {
+          justify-content: center;
+          min-width: 44px;
+          min-height: 44px;
+          padding: 0 10px;
+        }
+        .ctl-speed-icon,
+        .ctl-speed[data-speed="medium"] .ctl-speed-icon {
+          display: block;
+          width: 20px;
+          height: 20px;
+        }
+        .ctl-restart::before {
+          content: "↺";
+        }
+        .ctl-playback .ctl-label {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          clip-path: inset(50%);
+          white-space: nowrap;
+        }
+        #caption,
+        #caption[hidden] {
+          grid-row: 4;
+          grid-column: 1 / -1;
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+          line-clamp: 2;
+          height: 2.8em;
+          margin: 0 0 6px;
+          overflow: hidden;
+          font-size: 14px;
+          line-height: 1.4;
+        }
+        #caption[hidden] {
+          visibility: hidden;
+        }
+        #panel {
+          grid-row: 5;
+          grid-column: 1 / -1;
+          height: max(300px, calc(100vh - var(--term-top, 0px) - 8px));
+          height: max(300px, calc(100svh - var(--term-top, 0px) - 8px));
+        }
+        #terminal {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+        }
+        .term-log {
+          flex: 1 1 0;
+          height: auto;
+          min-height: 0;
+        }
+        #finale {
+          overflow-y: auto;
+        }
+        .ctl-scrub {
+          grid-row: 6;
+          grid-column: 1 / -1;
+          margin-top: 8px;
+        }
+        #timeline {
+          grid-row: 7;
+          grid-column: 1 / -1;
+        }
+        :root.vrange #panel {
+          grid-column: 1 / 3;
+        }
+        :root.vrange .ctl-scrub {
+          grid-row: 5;
+          grid-column: 3;
+          align-self: stretch;
+          margin: 0;
+          padding: 0;
+        }
+        :root.vrange .ctl-scrubber,
+        :root.vrange .ctl-ticks {
+          writing-mode: vertical-lr;
+        }
+        :root.vrange .ctl-scrubber {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: 0;
+          width: 44px;
+          height: auto;
+          touch-action: none;
+        }
+        :root.vrange .ctl-ticks {
+          top: 8px;
+          bottom: 8px;
+          left: auto;
+          right: 0;
+          width: 8px;
+          height: auto;
+        }
+        :root.vrange .ctl-tick {
+          top: auto;
+          left: 0;
+          width: auto;
+          height: auto;
+          inline-size: 2px;
+          block-size: 4px;
+        }
+        :root.vrange .ctl-tick-skill {
+          block-size: 8px;
         }
         .cards-left,
         .cards-right,
@@ -1224,6 +1403,18 @@
           --rise: 12px;
         }
       }
+      @media (max-width: 899px) and (max-height: 599px) {
+        header {
+          padding-top: 10px;
+          padding-bottom: 6px;
+        }
+        .brand-line {
+          display: none;
+        }
+        .ctl-playback {
+          margin: 2px 0 4px;
+        }
+      }
       @media (max-width: 479px) {
         .brand-mark {
           width: 34px;
@@ -1276,7 +1467,10 @@
           aria-label="Cards left of the terminal"
           role="region"
         ></div>
-        <section id="terminal" aria-label="Simulated terminal"></section>
+        <div id="panel">
+          <section id="terminal" aria-label="Simulated terminal"></section>
+          <section id="finale" aria-label="Finale" hidden></section>
+        </div>
         <div id="controls" role="group" aria-label="Playback"></div>
         <div
           id="cards-right"
@@ -1285,7 +1479,6 @@
           role="region"
         ></div>
         <svg id="wires" aria-hidden="true" focusable="false"></svg>
-        <section id="finale" aria-label="Finale" hidden></section>
       </div>
       <div id="timeline" class="cards" aria-label="Cards" role="region"></div>
     </main>

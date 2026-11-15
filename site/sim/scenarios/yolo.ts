@@ -106,7 +106,7 @@ const scenario: Scenario = {
     { type: "prompt", text: "/graft:yolo add rate limiting to the notes API" },
     {
       type: "caption",
-      text: "Yolo runs execute, making the calls you would usually make, and ends in a ready PR with screenshots.",
+      text: "Yolo runs execute, making your usual calls, and ends in a ready PR with screenshots.",
     },
     {
       type: "tool",
