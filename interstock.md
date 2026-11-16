@@ -53,13 +53,7 @@ git -C <dir> commit -am "Make <owner>/<repo> an interstock"
 git -C <dir> push --set-upstream origin main
 ```
 
-When the user chose to publish the simulator, follow `## Publish the simulator` outside `/graft:update`. Otherwise record the decline.
-
-```bash
-gh variable set GRAFT_SIMULATOR --body declined -R <owner>/<repo>
-```
-
-Then make step 3's simulator link property true. When that changed `README.md`, commit and push.
+When the user chose to publish the simulator, follow `## Publish the simulator` outside `/graft:update`. Then make step 3's simulator link property true. When that changed `README.md`, commit and push.
 
 ```bash
 git -C <dir> commit -am "Link the simulator"
@@ -68,7 +62,7 @@ git -C <dir> push
 
 ## 5. Finish
 
-Report `https://github.com/<owner>/<repo>`, `<dir>`, and the colleague install command. For a private repo, say colleagues need read access and `gh auth setup-git`. Say the caretaker runs `/graft:update` and `/graft:modify` in `<dir>` to update or modify the interstock. Report the simulator's Pages URL and whether the site is public, or that publishing was declined or skipped and why.
+Report `https://github.com/<owner>/<repo>`, `<dir>`, and the colleague install command. For a private repo, say colleagues need read access and `gh auth setup-git`. Say the caretaker runs `/graft:update` and `/graft:modify` in `<dir>` to update or modify the interstock. Report the simulator's Pages URL and whether the site is public, or why it was not published.
 
 Offer to switch the user's own Graft to the interstock by following `<dir>/agent-install.md`.
 
@@ -131,9 +125,3 @@ When a command here fails in a way its step does not name, report its cause and 
    ```bash
    gh api repos/<owner>/<repo>/pages --jq .html_url
    ```
-
-When the section ends before step 5, except at step 1, ask **Not now**, which leaves `GRAFT_SIMULATOR` unset so `/graft:update` offers this section again, or **Never**, which records the decline.
-
-```bash
-gh variable set GRAFT_SIMULATOR --body declined -R <owner>/<repo>
-```

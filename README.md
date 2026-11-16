@@ -94,7 +94,7 @@ Colleagues then install with the command in the interstock repo's README.
 
 A caretaker keeps the interstock current by running `/graft:update` and `/graft:modify` in a clone of its repo. There, and in a clone of `pleb/graft`, both commands raise a PR to merge instead of pushing to `main` as they do in your own copy. `/graft:update` also keeps the interstock in line with `interstock.md`.
 
-Creating an interstock offers to publish the simulator to its GitHub Pages, and `/graft:update` offers again until a repo admin publishes or declines it. A caretaker can also follow `interstock.md`'s Publish the simulator section at any time. Once it is published, changes to the interstock keep the simulator's scenarios current.
+Creating an interstock offers to publish the simulator to its GitHub Pages. To publish it later, a caretaker asks `/graft:update` to, or follows `interstock.md`'s Publish the simulator section. Once it is published, changes to the interstock keep the simulator's scenarios current.
 
 The interstock records its mods in `INTERSTOCK-MODS.md`, and each person's copy keeps its own in `MODS.md`.
 
