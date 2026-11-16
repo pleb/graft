@@ -1,4 +1,5 @@
 import { finale, formatHash, prExcerpt, skillName } from "./core.ts";
+import type { Site } from "../events.ts";
 import type { Card, Finale, Playback } from "./core.ts";
 import { selectTab } from "./history.ts";
 import { element } from "./terminal.ts";
@@ -6,15 +7,16 @@ import { element } from "./terminal.ts";
 type FinaleDom = {
   root: HTMLElement;
   reduced: boolean;
+  site: Site;
   // The path and position the finale was built for.
   shown?: string;
 };
 
 let finaleDom: FinaleDom | undefined;
 
-export const INSTALL_LINE =
-  "Claude, install Graft https://raw.githubusercontent.com/pleb/graft/main/agent-install.md";
-export const INSTALL_URL = "https://github.com/pleb/graft#install";
+export function installUrl(repo: string): string {
+  return `https://github.com/${repo}#install`;
+}
 
 function link(text: string, href: string, className?: string): HTMLAnchorElement {
   const node = element("a", className, text) as HTMLAnchorElement;
@@ -113,7 +115,7 @@ function recapSection(result: Finale): HTMLElement {
   return section;
 }
 
-function installSection(): HTMLElement {
+function installSection(site: Site): HTMLElement {
   const section = element("section", "finale-install");
   const status = element("span", "finale-status");
   status.setAttribute("aria-live", "polite");
@@ -125,7 +127,7 @@ function installSection(): HTMLElement {
     };
     try {
       navigator.clipboard
-        .writeText(INSTALL_LINE)
+        .writeText(site.installLine)
         .then(() => done("Copied. Paste it into Claude Code."))
         .catch(() => done("Copy the line above into Claude Code."));
     } catch {
@@ -133,9 +135,9 @@ function installSection(): HTMLElement {
     }
   });
   const row = element("div", "finale-install-row");
-  row.append(copy, link("Install instructions", INSTALL_URL), status);
+  row.append(copy, link("Install instructions", installUrl(site.repo)), status);
   section.append(
-    element("code", "finale-install-line", INSTALL_LINE),
+    element("code", "finale-install-line", site.installLine),
     row,
     element(
       "p",
@@ -190,10 +192,11 @@ function grow(dom: FinaleDom, panel: HTMLElement, number: number | undefined): v
   );
 }
 
-export function initFinale(): void {
+export function initFinale(site: Site): void {
   finaleDom = {
     root: document.getElementById("finale")!,
     reduced: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    site,
   };
 }
 
@@ -208,7 +211,7 @@ export function showFinale(playback: Playback): void {
   const parts: HTMLElement[] = [];
   const panel = result.pr ? prPanel(result.pr, result.kind === "review") : undefined;
   if (panel) parts.push(panel);
-  parts.push(recapSection(result), installSection(), againSection(playback));
+  parts.push(recapSection(result), installSection(dom.site), againSection(playback));
   const inner = element("div", "finale-inner");
   inner.append(...parts);
   dom.root.replaceChildren(inner);

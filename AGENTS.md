@@ -16,7 +16,7 @@ Name Vitest tests `*.spec.ts`. `*.test.ts` and `*.test.tsx` are for `claude plug
 
 When this clone's `origin` is `pleb/graft` (`git remote get-url origin`), test changes to skills and agents as `CONTRIBUTING.md` describes.
 
-When this clone's `origin` is `pleb/graft` and a change alters what a scenario in `site/sim/scenarios/` shows, update the scenario in the same change and make `npm run test:site` pass.
+When a change alters what a scenario in `site/sim/scenarios/` shows, update the scenario in the same change and make `npm run test:site` pass. This applies when this clone's `origin` is `pleb/graft`, or is the `owner/repo` that `INTERSTOCK-MODS.md` names and `gh variable get GRAFT_SIMULATOR -R <owner>/<repo>` reads `publish`.
 
 When merging, move settings and commands a clone added to the README:
 

@@ -41,6 +41,8 @@ git -C <target> fetch upstream
 git -C <target> log --oneline HEAD..upstream/main
 ```
 
+The target is an interstock when the registry is `INTERSTOCK-MODS.md`.
+
 With nothing new, say Graft is up to date and stop. If Sync pulled any commits and the target is `~/.my-graft`, first ask the user to run `/reload-plugins`.
 
 Otherwise, summarise the incoming changes in a few lines from the commit subjects and the files they change.
@@ -67,7 +69,7 @@ Merge Graft into the clone without committing.
 git -C <target> merge --no-ff --no-commit upstream/main
 ```
 
-Then mirror upstream's `site/`.
+When the registry is `MODS.md`, mirror upstream's `site/`.
 
 ```bash
 git -C <target> rm -rfq --ignore-unmatch -- site
@@ -79,9 +81,9 @@ Only when `git -C <target> cat-file -e upstream/main:site` succeeds, restore it 
 git -C <target> restore --source=upstream/main --staged --worktree -- site
 ```
 
-Merge, never rebase.
+In an interstock, `site/` merges under the mod rule below like any other file. Merge, never rebase.
 
-The target is an interstock when the registry is `INTERSTOCK-MODS.md`. For the rest of the update, follow `<target>/AGENTS.md` (paths relative to the clone) if it exists, resolving it first if it is conflicted. For an interstock, resolve a conflicted `<target>/interstock.md` next.
+For the rest of the update, follow `<target>/AGENTS.md` (paths relative to the clone) if it exists, resolving it first if it is conflicted. For an interstock, resolve a conflicted `<target>/interstock.md` next.
 
 For each conflicted file, list the mods that changed it.
 
@@ -130,7 +132,7 @@ Run this step when the registry has at least one mod row. Stage everything.
 git -C <target> add -A
 ```
 
-Run `graft:reviewer` and `graft:adversarial-reviewer` in parallel, both on `common.reviewerModel`, else Opus. The target is the staged merge against upstream, with `<target>` by absolute path and the conflicted files named. The intent is the registry rows, the Merge decisions, and that upstream's incoming changes land intact. For an interstock, it also includes step 3 of the merged `interstock.md` and the compliance fixes. Tell the reviewers and the worker that `site/`, `npm run test:site` and type errors confined to `site/` are out of scope.
+Run `graft:reviewer` and `graft:adversarial-reviewer` in parallel, both on `common.reviewerModel`, else Opus. The target is the staged merge against upstream, with `<target>` by absolute path and the conflicted files named. The intent is the registry rows, the Merge decisions, and that upstream's incoming changes land intact. For an interstock, it also includes step 3 of the merged `interstock.md` and the compliance fixes. Unless the target is a publishing interstock (`gh variable get GRAFT_SIMULATOR -R <origin-repo>` prints `publish`), tell the reviewers and the worker that `site/`, `npm run test:site` and type errors confined to `site/` are out of scope.
 
 ```bash
 git -C <target> diff --cached upstream/main
@@ -146,7 +148,15 @@ Check the marketplace, the plugin manifest, and every agent and skill.
 claude plugin validate --strict <target>
 ```
 
-If it fails, fix what the merge broke, or ask the user. If the user chooses to stop, clear the clone as Merge says.
+For a publishing interstock, also check the simulator.
+
+```bash
+(cd <target> && npm ci && npm run test:site)
+```
+
+When Node 24 or `npm ci` is unavailable, say so and ask whether to go on.
+
+If `claude plugin validate` fails, fix what the merge broke, or ask the user. If `npm run test:site` fails, ask whether to fix the scenarios now or go on. If the user chooses to stop, clear the clone as Merge says.
 
 ## Commit and push
 
@@ -169,6 +179,7 @@ Then follow common.md's `## Publish the change` with the branch `graft/update-<Y
 ```
 
 - Require as listed items the incoming changes, each conflict resolution, each compliance fix, and each review finding acted on with its fix.
+- When the user went on past a `test:site` failure, require a note that `npm run test:site` fails and deploys fail until the scenarios pass.
 - When Review ran, keep the PR skill's Graft line; otherwise the Graft line is `_Graft: validated, not AI-reviewed._`.
 
 ## Report

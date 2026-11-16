@@ -481,10 +481,12 @@ describe("linkPlayer", () => {
 });
 
 describe("renderPage", () => {
+  const SITE = { repo: "pleb/graft", installLine: "Claude, install Graft" };
+
   it("fills each placeholder once", () => {
     const page = renderPage(
       "__SIM_DATA__\n__SIM_PLAYER__",
-      { scenarios: [], repo: { name: "", files: { "a.md": "__SIM_PLAYER__" } } },
+      { scenarios: [], repo: { name: "", files: { "a.md": "__SIM_PLAYER__" } }, site: SITE },
       "<script></script>",
     );
     expect(page).toContain('"a.md":"__SIM_PLAYER__"');
@@ -492,7 +494,7 @@ describe("renderPage", () => {
   });
 
   it("fails when a placeholder is missing", () => {
-    expect(() => renderPage("__SIM_DATA__", { scenarios: [], repo: REPO }, "")).toThrow(
+    expect(() => renderPage("__SIM_DATA__", { scenarios: [], repo: REPO, site: SITE }, "")).toThrow(
       /__SIM_PLAYER__ once/,
     );
   });

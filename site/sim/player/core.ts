@@ -1,6 +1,8 @@
-import type { Choice, Edit, Event, Question, Repo, Scenario, SeedCommit } from "../events.ts";
+import type { Choice, Edit, Event, Question, Repo, Scenario, SeedCommit, Site } from "../events.ts";
 
 export type SimData = { scenarios: Scenario[]; repo: Repo };
+
+export type PageData = SimData & { site: Site };
 
 // `clear` is the player's own step: `/clear` typed between a `clear` hand-off and the chosen command.
 export type PlayEvent = Event | { type: "clear" };

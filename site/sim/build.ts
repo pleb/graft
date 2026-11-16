@@ -2,7 +2,14 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { BuildError, check, linkPlayer, loadScenarios, renderPage } from "./build-lib.ts";
+import {
+  BuildError,
+  check,
+  linkPlayer,
+  loadScenarios,
+  renderPage,
+  resolveSite,
+} from "./build-lib.ts";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 // Dependency order: each file imports only from files before it.
@@ -15,7 +22,9 @@ const PLAYER = [
   "controls.ts",
   "main.ts",
 ];
-const USAGE = "Usage: node site/sim/build.ts [--scenarios <dir>] [--out <dir>]";
+const ROOT = join(HERE, "..", "..");
+const USAGE =
+  "Usage: node site/sim/build.ts [--scenarios <dir>] [--out <dir>] [--repo <owner/repo>]";
 
 function fail(message: string): never {
   console.error(message);
@@ -29,6 +38,7 @@ async function main(): Promise<void> {
       options: {
         scenarios: { type: "string" },
         out: { type: "string" },
+        repo: { type: "string" },
       },
     }));
   } catch {
@@ -37,6 +47,7 @@ async function main(): Promise<void> {
   const scenariosDir = values.scenarios ? resolve(values.scenarios) : join(HERE, "scenarios");
   const out = values.out ? resolve(values.out) : join(HERE, "..", "dist");
   try {
+    const site = resolveSite(ROOT, values.repo);
     const loaded = await loadScenarios(scenariosDir);
     const failures = check(loaded.scenarios, loaded.repo);
     if (failures.length > 0) fail(`check() failed:\n${failures.map((f) => `- ${f}`).join("\n")}`);
@@ -44,10 +55,12 @@ async function main(): Promise<void> {
       PLAYER.map((name) => ({ name, text: readFileSync(join(HERE, "player", name), "utf8") })),
     );
     const template = readFileSync(join(HERE, "template.html"), "utf8");
-    const page = renderPage(template, loaded, player);
+    const page = renderPage(template, { ...loaded, site }, player);
     mkdirSync(out, { recursive: true });
     writeFileSync(join(out, "index.html"), page);
-    console.log(`Wrote ${join(out, "index.html")} (${loaded.scenarios.length} scenarios)`);
+    console.log(
+      `Wrote ${join(out, "index.html")} for ${site.repo} (${loaded.scenarios.length} scenarios)`,
+    );
   } catch (error) {
     if (error instanceof BuildError) fail(error.message);
     throw error;

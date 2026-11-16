@@ -1,7 +1,7 @@
-// Follows skills/plan/SKILL.md: Start (19-25), Find the work (35, research found or a new topic),
-// Check the Graft folder skipped as the folder exists (common.md 54), Understand (43), Settle the
-// solution (47-66, no clarify question as the request has one sensible path), Write the plan
-// (70-116), Review (129-137) and Finish (141-155) with Review and finalise as a full pass.
+// Follows skills/plan/SKILL.md: Start, Find the work (research found or a new topic), Check the
+// Graft folder skipped as the folder exists (common.md), Understand, Settle the solution (no
+// clarify question as the request has one sensible path), Write the plan, Review and Finish with
+// Review and finalise as a full pass.
 import type { Scenario } from "../events.ts";
 
 const PLAN = ".claude/graft/plans/add-rate-limiting.md";

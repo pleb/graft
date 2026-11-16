@@ -10,14 +10,15 @@ import {
   setSpeed,
   startPath,
 } from "./core.ts";
-import type { Clock, Playback, SimData, View } from "./core.ts";
-import { hideFinale, initFinale, showFinale } from "./finale.ts";
+import type { Clock, PageData, Playback, View } from "./core.ts";
+import { hideFinale, initFinale, installUrl, showFinale } from "./finale.ts";
 import { initHistory, renderHistory } from "./history.ts";
 import { initStage, redrawWires, renderStage } from "./stage.ts";
 import { initTerminal, playTermStep, renderTerm } from "./terminal.ts";
 
 function main(): void {
-  const data = JSON.parse(document.getElementById("sim-data")!.textContent!) as SimData;
+  const data = JSON.parse(document.getElementById("sim-data")!.textContent!) as PageData;
+  linkSite(data.site.repo);
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const clock: Clock = {
     now: () => performance.now(),
@@ -52,7 +53,7 @@ function main(): void {
     },
   );
   initStage();
-  initFinale();
+  initFinale(data.site);
   const fit = fitPanel();
   const handlers = initControls(
     document.getElementById("entries")!,
@@ -93,6 +94,15 @@ function main(): void {
   window.addEventListener("hashchange", open);
   open();
   fit();
+}
+
+function linkSite(repo: string): void {
+  const home = `https://github.com/${repo}`;
+  (document.getElementById("install") as HTMLAnchorElement).href = installUrl(repo);
+  const name = document.getElementById("repo-name") as HTMLAnchorElement;
+  name.href = home;
+  name.textContent = repo;
+  (document.getElementById("repo-link") as HTMLAnchorElement).href = home;
 }
 
 // Marks :root with `vrange` when the browser lays a range input out vertically.
