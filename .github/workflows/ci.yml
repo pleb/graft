@@ -40,8 +40,8 @@ jobs:
 
   site:
     name: site
-    # Interstocks that publish the simulator test and build it; pleb/graft does so in `check`.
-    if: github.repository != 'pleb/graft' && vars.GRAFT_SIMULATOR == 'publish'
+    # Interstocks that publish the simulator test and build it.
+    if: vars.GRAFT_SIMULATOR == 'publish'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
