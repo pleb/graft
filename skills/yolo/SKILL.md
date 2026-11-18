@@ -48,7 +48,7 @@ Applies in common.md's workspace mode, and runs each command in a repo as common
 ## Recording decisions
 
 - Record each decision you make without asking in the plan's `## Decisions`, marked `(agent <run start>)`. Write decisions made before the plan exists once it does.
-- When `git ls-files --error-unmatch <plan>` succeeds, commit your plan edits (the plan phase's, `status: finalised` and the `(agent)` lines) in commits of their own, in the repo's commit style, never on the default branch: once orchestrate's `## Branch` has run and before the first milestone, before `## Final checks`, and just before orchestrate's `## Screenshots` step. Commit and push decisions made after the PR is raised to the PR's branch.
+- When `git ls-files --error-unmatch <plan>` succeeds, commit your plan edits (the plan phase's, `status: finalised` and the `(agent)` lines) in commits of their own, in the repo's commit style, never on the default branch: once orchestrate's `## Branch` has run and before the first milestone, before `## Final checks`, and once orchestrate's `## Screenshots` step has settled which repos get a pr worker, before common.md's Record step. Commit and push decisions made after the PR is raised to the PR's branch.
 
 ## Stops
 

@@ -132,8 +132,8 @@ The state `/graft:pr` opens a new PR in when the command doesn't name one.
 
 Whether Graft raises PRs and attaches screenshots without being asked.
 
-- `manual` (default): `/graft:orchestrate` and `/graft:execute` raise a PR, and `/graft:pr` attaches screenshots, only when you ask.
-- `auto`: `/graft:orchestrate` and `/graft:execute` raise one PR per changed repo, and they and `/graft:pr` attach screenshots when the work changes a UI they can capture. A UI fix gets before and after shots; any other change gets after shots only.
+- `manual` (default): `/graft:orchestrate` and `/graft:execute` raise a PR only when you ask, and `/graft:pr` captures no screenshots, attaching only image files you name.
+- `auto`: `/graft:orchestrate` and `/graft:execute` raise one PR per changed repo, and they and `/graft:pr` attach screenshots when the work changes a UI they can capture. A UI fix gets before and after shots; any other change gets after shots only. On a branch that already has a PR, a direct `/graft:pr` captures them only when you ask.
 
 ### `diff.comments`
 

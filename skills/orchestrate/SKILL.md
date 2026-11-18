@@ -33,7 +33,7 @@ Applies in common.md's workspace mode. This section changes each section it name
 - **Each pass** and **Clean up**: ranges are per repo. Record each repo's HEAD when Execute starts, or when the repo is added; a repo's first range starts there. A brief lists each repo's absolute path with its range.
 - **Final checks**: run each repo's checks in that repo. The start-commit rerun puts every repo at its start commit (a temporary `git worktree` per repo, laid out as under the root), so a failure in an unchanged repo caused by another repo's change is the run's. `git status --porcelain` is empty in each repo; the root's own files are not checked.
 - **Agent checks**: run each check with every repo on its branch, in the repos its milestone names. Flag a check still failing only on the PRs of the repos its milestone changed. `git status --porcelain` is empty in each repo, as in Final checks.
-- **Raise a PR**: one worker per repo with commits on its branch, using that repo's `pr.state`. Each brief's Context, not its Arguments, names the repo's absolute directory. When there are several, raise them all, then for each PR read its body with `gh pr view --json body`, insert a line linking the other PRs just before its Graft line, keep the rest of the body, and set it with `gh pr edit --body`.
+- **Raise a PR**: one worker per repo with commits on its branch, using that repo's `pr.state`. Each brief's Context, not its Arguments, names the repo's absolute directory. When there are several, raise them all (pushed-only PRs included), then for each PR read its body with `gh pr view --json body`, put a line linking the other PRs just before its Graft line, replacing any such line already there, keep the rest of the body, and set it with `gh pr edit --body`.
 - **Finish the plan**: when the plan is not inside a repo, `ls-files` fails with `not a git repository`; treat that as untracked.
 - **Report**: branches, commits, ranges and checks per repo.
 
@@ -126,8 +126,8 @@ When `pr.mode` is `auto`, settle which repos `## Raise a PR` sends a pr worker f
 When the plan or the user asks for a PR, or `pr.mode` is `auto`, raise it after Screenshots, not during Execute. In auto mode:
 
 - Raise none when the user says not to raise a PR.
-- Give a repo whose `gh repo view --json url` fails no PR and a Report line instead of a question.
-- When no PR was asked for and `gh pr view` shows a PR for the branch, decide whether to only push the new commits with `git push`, leaving the PR's title, body and images as they are, or to send the pr worker as below. Ask the user when it is unclear.
+- Give a repo with no GitHub remote (`gh repo view --json url` reports that none of its remotes point to a GitHub host) no PR and a Report line instead of a question. Any other failure of it goes to common.md's `## Command failures`.
+- When no PR was asked for and `gh pr view` shows a PR for the branch, decide whether to only push the new commits with `git push`, leaving the PR's title, body and images as they are, or to send the pr worker as below. Push only when no agent check is still failing and the body names each issue from this run; ask the user when it is unclear. After a push, put the PR in the state the **Arguments** below name, if any, with `gh pr ready` or `gh pr ready --undo`.
 
 Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with its common.md at `${CLAUDE_SKILL_DIR}/../common.md`.
 

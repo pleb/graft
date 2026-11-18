@@ -91,7 +91,7 @@ Plans and then orchestrates in one session, with no `/clear` in between. Use it 
 /graft:yolo [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr guidance]
 ```
 
-Runs `/graft:execute` and makes the calls you would usually make, asking only when the request is unclear. Each decision it makes without asking is recorded in the plan's `## Decisions`. It acts as [`pr.mode`](./settings.md#prmode) `auto` whatever the setting says, so it ends in a pull request, ready for review unless the arguments name a state, with screenshots when it can capture them. Before it starts, it commits uncommitted changes related to the work and stashes the unrelated ones. Once the PR is raised it puts the stash back if it applies cleanly; otherwise its closing summary names the stash it left.
+Runs `/graft:execute` and makes the calls you would usually make, asking only when the request is unclear. Each decision it makes without asking is recorded in the plan's `## Decisions`. It acts as [`pr.mode`](./settings.md#prmode) `auto` whatever the setting says, so it ends in a pull request, ready for review unless the arguments name a state, with screenshots when it can capture them. Before it starts, it commits uncommitted changes related to the work and stashes the unrelated ones. Once the run's PR work has settled, whether or not it raised a PR, it puts the stash back if it applies cleanly; otherwise its closing summary names the stash it left.
 
 ## Review and ship
 
