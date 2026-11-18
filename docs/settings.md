@@ -128,6 +128,13 @@ The state `/graft:pr` opens a new PR in when the command doesn't name one.
 - `draft` (default)
 - `ready`
 
+### `pr.mode`
+
+Whether Graft decides on PRs.
+
+- `manual` (default): `/graft:orchestrate` and `/graft:execute` raise a PR only when you ask, and `/graft:pr` attaches screenshots only when you ask.
+- `auto`: `/graft:orchestrate` and `/graft:execute` raise one PR per changed repo without being asked, and they and `/graft:pr` attach screenshots when the work changes a UI they can capture. A fix gets before and after shots; any other change gets after shots only.
+
 ### `diff.comments`
 
 How `/graft:diff` handles your comments when the command doesn't name a mode.
@@ -191,4 +198,4 @@ An invalid value is ignored, and the next valid one up the list applies. A file 
 
 When `/graft:orchestrate` works across repos, it takes `common.reviewerModel` and `pr.state` from each repo and the rest from the folder.
 
-`/graft:yolo` overrides several settings. It answers its own questions, asking only when the request is unclear. It has an agent run the manual checks it can, defers the rest, and opens PRs as ready unless you name a state.
+`/graft:yolo` overrides several settings. It answers its own questions, asking only when the request is unclear. It has an agent run the manual checks it can, defers the rest, acts as `pr.mode: auto`, and opens PRs as ready unless you name a state.

@@ -118,6 +118,7 @@ These settings remove questions Graft asks. Opting in trades questions for risk:
 - `orchestrate.manualChecks: defer` or `pause` removes the question of how to handle a plan's Manual checks.
 - `update.mode: auto` removes the question before `/graft:update` merges.
 - `diff.comments: auto` removes the go-ahead `/graft:diff` waits for before changing code.
+- `pr.mode: auto` removes the need to ask for a PR: `/graft:orchestrate` and `/graft:execute` raise one per changed repo, with screenshots when the work changes a UI.
 
 For the fewest questions, use [`/graft:yolo`](./docs/commands.md#graftyolo). It asks only when the request is unclear.
 

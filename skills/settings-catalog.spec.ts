@@ -46,6 +46,7 @@ describe("parseCatalog", () => {
       "diff.comments",
       "diff.fileList",
       "pr.state",
+      "pr.mode",
       "update.mode",
       "update.notify",
     ]);
@@ -96,6 +97,7 @@ describe("parseCatalog", () => {
       { skill: "diff", name: "comments", values: ["auto"], defaultValue: "batch" },
       { skill: "diff", name: "fileList", values: ["tree"], defaultValue: "flat" },
       { skill: "pr", name: "state", values: ["ready"], defaultValue: "draft" },
+      { skill: "pr", name: "mode", values: ["auto"], defaultValue: "manual" },
       { skill: "update", name: "mode", values: ["auto"], defaultValue: "ask" },
       {
         skill: "update",

@@ -187,7 +187,7 @@ git -C <target> switch -c <branch>
 git -C <target> branch -f main origin/main
 ```
 
-Read `<target>/skills/pr/SKILL.md` and follow it with the caller's PR guidance as its arguments, running each of its commands from `<target>` (`git -C <target>` or `(cd <target> && ...)`), reading `${CLAUDE_SKILL_DIR}` as `<target>/skills/pr`.
+Read `<target>/skills/pr/SKILL.md` and follow it with the caller's PR guidance as its arguments and `pr.mode` as `manual`, running each of its commands from `<target>` (`git -C <target>` or `(cd <target> && ...)`), reading `${CLAUDE_SKILL_DIR}` as `<target>/skills/pr`.
 
 Then switch back to `main`, even when raising the PR fails or the user stops. The caller's Report gives the PR URL and says the change lands only once the PR is merged. When no PR was raised, it names the branch and says to raise it with `/graft:pr` from that branch.
 
@@ -204,6 +204,40 @@ In workspace mode:
 - Add a repo by running, from the root, the command the instructions loaded for the folder (its `CLAUDE.md` or a parent's) give for adding a repo. Ask when they give none. A repo that does not exist anywhere yet is created with a command the user gives, which must leave it with at least one commit and an `origin` remote it can push to.
 - The root is not a repo, and every agent's shell starts there. Once a repo exists, run git as `git -C <repo>` and every other command as `cd <repo> && <command>`, with the repo's absolute path. Agent briefs name the root and the repos by absolute path, and say so.
 - When reporting a next step, say to run it from the root.
+
+## Screenshots
+
+Run this step before a PR is raised, for each repo whose PR will be raised. No screenshots is not a failure.
+
+1. **Host check**: skip the step, saying why in Report, when `gh --version` is below 2.99.0, or when the host of `gh repo view --json url` is neither `github.com` nor a host ending in `.ghe.com`.
+2. **Record**: record `git branch --show-current`, `git status --porcelain`, `git rev-parse HEAD` and `git worktree list`.
+3. **Capture**: send a `graft:worker`. Its brief names the PR's base (the existing PR's base, else the default branch, found as pr's `## Preconditions` finds them) and says:
+   - Decide whether the branch changes something visible that you can launch and capture, with a browser automation tool or a project skill that launches the app, and whether a capture would help a reviewer.
+   - Decide whether the work fixes a UI. A fix gets before shots and after shots; any other change gets after shots only. Static images or animations are your choice.
+   - Capture the changed screens on the branch for the after shots. Decide where to launch the app (the working tree or a temporary worktree) and which services to run.
+   - Capture before shots in a temporary worktree at `git merge-base HEAD origin/<base>`. When that worktree cannot be launched, capture after shots only and say why.
+   - Write the images to a temporary folder outside the repo, and report their absolute paths, which are before shots and which after, or why you captured none.
+   - Never commit. Stop every process you start, and remove any worktree you add.
+4. **Restore**: restore the tree. Restore each tracked path the step changed with `git -C <root> restore --staged --worktree -- <path>`, and remove each untracked path that was not listed before with `git -C <root> clean -fd -- <path>`, never with `-x`. Leave every path the record lists alone. Then, when the branch or `HEAD` differs from the record, run `git switch <recorded branch>` (`git switch --detach <recorded HEAD>` when no branch was recorded), then `git reset --keep <recorded HEAD>`. When the branch, `HEAD` or the worktree list differs from the record, remove the extra worktrees and drop the screenshots.
+5. **Publish-reader check**: send a `graft:publish-reader` with every screenshot's absolute path. Approve only the images it reports as read in full with no findings. Drop the flagged and unread ones and name them in Report.
+
+**Workspace mode.** Run Host check, Record and Restore per repo, skipping the repos Host check rules out. Before shots use a merge-base worktree per repo, laid out as under the root. The worker's brief asks which repo each image shows. Attach a screenshot only to the PR of the repo whose change it shows.
+
+**Attach request.** When there are approved screenshots, the caller adds to the pr worker's **Arguments** a request to attach them with their paths. That request tells the worker to stop and report an attach failure without retrying. A direct `/graft:pr` attaches them itself.
+
+**Attach failure.** Never retry the upload. When `gh pr view` shows a PR (per repo in workspace mode), put it in the state the pr arguments name, else `pr.state`, with `gh pr ready` or `gh pr ready --undo`, and remove image references that still point at local paths with `gh pr edit --body`. When there is no PR, raise it without screenshots (orchestrate sends the pr worker again without the screenshot request). Name the failure in Report.
+
+**Stale images.** When a fix commit pushed after the PR is raised (a PR milestone's agent checks, or a pause fix) changes what an image shows, run Record, Capture, Restore and Publish-reader check again, and replace the old references with the new images with `gh pr edit`.
+
+**Repo name.** `<repo>` comes from the repo's top level `<root>`. When `git -C <root> rev-parse --absolute-git-dir` differs from `git -C <root> rev-parse --path-format=absolute --git-common-dir`, `<repo>` is the basename of the path on the first `worktree` line of `git -C <root> worktree list --porcelain`; otherwise it is the basename of the root.
+
+**Clean-up.** Once every post-PR check and pause has settled, or at a stop, the image files follow `orchestrate.finishedPlan`, whether or not orchestrate's `## Finish the plan` runs:
+
+- `archive`: move them to `~/.my-graft/.claude/graft/plans/<repo>/<name>-screenshots/`, creating the folder. Follow `## My Graft ignore probe`, falling back to `~/.my-graft/.claude/plans/<repo>/<name>-screenshots/`. `<name>` is the plan's archived file name without `.md` (its `-2` suffix included), else the plan's file name without `.md`; for a task list or a direct `/graft:pr`, it is the branch with `/` replaced by `-`. When the folder exists, use `<name>-screenshots-2/`, `<name>-screenshots-3/` and so on; never overwrite.
+- `delete`: delete them.
+- Otherwise, leave them where they were written.
+
+Report gives the images' final paths.
 
 ## Settings
 
@@ -227,5 +261,6 @@ Get settings by running `settings.ts`, which is beside this file, with the root.
 | `diff.comments`                     | `auto`                              | batch       |                                  | How `/graft:diff` handles your comments when the command doesn't name a mode. With `auto`, it applies each comment as it arrives and republishes.                                                                                                                                                                                                                                                                                |
 | `diff.fileList`                     | `tree`                              | flat        |                                  | The file list layout a new `/graft:diff` page starts in, until the viewer picks one.                                                                                                                                                                                                                                                                                                                                             |
 | `pr.state`                          | `ready`                             | draft       |                                  | The state `/graft:pr` opens a new PR in when the command doesn't name one.                                                                                                                                                                                                                                                                                                                                                       |
+| `pr.mode`                           | `auto`                              | manual      |                                  | Whether Graft decides on PRs. With `auto`, `/graft:orchestrate` and `/graft:execute` raise one PR per changed repo without being asked, and attach screenshots when the work changes a UI they can capture; a direct `/graft:pr` attaches them too. `/graft:yolo` always acts as `auto`.                                                                                                                                         |
 | `update.mode`                       | `auto`                              | ask         |                                  | Whether `/graft:update` asks before merging when the command doesn't name a mode. With `auto`, it merges straight away.                                                                                                                                                                                                                                                                                                          |
 | `update.notify`                     | `daily`, `sha`, `persistent`, `off` | session     |                                  | When Graft tells you your clone is behind upstream. `daily` tells you at most once a day, `sha` once per new upstream commit, `persistent` as a status line until you update, and `off` never, with no check. Only the top-level value counts; per-repo and path overrides don't apply.                                                                                                                                          |
