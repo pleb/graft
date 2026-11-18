@@ -119,11 +119,11 @@ Run this step when `## Execute` sorted any check as agent-runnable. A PR milesto
 
 ## Screenshots
 
-When `pr.mode` is `auto`, follow common.md's `## Screenshots` for each repo whose PR `## Raise a PR` will raise. Clean up the images when its **Clean-up** says.
+When `pr.mode` is `auto`, settle which repos `## Raise a PR` sends a pr worker for, then follow common.md's `## Screenshots` once, covering those repos, with the per-repo steps its **Workspace mode** paragraph names. Clean up the images when its **Clean-up** says.
 
 ## Raise a PR
 
-When the plan or the user asks for a PR, or `pr.mode` is `auto`, raise it after Screenshots, not during Execute. In auto mode, raise none when the user says not to raise a PR, and give a repo whose `gh repo view --json url` fails, or whose host is neither `github.com` nor a host ending in `.ghe.com`, no PR and a Report line instead of a question. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with its common.md at `${CLAUDE_SKILL_DIR}/../common.md`.
+When the plan or the user asks for a PR, or `pr.mode` is `auto`, raise it after Screenshots, not during Execute. In auto mode, raise none when the user says not to raise a PR, and give a repo whose `gh repo view --json url` fails no PR and a Report line instead of a question. In auto mode with no PR asked for, when `gh pr view` shows a PR for the branch, decide whether to only push the new commits with `git push`, leaving the PR's title, body and images as they are, or to send the pr worker as below; ask the user when it is unclear. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with its common.md at `${CLAUDE_SKILL_DIR}/../common.md`.
 
 - **Arguments**: the plan's PR request and the user's. The user's wins where they differ. With approved screenshots, add the attach request with their paths, telling the worker to stop and report an attach failure without retrying. On an attach failure, follow common.md's **Attach failure**.
 - **Context**: the plan file or the work you were given, the motivation from this conversation, each issue from this run with its Resolves or Related split, the effective `pr.state` as the state to use when no argument names one, and each agent check still failing, for the PR body to flag. The brief marks these as orchestrate's context, not arguments.
@@ -141,7 +141,7 @@ Ask the user when something is ambiguous, needs more than a straightforward deci
 
 ## Finish the plan
 
-Run this step only when the work is a plan file with the Graft footer and every milestone is done, including the PR when one was asked for.
+Run this step only when the work is a plan file with the Graft footer and every milestone is done, including the PR when one was asked for and each PR `## Raise a PR` sends a pr worker for in auto mode.
 
 Run `git -C <plan's directory> ls-files --error-unmatch <plan's absolute path>`. Go on only when it fails with `did not match any file(s) known to git` and the plan is not in a subfolder of `~/.my-graft/.claude/graft/plans/` or `~/.my-graft/.claude/plans/`; otherwise leave the plan in place.
 

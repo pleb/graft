@@ -48,7 +48,7 @@ Applies in common.md's workspace mode, and runs each command in a repo as common
 ## Recording decisions
 
 - Record each decision you make without asking in the plan's `## Decisions`, marked `(agent <run start>)`. Write decisions made before the plan exists once it does.
-- When `git ls-files --error-unmatch <plan>` succeeds, commit your plan edits (the plan phase's, `status: finalised` and the `(agent)` lines) in commits of their own, in the repo's commit style, never on the default branch: once orchestrate's `## Branch` has run and before the first milestone, before `## Final checks`, and just before `## Raise a PR`. Commit and push decisions made after the PR is raised to the PR's branch.
+- When `git ls-files --error-unmatch <plan>` succeeds, commit your plan edits (the plan phase's, `status: finalised` and the `(agent)` lines) in commits of their own, in the repo's commit style, never on the default branch: once orchestrate's `## Branch` has run and before the first milestone, before `## Final checks`, and just before orchestrate's `## Screenshots` step. Commit and push decisions made after the PR is raised to the PR's branch.
 
 ## Stops
 
@@ -72,7 +72,7 @@ Add `ready-state` to the **Arguments** orchestrate passes the pr worker, unless 
 
 ## Restore the stash
 
-Once the PR is raised, or at a stop when `git status --porcelain` prints nothing, run `git stash apply --index <sha>`. In workspace mode, do this per repo. When it fails for a reason other than a conflict, run `git stash apply <sha>`. Once applied, drop that entry (`git stash list --format='%gd %H'` names it). At a stop with a dirty tree, apply nothing.
+Once orchestrate's post-PR checks and pauses have settled, whether or not a PR was raised, or at a stop when `git status --porcelain` prints nothing, run `git stash apply --index <sha>`. In workspace mode, do this per repo. When it fails for a reason other than a conflict, run `git stash apply <sha>`. Once applied, drop that entry (`git stash list --format='%gd %H'` names it). At a stop with a dirty tree, apply nothing.
 
 On a conflict, run `git reset --merge`. When the stash holds untracked files, remove each file `git -C <root> ls-tree -r --name-only <sha>^3` lists that was not present before the apply, and keep the stash.
 
