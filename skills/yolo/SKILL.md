@@ -62,10 +62,6 @@ Applies in common.md's workspace mode, and runs each command in a repo as common
 
 Follow orchestrate as if `orchestrate.agentDoesManualChecks` were `true`, whatever it says. The Manual check mode is Defer, whatever `orchestrate.manualChecks` says. Never answer a question that asks for a check's result.
 
-## Screenshots
-
-Orchestrate's Screenshots step follows common.md's `## Screenshots`.
-
 ## PR
 
 Add `ready-state` to the **Arguments** orchestrate passes the pr worker, unless the arguments name a state.

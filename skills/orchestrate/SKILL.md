@@ -123,9 +123,15 @@ When `pr.mode` is `auto`, settle which repos `## Raise a PR` sends a pr worker f
 
 ## Raise a PR
 
-When the plan or the user asks for a PR, or `pr.mode` is `auto`, raise it after Screenshots, not during Execute. In auto mode, raise none when the user says not to raise a PR, and give a repo whose `gh repo view --json url` fails no PR and a Report line instead of a question. In auto mode with no PR asked for, when `gh pr view` shows a PR for the branch, decide whether to only push the new commits with `git push`, leaving the PR's title, body and images as they are, or to send the pr worker as below; ask the user when it is unclear. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with its common.md at `${CLAUDE_SKILL_DIR}/../common.md`.
+When the plan or the user asks for a PR, or `pr.mode` is `auto`, raise it after Screenshots, not during Execute. In auto mode:
 
-- **Arguments**: the plan's PR request and the user's. The user's wins where they differ. With approved screenshots, add the attach request with their paths, telling the worker to stop and report an attach failure without retrying. On an attach failure, follow common.md's **Attach failure**.
+- Raise none when the user says not to raise a PR.
+- Give a repo whose `gh repo view --json url` fails no PR and a Report line instead of a question.
+- When no PR was asked for and `gh pr view` shows a PR for the branch, decide whether to only push the new commits with `git push`, leaving the PR's title, body and images as they are, or to send the pr worker as below. Ask the user when it is unclear.
+
+Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with its common.md at `${CLAUDE_SKILL_DIR}/../common.md`.
+
+- **Arguments**: the plan's PR request and the user's. The user's wins where they differ. With approved screenshots, add common.md's **Attach request**. On an attach failure, follow common.md's **Attach failure**.
 - **Context**: the plan file or the work you were given, the motivation from this conversation, each issue from this run with its Resolves or Related split, the effective `pr.state` as the state to use when no argument names one, and each agent check still failing, for the PR body to flag. The brief marks these as orchestrate's context, not arguments.
 - **Questions**: the worker answers routine questions as common.md's `## Ask the user` describes. Where it would ask the user, it stops and reports the question. Ask the user, then send the worker again.
 
