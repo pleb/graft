@@ -69,7 +69,7 @@ Works out a plan with you, starting from a one-line topic, a full spec or a rese
 /graft:orchestrate [plan path | plan name | task] [issues] [reviewer model: sonnet | opus (default) | fable]
 ```
 
-Builds a finished plan, or a task list you give it, on a branch (a new feature branch when you start on the default branch). A worker agent implements each milestone and Graft commits it. A reviewer checks the commits as they build up, joined by an adversarial reviewer when a change is risky, and both check every milestone commit before the run ends. Comment and docs editors then tidy the branch, and the repo's tests and other checks run on the result. Ask for a PR in the arguments, such as `open a pr`, and it raises one when the work is done.
+Builds a finished plan, or a task list you give it, on a branch (a new feature branch when you start on the default branch). A worker agent implements each milestone and Graft commits it. A reviewer checks the commits as they build up, joined by an adversarial reviewer when a change is risky, and both check every milestone commit before the run ends. Comment and docs editors then tidy the branch, and the repo's tests and other checks run on the result. Ask for a PR in the arguments, such as `open a pr`, and it raises one when the work is done. With [`pr.mode`](./settings.md#prmode) set to `auto`, it raises one per changed repo without being asked, unless you say not to, with screenshots when the work changes a UI it can capture. When the branch already has a PR, it decides whether to only push the new commits or to update the PR, and asks when that is unclear.
 
 Run `/clear` between `/graft:plan` and `/graft:orchestrate`, so the build starts with an empty context:
 
@@ -83,7 +83,7 @@ Run `/clear` between `/graft:plan` and `/graft:orchestrate`, so the build starts
 /graft:execute [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr request]
 ```
 
-Plans and then orchestrates in one session, with no `/clear` in between. Use it for work small enough that the plan and the build fit in one conversation. You still answer the plan's questions, but once the plan is written it runs a review of the plan instead of asking whether to, then starts building. Add a PR request, such as `open a pr`, to raise one at the end.
+Plans and then orchestrates in one session, with no `/clear` in between. Use it for work small enough that the plan and the build fit in one conversation. You still answer the plan's questions, but once the plan is written it runs a review of the plan instead of asking whether to, then starts building. Add a PR request, such as `open a pr`, to raise one at the end. With [`pr.mode`](./settings.md#prmode) set to `auto`, it raises PRs as `/graft:orchestrate` does without one.
 
 ### /graft:yolo
 
@@ -91,7 +91,7 @@ Plans and then orchestrates in one session, with no `/clear` in between. Use it 
 /graft:yolo [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [pr guidance]
 ```
 
-Runs `/graft:execute` and makes the calls you would usually make, asking only when the request is unclear. Each decision it makes without asking is recorded in the plan's `## Decisions`. It ends in a pull request, ready for review unless the arguments name a state, with screenshots when it can capture them. Before it starts, it commits uncommitted changes related to the work and stashes the unrelated ones. Once the PR is raised it puts the stash back if it applies cleanly; otherwise its closing summary names the stash it left.
+Runs `/graft:execute` and makes the calls you would usually make, asking only when the request is unclear. Each decision it makes without asking is recorded in the plan's `## Decisions`. It acts as `pr.mode: auto` whatever the setting says, so it ends in a pull request, ready for review unless the arguments name a state, with screenshots when it can capture them. Before it starts, it commits uncommitted changes related to the work and stashes the unrelated ones. Once the PR is raised it puts the stash back if it applies cleanly; otherwise its closing summary names the stash it left.
 
 ## Review and ship
 
@@ -109,7 +109,7 @@ Publishes the current branch's changes against the default branch, uncommitted o
 /graft:pr [guidance] [state: draft (default) | ready-state (pr.state: ready)]
 ```
 
-Pushes the branch and opens a pull request, following the repo's PR template when it has one. A new PR opens in the state the arguments name, else in the state [`pr.state`](./settings.md#prstate) sets (draft by default). When the branch already has a PR, Graft rewrites its title and body instead, and changes its state only when the arguments name one. It stops if the working tree has uncommitted changes. Anything else you write is guidance for the description.
+Pushes the branch and opens a pull request, following the repo's PR template when it has one. A new PR opens in the state the arguments name, else in the state [`pr.state`](./settings.md#prstate) sets (draft by default). When the branch already has a PR, Graft rewrites its title and body instead, and changes its state only when the arguments name one. It stops if the working tree has uncommitted changes. Anything else you write is guidance for the description. With [`pr.mode`](./settings.md#prmode) set to `auto`, it captures and attaches screenshots when the work changes a UI it can capture, on a branch that already has a PR only when you ask.
 
 ### /graft:review
 
