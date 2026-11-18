@@ -6,7 +6,7 @@ disable-model-invocation: true
 allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 ---
 
-You run execute, making the calls the user would usually make. Read `${CLAUDE_SKILL_DIR}/../execute/SKILL.md` and follow it, changed only as this file says. In that file and the files it reads, read `CLAUDE_SKILL_DIR` as `${CLAUDE_SKILL_DIR}`. Its `$ARGUMENTS` is this file's arguments.
+You run execute, making the calls the user would usually make. Read `${CLAUDE_SKILL_DIR}/../execute/SKILL.md` and follow it, changed only as this file says. In that file and the files it reads, read `CLAUDE_SKILL_DIR` as `${CLAUDE_SKILL_DIR}`. Its `$ARGUMENTS` is this file's arguments. Read `pr.mode` as `auto`, whatever it says.
 
 **Arguments:** $ARGUMENTS
 
@@ -42,8 +42,6 @@ Once execute's `## Start` has found the repo, and before anything else reads the
 Applies in common.md's workspace mode, and runs each command in a repo as common.md's `## Workspace` says. This section changes each section it names. After compaction, read this section again.
 
 - **Start**: skip step 2; the plan lives at the root. Run steps 3 and 4 in each repo under the root that exists at Start, and in a repo added later once it is added, before its Branch step. Keep one stash SHA per repo.
-- **Screenshots**: run step 1's `gh repo view`, step 2's record and step 4's restore per repo, skipping the repos step 1 rules out. The worker's brief asks which repo each image shows. Attach a screenshot only to the PR of the repo whose change it shows.
-- **PR**: check an attach failure with `gh pr view` per repo.
 - **Restore the stash**: per repo, applying each repo's stash in that repo.
 - **Report**: the stashes, and the paths included, stashed or added to `info/exclude`, per repo.
 
@@ -66,23 +64,11 @@ Follow orchestrate as if `orchestrate.agentDoesManualChecks` were `true`, whatev
 
 ## Screenshots
 
-Run this step between orchestrate's `## Agent checks` and `## Raise a PR`. No screenshots is not a failure. In workspace mode, run it as `## Workspace mode` says.
-
-1. Skip the step, saying why in Report, when `gh --version` is below 2.99.0, or when the host of `gh repo view --json url` is neither `github.com` nor a host ending in `.ghe.com`.
-2. Record `git branch --show-current`, `git status --porcelain`, `git rev-parse HEAD` and `git worktree list`.
-3. Send a `graft:worker`. Its brief:
-   - Decide whether the branch changes something visible that you can launch and capture, with a browser automation tool or a project skill that launches the app.
-   - Capture the changed screens on the branch, after the change only. Decide where to launch the app (the working tree or a temporary worktree) and which services to run.
-   - Write the images to a temporary folder outside the repo, and report their absolute paths, or why you captured none.
-   - Never commit. Stop every process you start, and remove any worktree you add.
-4. Restore the tree. Restore each tracked path the step changed with `git -C <root> restore --staged --worktree -- <path>`, and remove each untracked path that was not listed before with `git -C <root> clean -fd -- <path>`, never with `-x`. Leave every path the record lists alone. Then, when the branch or `HEAD` differs from the record, run `git switch <recorded branch>` (`git switch --detach <recorded HEAD>` when no branch was recorded), then `git reset --keep <recorded HEAD>`. When the branch, `HEAD` or the worktree list differs from the record, remove the extra worktrees and drop the screenshots.
-5. Send a `graft:publish-reader` with every screenshot's absolute path. Approve only the images it reports as read in full with no findings. Drop the flagged and unread ones and name them in Report.
+Orchestrate's Screenshots step follows common.md's `## Screenshots`.
 
 ## PR
 
-- Raise a PR unless you stopped, whether or not the plan or the user asks for one, with any agent check still failing flagged in its body.
-- Add to the **Arguments** orchestrate passes the pr worker: `ready-state`, unless the arguments name a state, and, when there are approved screenshots, a request to attach them with their paths. That request tells the worker to stop and report an attach failure without retrying.
-- On an attach failure, never retry the upload. When `gh pr view` shows a PR (per repo in workspace mode), put it in the run's state (ready unless the arguments named one) with `gh pr ready` or `gh pr ready --undo`, and remove image references that still point at local paths with `gh pr edit --body`. When there is no PR, send the pr worker again without the screenshot request. Name the failure in Report.
+Add `ready-state` to the **Arguments** orchestrate passes the pr worker, unless the arguments name a state.
 
 ## Restore the stash
 
