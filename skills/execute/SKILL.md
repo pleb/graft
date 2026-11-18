@@ -32,7 +32,7 @@ Read `${CLAUDE_SKILL_DIR}/../plan/SKILL.md` and follow it, with these changes:
 
 ## Orchestrate phase
 
-Read `${CLAUDE_SKILL_DIR}/../orchestrate/SKILL.md` and follow it. Its `$ARGUMENTS` is the plan file, the issues, the reviewer model and the PR request.
+Read `${CLAUDE_SKILL_DIR}/../orchestrate/SKILL.md` and follow it. Its `$ARGUMENTS` is the plan file, the issues, the reviewer model and the PR request. When `pr.mode` is `auto`, it raises PRs without a PR request.
 
 ## After compaction
 
