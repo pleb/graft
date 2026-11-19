@@ -57,7 +57,7 @@ Investigates a question with you before anything is planned, and never changes c
 /graft:plan [plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable]
 ```
 
-Works out a plan with you, starting from a one-line topic, a full spec or a research report. Graft reads the code the request touches and asks questions in rounds until the approach is settled, then writes it to `.claude/graft/plans/<name>.md` in the repo, split into milestones (steps small enough to build and check one at a time). The first time, it asks whether git should ignore that folder. Name an existing plan to revise it.
+Works out a plan with you, starting from a one-line topic, a full spec or a research report. Graft reads the code the request touches and asks questions in rounds until the approach is settled, then writes it to `.claude/graft/plans/<name>.md` in the repo, split into milestones (steps small enough to build and check one at a time). The first time, it asks whether git should ignore that folder. Name an existing plan to revise it. When you describe how screenshots should be taken, the plan records it, and that guides the capture `pr.mode: auto` does.
 
 ```text
 /graft:plan deployment of the static site under /web to an azure static website using bicep
@@ -109,7 +109,7 @@ Publishes the current branch's changes against the default branch, uncommitted o
 /graft:pr [guidance] [state: draft (default) | ready-state (pr.state: ready)]
 ```
 
-Pushes the branch and opens a pull request, following the repo's PR template when it has one. A new PR opens in the state the arguments name, else in the state [`pr.state`](./settings.md#prstate) sets (draft by default). When the branch already has a PR, Graft rewrites its title and body instead, and changes its state only when the arguments name one. It stops if the working tree has uncommitted changes. Anything else you write is guidance for the description. With [`pr.mode`](./settings.md#prmode) set to `auto`, it attaches screenshots of the finished branch, with no before shots, when the work changes a UI it can capture. On a branch that already has a PR, it attaches them only when you ask.
+Pushes the branch and opens a pull request, following the repo's PR template when it has one. A new PR opens in the state the arguments name, else in the state [`pr.state`](./settings.md#prstate) sets (draft by default). When the branch already has a PR, Graft rewrites its title and body instead, and changes its state only when the arguments name one. It stops if the working tree has uncommitted changes. Anything else you write is guidance for the description. With [`pr.mode`](./settings.md#prmode) set to `auto`, it attaches screenshots of the finished branch (never before shots) when the work changes a UI it can capture. On a branch that already has a PR, it attaches them only when you ask.
 
 ### /graft:review
 

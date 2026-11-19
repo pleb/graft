@@ -207,9 +207,14 @@ In workspace mode:
 
 ## Screenshots
 
-Screenshots are taken in two steps: the before-shot step at the start of a run, before the work changes anything, for the repos the caller expects the work to change visibly; and the after-shot step at the end, before a PR is raised, for each repo whose PR will be raised. A caller with no before state ignores any run state it finds, starts a run at the after-shot step, and takes after shots only. No screenshots is not a failure. Every capture launches the app from the repo's own working tree, never from a git worktree it adds.
+Screenshots are taken in two steps:
 
-**Plan section.** When the plan has a `## Screenshots` section, it decides whether each step runs where it says so, and it goes in every Capture brief, replacing the capture guidance below where they differ. It cannot remove Record, Restore, Publish-reader check, launching from the repo's own working tree, never committing, or stopping every process started.
+- The before-shot step, at the start of a run before the work changes anything, for the repos the caller expects the work to change visibly.
+- The after-shot step, at the end before a PR is raised, for each repo whose PR will be raised.
+
+A caller with no before state ignores any run state it finds, starts a run at the after-shot step, and takes after shots only. No screenshots is not a failure. Every capture launches the app from the repo's own working tree, never from a git worktree it adds.
+
+**Plan section.** When the plan has a `## Screenshots` section, it decides whether each step runs where it says so, and overrides the capture guidance below where they differ. It cannot remove Record, Restore, Publish-reader check, launching from the repo's own working tree, never committing, or stopping every process started.
 
 **Run state.** The keyed folder is `${TMPDIR:-/tmp}/graft-screenshots/<key>/`, where `<key>` is `printf '%s\n%s' <root> <branch> | shasum -a 256 | cut -c1-12` for the repo's absolute top level (the workspace root in workspace mode) and the run's branch. Starting a run creates the keyed folder with `mkdir -p`, makes the run's subfolder with `mktemp -d <keyed folder>/run-XXXXXX`, and writes the subfolder's name to the keyed folder's `current` file. The coordinator resolves the subfolder with `cd <dir> && pwd -P` once and passes that path in briefs. The subfolder holds the before shots, a `manifest` with one line per before shot (its path, the screen it shows, its repo and the commit it shows), and the linked-worktree answer. Read them from the subfolder `current` names, not from memory or another subfolder.
 
@@ -262,7 +267,7 @@ Drop each before shot with no matching after shot, and name it in Report.
 - `delete`: delete them.
 - Otherwise, leave them where they were written.
 
-Then delete the current run's `manifest` and linked-worktree answer and its subfolder once it is empty, and `current` when it still names that subfolder. Remove the keyed folder once it is empty. Never touch another run's subfolder.
+Then delete the current run's `manifest`, its linked-worktree answer, the run's subfolder once it is empty, and `current` when it still names that subfolder. Remove the keyed folder once it is empty. Never touch another run's subfolder.
 
 Report gives the images' final paths.
 
