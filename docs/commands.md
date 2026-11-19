@@ -69,7 +69,9 @@ Works out a plan with you, starting from a one-line topic, a full spec or a rese
 /graft:orchestrate [plan path | plan name | task] [issues] [reviewer model: sonnet | opus (default) | fable]
 ```
 
-Builds a finished plan, or a task list you give it, on a branch (a new feature branch when you start on the default branch). A worker agent implements each milestone and Graft commits it. A reviewer checks the commits as they build up, joined by an adversarial reviewer when a change is risky, and both check every milestone commit before the run ends. Comment and docs editors then tidy the branch, and the repo's tests and other checks run on the result. Ask for a PR in the arguments, such as `open a pr`, and it raises one when the work is done. With [`pr.mode`](./settings.md#prmode) set to `auto`, it raises one per changed repo unless you say not to, with screenshots when the work changes a UI it can capture. If you did not ask for a PR and the branch already has one, it either pushes the new commits or updates the PR, and asks when the choice is unclear.
+Builds a finished plan, or a task list you give it, on a branch (a new feature branch when you start on the default branch). A worker agent implements each milestone and Graft commits it. A reviewer checks the commits as they build up, joined by an adversarial reviewer when a change is risky, and both check every milestone commit before the run ends. Comment and docs editors then tidy the branch, and the repo's tests and other checks run on the result.
+
+To get a PR, ask in the arguments, such as `open a pr`. With [`pr.mode`](./settings.md#prmode) set to `auto` you don't need to ask: it raises one for each changed repo, with screenshots when the work changes a UI. Say so if you want no PR. When the branch already has a PR, it pushes the new commits or updates the PR, and asks when it can't tell which.
 
 Run `/clear` between `/graft:plan` and `/graft:orchestrate`, so the build starts with an empty context:
 
