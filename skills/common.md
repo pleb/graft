@@ -207,19 +207,19 @@ In workspace mode:
 
 ## Screenshots
 
-Screenshots are taken for each repo whose PR will be raised, in two steps: the before-shot step at the start of a run, before the work changes the repo, and the after-shot step at the end, before a PR is raised. A caller with no before state takes the after-shot step only. No screenshots is not a failure. Every capture launches the app from the repo's own working tree, never from a git worktree it adds.
+Screenshots are taken in two steps: the before-shot step at the start of a run, before the work changes anything, for the repos the caller expects the work to change visibly; and the after-shot step at the end, before a PR is raised, for each repo whose PR will be raised. A caller with no before state ignores any run state it finds, starts a run at the after-shot step, and takes after shots only. No screenshots is not a failure. Every capture launches the app from the repo's own working tree, never from a git worktree it adds.
 
-**Plan section.** When the plan has a `## Screenshots` section, it decides whether each step runs where it says so, and it goes in every Capture brief, replacing the capture guidance below where they differ. It cannot remove Record, Restore or Publish-reader check.
+**Plan section.** When the plan has a `## Screenshots` section, it decides whether each step runs where it says so, and it goes in every Capture brief, replacing the capture guidance below where they differ. It cannot remove Record, Restore, Publish-reader check, launching from the repo's own working tree, never committing, or stopping every process started.
 
-**Run state.** The run's state lives in `$TMPDIR/graft-screenshots/<repo>-<branch>/`, where `<branch>` is the run's branch with `/` replaced by `-`: the before shots, a `manifest` with one line per before shot (its path, the screen it shows, its repo and the commit it shows), and the linked-worktree answer. Read it there, not from memory.
+**Run state.** The keyed folder is `${TMPDIR:-/tmp}/graft-screenshots/<key>/`, where `<key>` is `printf '%s\n%s' <root> <branch> | shasum -a 256 | cut -c1-12` for the repo's absolute top level (the workspace root in workspace mode) and the run's branch. Starting a run creates the keyed folder with `mkdir -p`, makes the run's subfolder with `mktemp -d <keyed folder>/run-XXXXXX`, and writes the subfolder's name to the keyed folder's `current` file. The coordinator resolves the subfolder with `cd <dir> && pwd -P` once and passes that path in briefs. The subfolder holds the before shots, a `manifest` with one line per before shot (its path, the screen it shows, its repo and the commit it shows), and the linked-worktree answer. Read them from the subfolder `current` names, not from memory or another subfolder.
 
-**Linked worktree.** Before a run's first capture, check each repo that gets screenshots. When `git -C <root> rev-parse --absolute-git-dir` differs from `git -C <root> rev-parse --path-format=absolute --git-common-dir`, ask, unless the run state holds an answer or the caller gives a fixed one (not routine; in workspace mode, one question naming every such repo):
+**Linked worktree.** Before a run's first capture, check each repo that gets screenshots. When `git -C <root> rev-parse --absolute-git-dir` differs from `git -C <root> rev-parse --path-format=absolute --git-common-dir`, ask, unless the current run's subfolder holds an answer or the caller gives a fixed one (not routine; in workspace mode, one question naming every such repo):
 
 - **Capture here anyway**: capture in that working tree.
 - **Skip screenshots**: take no screenshots of those repos.
 - **Later**: take none, and Report lists the screens to capture and attach by hand.
 
-Write the answer to the run state. It holds for the rest of the run.
+Write the answer to the current run's subfolder. It holds for the rest of the run.
 
 Shared steps:
 
@@ -230,23 +230,23 @@ Shared steps:
 
 Every Capture brief names the work's goal (the plan's or task's goal for orchestrate; the arguments and commit subjects for a direct `/graft:pr`) and the plan's `## Screenshots` section when there is one, and says:
 
-- Launch the app from the working tree, with a browser automation tool or a project skill that launches the app, and choose which services to run. Static images or animations are your choice.
-- Never commit. Stop every process you start.
+- Launch the app from the working tree as the developer normally would, with a browser automation tool or a project skill that launches the app, and choose which services to run. Static images or animations are your choice.
+- Never run commands that migrate, seed or reset data. Never commit. Stop every process you start.
 
-**Before-shot step.** Run Linked worktree, Host check, Record, Capture and Restore. The Capture `graft:worker`'s brief also gives the run-state folder and says:
+**Before-shot step.** Start a run, then run Linked worktree, Host check, Record, Capture and Restore. The Capture `graft:worker`'s brief also gives the run's subfolder and says:
 
 - Capture the screens the work will change, as they are now.
-- Write the images to the run-state folder, add a `manifest` line for each, and report their absolute paths, or why you captured none.
+- Write the images to the run's subfolder with file names starting `before-`, add a `manifest` line for each, and report their absolute paths, or why you captured none.
 
-**After-shot step.** Run Linked worktree, Host check, Record, Capture, Restore and Publish-reader check. The Capture `graft:worker`'s brief also names the PR's base (the existing PR's base, else the default branch, found as pr's `## Preconditions` finds them; each repo's in workspace mode) and the run state's before shots with their `manifest` lines, and says:
+**After-shot step.** Run Linked worktree, Host check, Record, Capture, Restore and Publish-reader check. The Capture `graft:worker`'s brief also names the PR's base (the existing PR's base, else the default branch, found as pr's `## Preconditions` finds them; each repo's in workspace mode) and the current run's before shots with their `manifest` lines, and says:
 
 - Decide whether the branch changes something visible that you can capture, and whether a capture would help a reviewer.
 - Capture the changed screens on the branch. For each before shot, capture its screen with the same data and viewport, and report which before shot each after shot matches.
-- Write the images to a temporary folder outside the repo, and report their absolute paths, or why you captured none.
+- Write the images to a temporary folder outside the repo with file names starting `after-`, and report their absolute paths, or why you captured none.
 
 Drop each before shot with no matching after shot, and name it in Report.
 
-**Workspace mode.** Run Linked worktree and Host check per repo that gets screenshots, skipping the repos either rules out. Run Record and Restore for every repo `## Repos` lists, whether or not it gets screenshots. The worker's brief asks which repo each image shows. Attach a screenshot only to the PR of the repo whose change it shows.
+**Workspace mode.** Run Linked worktree and Host check per repo that gets screenshots, skipping the repos either rules out. Run Record and Restore for every repo the run covers (the repos `## Repos` lists, the repos the run adds, and for a task list the repos the user named), whether or not it gets screenshots. When Record finds any repo the launch can touch dirty, skip the step and say so in Report. The worker's brief asks which repo each image shows. Attach a screenshot only to the PR of the repo whose change it shows.
 
 **Attach request.** When there are approved screenshots, the caller adds to the pr worker's **Arguments** a request to attach them with their paths. That request tells the worker to stop and report an attach failure without retrying. A direct `/graft:pr` attaches them itself.
 
@@ -258,11 +258,11 @@ Drop each before shot with no matching after shot, and name it in Report.
 
 **Clean-up.** Once every post-PR check and pause has settled, or at a stop, the image files, before shots included, follow `orchestrate.finishedPlan`, whether or not orchestrate's `## Finish the plan` runs. When it is `archive` and the plan is archived, clean up after `## Finish the plan`:
 
-- `archive`: move them to `~/.my-graft/.claude/graft/plans/<repo>/<name>-screenshots/`, creating the folder. Follow `## My Graft ignore probe`, falling back to `~/.my-graft/.claude/plans/<repo>/<name>-screenshots/`. `<name>` is the plan's archived file name without `.md` (its `-N` suffix included), else the plan's file name without `.md`; for a task list or a direct `/graft:pr`, it is the branch with `/` replaced by `-`. When the folder exists, use `<name>-screenshots-2/`, `<name>-screenshots-3/` and so on; never overwrite.
+- `archive`: move them to `~/.my-graft/.claude/graft/plans/<repo>/<name>-screenshots/`, creating the folder. Follow `## My Graft ignore probe`, falling back to `~/.my-graft/.claude/plans/<repo>/<name>-screenshots/`. `<name>` is the plan's archived file name without `.md` (its `-N` suffix included), else the plan's file name without `.md`; for a task list or a direct `/graft:pr`, it is the branch with `/` replaced by `-`. When the folder exists, use `<name>-screenshots-2/`, `<name>-screenshots-3/` and so on. When a file of the same name is already there, add `-2`, `-3` and so on before its extension. Never overwrite a file.
 - `delete`: delete them.
 - Otherwise, leave them where they were written.
 
-Then delete the run state's `manifest` and linked-worktree answer, and the run-state folder once it is empty.
+Then delete the current run's `manifest` and linked-worktree answer and its subfolder once it is empty, and `current` when it still names that subfolder. Remove the keyed folder once it is empty. Never touch another run's subfolder.
 
 Report gives the images' final paths.
 
