@@ -12,19 +12,20 @@
 // clarify question), Write the plan (no PR milestone, as execute's Plan phase says), Review and the
 // full pass Finish recommends.
 // Orchestrate phase follows skills/orchestrate/SKILL.md, condensed as execute.ts condenses it: Start
-// (its root and settings already known), Branch, Before shots (none, as the work is not a UI fix),
-// Execute (milestone 3's Manual check is agent-runnable, so no person-only check remains and there
-// is no mode), Commit and review, Each pass, Clean up, Final checks, Agent checks (the 429 check
-// passes first time), Screenshots (common.md's after-shot step as a caller with no before state: a
-// new run, Linked worktree (the main working tree, so no question), Host check, Record, Capture with
-// after shots only, Restore and Publish-reader check), Raise a PR (a worker following
+// (its root and settings already known), Branch, Before shots (a run started, with no before-shot
+// step as the work is not a UI fix), Execute (milestone 3's Manual check is agent-runnable, so no
+// person-only check remains and there is no mode), Commit and review, Each pass, Clean up, Final
+// checks, Agent checks (the 429 check passes first time), Screenshots (common.md's after-shot step
+// in the run Before shots started, with no before shots: Linked worktree (the main working tree, so
+// no question), Host check, Record, Capture with after shots only, Restore and Publish-reader
+// check), Raise a PR (a worker following
 // skills/pr/SKILL.md with `ready-state` from yolo's PR step and the attach request), Clean-up (left
 // where written, as `orchestrate.finishedPlan` is `leave`), Finish the plan (left in place) and Report.
 import type { Scenario } from "../events.ts";
 
 const PLAN = ".claude/graft/plans/add-rate-limiting.md";
 const RUN = "2026-11-11 09:30";
-const SHOT = "/tmp/notes-api-shots/notes-429.png";
+const SHOT = "/tmp/notes-api-shots/after-notes-429.png";
 const TITLE = "Add rate limiting to the notes API";
 const BODY = `## What
 
@@ -277,7 +278,7 @@ const scenario: Scenario = {
     },
     {
       type: "say",
-      text: "The plan is untracked, so its edits get no commits. The work adds a 429 reply, not a UI fix, so no before shots. Milestone 3's Manual check is agent-runnable, so it runs in Agent checks once the branch is finished, and no person-only check is left to defer. Milestones 1 and 2 touch different files, so two workers run in parallel.",
+      text: "The plan is untracked, so its edits get no commits. Before shots: started a screenshot run; the work adds a 429 reply, not a UI fix, so no before-shot step, and the run records that. Milestone 3's Manual check is agent-runnable, so it runs in Agent checks once the branch is finished, and no person-only check is left to defer. Milestones 1 and 2 touch different files, so two workers run in parallel.",
     },
     {
       type: "agent.start",
@@ -429,7 +430,7 @@ const scenario: Scenario = {
     { type: "chapter", id: "yolo-screenshots", title: "Screenshots" },
     {
       type: "say",
-      text: "The after-shot step, with no before shots, starts a run of its own. Linked worktree: is the repo a linked git worktree?",
+      text: "The after-shot step runs in the run Before shots started, which records no before-shot step, so after shots only. Linked worktree: is the repo a linked git worktree?",
     },
     {
       type: "tool",

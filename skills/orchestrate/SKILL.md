@@ -67,7 +67,7 @@ Check the commit style once: read the last 10 commit subjects on the default bra
 
 ## Before shots
 
-When `pr.mode` is `auto`, once `## Branch` has run and before the first worker starts, decide whether to run common.md's before-shot step: the plan's `## Screenshots` section decides where it says; otherwise run it when the work fixes a UI. Run it for the repos you expect the work to change visibly, with the per-repo steps its **Workspace mode** paragraph names. A repo added later gets no before shots.
+When `pr.mode` is `auto`, once `## Branch` has run and before the first worker starts, start a run as common.md's **Run state** says, then decide whether to run common.md's before-shot step: the plan's `## Screenshots` section decides where it says; otherwise run it when the work fixes a UI. Run it for the repos you expect the work to change visibly, with the per-repo steps its **Workspace mode** paragraph names. A repo added later gets no before shots. Write to the run's subfolder whether the before-shot step ran.
 
 ## Execute
 
@@ -123,7 +123,7 @@ Run this step when `## Execute` sorted any check as agent-runnable. A PR milesto
 
 ## Screenshots
 
-When `pr.mode` is `auto`, settle which repos `## Raise a PR` sends a pr worker for, then run common.md's after-shot step once, covering those repos, with the per-repo steps its **Workspace mode** paragraph names. When `## Before shots` ran no before-shot step, this step is a caller with no before state. Clean up the images when its **Clean-up** says.
+When `pr.mode` is `auto`, settle which repos `## Raise a PR` sends a pr worker for, then run common.md's after-shot step once, covering those repos, with the per-repo steps its **Workspace mode** paragraph names, in the run `current` names. Read from that subfolder whether the before-shot step ran; when it did not, the step has no before shots. Clean up the images when its **Clean-up** says.
 
 ## Raise a PR
 

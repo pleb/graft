@@ -212,19 +212,19 @@ Screenshots are taken in two steps:
 - The before-shot step, at the start of a run before the work changes anything, for the repos the caller expects the work to change visibly.
 - The after-shot step, at the end before a PR is raised, for each repo whose PR will be raised.
 
-A caller with no before state ignores any run state it finds, starts a run at the after-shot step, and takes after shots only. No screenshots is not a failure. Every capture launches the app from the repo's own working tree, never from a git worktree it adds.
+A caller with no before state (a direct `/graft:pr`) takes after shots only and never touches the keyed folder or `current`: its run folder comes from `mktemp -d`, outside the keyed folder, and holds its linked-worktree answer. No screenshots is not a failure. Every capture launches the app from the repo's own working tree, never from a git worktree it adds.
 
 **Plan section.** When the plan has a `## Screenshots` section, it decides whether each step runs where it says so, and overrides the capture guidance below where they differ. It cannot remove Record, Restore, Publish-reader check, launching from the repo's own working tree, never committing, or stopping every process started.
 
-**Run state.** The keyed folder is `${TMPDIR:-/tmp}/graft-screenshots/<key>/`, where `<key>` is `printf '%s\n%s' <root> <branch> | shasum -a 256 | cut -c1-12` for the repo's absolute top level (the workspace root in workspace mode) and the run's branch. Starting a run creates the keyed folder with `mkdir -p`, makes the run's subfolder with `mktemp -d <keyed folder>/run-XXXXXX`, and writes the subfolder's name to the keyed folder's `current` file. The coordinator resolves the subfolder with `cd <dir> && pwd -P` once and passes that path in briefs. The subfolder holds the before shots, a `manifest` with one line per before shot (its path, the screen it shows, its repo and the commit it shows), and the linked-worktree answer. Read them from the subfolder `current` names, not from memory or another subfolder.
+**Run state.** Only orchestrate starts a run, and each new run replaces `current`. The keyed folder is `${TMPDIR:-/tmp}/graft-screenshots-$(id -u)/<key>/`, where `<key>` is `printf '%s\n%s' <root> <branch> | shasum -a 256 | cut -c1-12` for the repo's absolute top level and the run's branch, with `sha256sum` in place of `shasum -a 256` when `command -v shasum` finds none. In workspace mode, `<key>` hashes the workspace root alone: `printf '%s' <root> | shasum -a 256 | cut -c1-12`. When `<key>` comes out empty, stop the step and say why in Report. Starting a run creates the keyed folder with `mkdir -p`, makes the run's subfolder with `mktemp -d <keyed folder>/run-XXXXXX`, and writes the subfolder's name to the keyed folder's `current` file. The coordinator resolves the run's folder with `cd <dir> && pwd -P` once and passes that path in briefs. The subfolder holds whether the before-shot step ran, the before shots, a `manifest` with one line per before shot (its path, the screen it shows, its repo and the commit it shows), and the linked-worktree answer. Read them from the subfolder `current` names, not from memory or another subfolder.
 
-**Linked worktree.** Before a run's first capture, check each repo that gets screenshots. When `git -C <root> rev-parse --absolute-git-dir` differs from `git -C <root> rev-parse --path-format=absolute --git-common-dir`, ask, unless the current run's subfolder holds an answer or the caller gives a fixed one (not routine; in workspace mode, one question naming every such repo):
+**Linked worktree.** Before each step's capture, check each repo that gets screenshots. When `git -C <root> rev-parse --absolute-git-dir` differs from `git -C <root> rev-parse --path-format=absolute --git-common-dir`, ask, unless the run's folder holds an answer naming that repo or the caller gives a fixed one (not routine; in workspace mode, one question naming every such repo):
 
 - **Capture here anyway**: capture in that working tree.
 - **Skip screenshots**: take no screenshots of those repos.
 - **Later**: take none, and Report lists the screens to capture and attach by hand.
 
-Write the answer to the current run's subfolder. It holds for the rest of the run.
+Write the answer, with the repos it names, to the run's folder. It holds for those repos for the rest of the run; the after-shot step asks about any other linked-worktree repo it covers.
 
 Shared steps:
 
@@ -238,7 +238,7 @@ Every Capture brief names the work's goal (the plan's or task's goal for orchest
 - Launch the app from the working tree as the developer normally would, with a browser automation tool or a project skill that launches the app, and choose which services to run. Static images or animations are your choice.
 - Never run commands that migrate, seed or reset data. Never commit. Stop every process you start.
 
-**Before-shot step.** Start a run, then run Linked worktree, Host check, Record, Capture and Restore. The Capture `graft:worker`'s brief also gives the run's subfolder and says:
+**Before-shot step.** Run Linked worktree, Host check, Record, Capture and Restore. The Capture `graft:worker`'s brief also gives the run's subfolder and says:
 
 - Capture the screens the work will change, as they are now.
 - Write the images to the run's subfolder with file names starting `before-`, add a `manifest` line for each, and report their absolute paths, or why you captured none.
@@ -267,7 +267,7 @@ Drop each before shot with no matching after shot, and name it in Report.
 - `delete`: delete them.
 - Otherwise, leave them where they were written.
 
-Then delete the current run's `manifest`, its linked-worktree answer, the run's subfolder once it is empty, and `current` when it still names that subfolder. Remove the keyed folder once it is empty. Never touch another run's subfolder.
+Then delete the run's `manifest`, its linked-worktree answer, its record of whether the before-shot step ran, and the run's folder once it is empty. For an orchestrate run, also delete `current` when it still names that subfolder, and remove the keyed folder once it is empty. Never touch another run's subfolder.
 
 Report gives the images' final paths.
 
