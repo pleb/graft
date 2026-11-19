@@ -6,7 +6,7 @@ disable-model-invocation: true
 allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 ---
 
-You run execute, making the calls the user would usually make. Read `${CLAUDE_SKILL_DIR}/../execute/SKILL.md` and follow it, changed only as this file says. In that file and the files it reads, read `CLAUDE_SKILL_DIR` as `${CLAUDE_SKILL_DIR}`. Its `$ARGUMENTS` is this file's arguments.
+You run execute, making the calls the user would usually make. Read `${CLAUDE_SKILL_DIR}/../execute/SKILL.md` and follow it, changed only as this file says. In that file and the files it reads, read `CLAUDE_SKILL_DIR` as `${CLAUDE_SKILL_DIR}`. Its `$ARGUMENTS` is this file's arguments. Read `pr.mode` as `auto`, whatever it says.
 
 **Arguments:** $ARGUMENTS
 
@@ -16,6 +16,7 @@ You run execute, making the calls the user would usually make. Read `${CLAUDE_SK
 - Execute's **Go** or **Plan more** question is not asked.
 - Answer yourself every other question plan, execute, orchestrate, pr or common.md say to ask, with the option you would recommend, except these fixed answers:
   - Common.md's legacy plans question: **Leave them**.
+  - Common.md's linked-worktree question: **Capture here anyway**.
   - A plan name that already exists for a new topic: pick a new name. Never revise the existing plan.
   - Common.md's `## Find the work` rule 5: the word is the work.
   - A draft plan given as the work with no revision named: answer its open questions and finalise.
@@ -33,7 +34,7 @@ Once execute's `## Start` has found the repo, and before anything else reads the
 2. Run `git -C <root> check-ignore -q .claude/graft/.probe.md`, even when `.claude/graft/` exists. When it is not ignored, add `/.claude/graft/` to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names.
 3. Sort each path `git -C <root> status --porcelain --untracked-files=all` lists, leaving out `.claude/graft/`, `.claude/plans/` and the work's plan file. Add the untracked paths left out to `info/exclude`.
    - A path that looks like a secret (`.env*` other than `*.example`, `*.sample` and `*.template`; key and credential files) is never committed. Listed as `??`, add it to `info/exclude` and leave it in place. Otherwise (tracked, modified or staged), stash it.
-   - A path related to the work is included. Once orchestrate's `## Branch` has run, and before the first milestone, stage only the included paths with `git -C <root> add -- <paths>` and commit them in a commit of their own. The first review range starts before that commit.
+   - A path related to the work is included. Once orchestrate's `## Branch` has run, and before the first plan-edits commit, the before-shot step's Record and the first milestone, stage only the included paths with `git -C <root> add -- <paths>` and commit them in a commit of their own. The first review range starts before that commit.
    - Stash the unrelated paths.
 4. Stash every path the sort stashes in one `git -C <root> stash push --include-untracked -- <paths>`. Run `git rev-parse -q --verify stash@{0}` before and after it. When the push created an entry, keep its SHA (the value after). Otherwise there is no stash to restore.
 
@@ -42,15 +43,13 @@ Once execute's `## Start` has found the repo, and before anything else reads the
 Applies in common.md's workspace mode, and runs each command in a repo as common.md's `## Workspace` says. This section changes each section it names. After compaction, read this section again.
 
 - **Start**: skip step 2; the plan lives at the root. Run steps 3 and 4 in each repo under the root that exists at Start, and in a repo added later once it is added, before its Branch step. Keep one stash SHA per repo.
-- **Screenshots**: run step 1's `gh repo view`, step 2's record and step 4's restore per repo, skipping the repos step 1 rules out. The worker's brief asks which repo each image shows. Attach a screenshot only to the PR of the repo whose change it shows.
-- **PR**: check an attach failure with `gh pr view` per repo.
 - **Restore the stash**: per repo, applying each repo's stash in that repo.
 - **Report**: the stashes, and the paths included, stashed or added to `info/exclude`, per repo.
 
 ## Recording decisions
 
 - Record each decision you make without asking in the plan's `## Decisions`, marked `(agent <run start>)`. Write decisions made before the plan exists once it does.
-- When `git ls-files --error-unmatch <plan>` succeeds, commit your plan edits (the plan phase's, `status: finalised` and the `(agent)` lines) in commits of their own, in the repo's commit style, never on the default branch: once orchestrate's `## Branch` has run and before the first milestone, before `## Final checks`, and just before `## Raise a PR`. Commit and push decisions made after the PR is raised to the PR's branch.
+- When `git ls-files --error-unmatch <plan>` succeeds, commit your plan edits (the plan phase's, `status: finalised` and the `(agent)` lines) in commits of their own, in the repo's commit style, never on the default branch: once orchestrate's `## Branch` has run, after Start's included-paths commit when there is one, and before the before-shot step's Record and the first milestone; before `## Final checks`; and once orchestrate's `## Screenshots` step has settled which repos get a pr worker, before the after-shot step's Record. Write decisions made during the before-shot step to the plan after its Restore. Commit and push decisions made after the PR is raised to the PR's branch.
 
 ## Stops
 
@@ -64,29 +63,13 @@ Applies in common.md's workspace mode, and runs each command in a repo as common
 
 Follow orchestrate as if `orchestrate.agentDoesManualChecks` were `true`, whatever it says. The Manual check mode is Defer, whatever `orchestrate.manualChecks` says. Never answer a question that asks for a check's result.
 
-## Screenshots
-
-Run this step between orchestrate's `## Agent checks` and `## Raise a PR`. No screenshots is not a failure. In workspace mode, run it as `## Workspace mode` says.
-
-1. Skip the step, saying why in Report, when `gh --version` is below 2.99.0, or when the host of `gh repo view --json url` is neither `github.com` nor a host ending in `.ghe.com`.
-2. Record `git branch --show-current`, `git status --porcelain`, `git rev-parse HEAD` and `git worktree list`.
-3. Send a `graft:worker`. Its brief:
-   - Decide whether the branch changes something visible that you can launch and capture, with a browser automation tool or a project skill that launches the app.
-   - Capture the changed screens on the branch, after the change only. Decide where to launch the app (the working tree or a temporary worktree) and which services to run.
-   - Write the images to a temporary folder outside the repo, and report their absolute paths, or why you captured none.
-   - Never commit. Stop every process you start, and remove any worktree you add.
-4. Restore the tree. Restore each tracked path the step changed with `git -C <root> restore --staged --worktree -- <path>`, and remove each untracked path that was not listed before with `git -C <root> clean -fd -- <path>`, never with `-x`. Leave every path the record lists alone. Then, when the branch or `HEAD` differs from the record, run `git switch <recorded branch>` (`git switch --detach <recorded HEAD>` when no branch was recorded), then `git reset --keep <recorded HEAD>`. When the branch, `HEAD` or the worktree list differs from the record, remove the extra worktrees and drop the screenshots.
-5. Send a `graft:publish-reader` with every screenshot's absolute path. Approve only the images it reports as read in full with no findings. Drop the flagged and unread ones and name them in Report.
-
 ## PR
 
-- Raise a PR unless you stopped, whether or not the plan or the user asks for one, with any agent check still failing flagged in its body.
-- Add to the **Arguments** orchestrate passes the pr worker: `ready-state`, unless the arguments name a state, and, when there are approved screenshots, a request to attach them with their paths. That request tells the worker to stop and report an attach failure without retrying.
-- On an attach failure, never retry the upload. When `gh pr view` shows a PR (per repo in workspace mode), put it in the run's state (ready unless the arguments named one) with `gh pr ready` or `gh pr ready --undo`, and remove image references that still point at local paths with `gh pr edit --body`. When there is no PR, send the pr worker again without the screenshot request. Name the failure in Report.
+Add `ready-state` to the **Arguments** orchestrate passes the pr worker, unless the arguments name a state.
 
 ## Restore the stash
 
-Once the PR is raised, or at a stop when `git status --porcelain` prints nothing, run `git stash apply --index <sha>`. In workspace mode, do this per repo. When it fails for a reason other than a conflict, run `git stash apply <sha>`. Once applied, drop that entry (`git stash list --format='%gd %H'` names it). At a stop with a dirty tree, apply nothing.
+Once orchestrate's post-PR checks and pauses have settled, whether or not a PR was raised, or at a stop when `git status --porcelain` prints nothing, run `git stash apply --index <sha>`. In workspace mode, do this per repo. When it fails for a reason other than a conflict, run `git stash apply <sha>`. Once applied, drop that entry (`git stash list --format='%gd %H'` names it). At a stop with a dirty tree, apply nothing.
 
 On a conflict, run `git reset --merge`. When the stash holds untracked files, remove each file `git -C <root> ls-tree -r --name-only <sha>^3` lists that was not present before the apply, and keep the stash.
 
@@ -97,7 +80,7 @@ Before orchestrate's `## Finish the plan` moves or deletes the plan, read the `(
 - Every decision you made without asking, and every `(default)` entry written during this run.
 - The dirty-tree paths you included, stashed or added to `info/exclude` (the paths left out of the sort among them).
 - Each agent check still failing, with what the worker observed.
-- Whether screenshots were attached, or why not.
+- Whether screenshots were attached, or why not, and in a linked worktree what was captured and what could not be.
 - Any stash left, by SHA.
 
 In workspace mode, list the stashes and paths per repo.

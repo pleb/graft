@@ -2,8 +2,8 @@
 // question, no Go or Plan more question, and the agent answers every round itself), Start (run
 // start, the ignore probe, a clean tree with nothing to sort), Recording decisions
 // (`(agent <run start>)` lines, no plan commits as the plan is untracked), Manual checks (the agent
-// runs the agent-runnable check, and Defer needs no question), Screenshots, PR (a ready PR with the
-// screenshot attached), Restore the stash (nothing stashed) and Report.
+// runs the agent-runnable check, and Defer needs no question), `pr.mode` read as `auto`, PR (a ready
+// PR), Restore the stash (nothing stashed) and Report.
 // Execute's part follows skills/execute/SKILL.md: Start (no PR request in the arguments), Plan
 // phase (plan's rounds answered by the agent, then in Finish's place the full pass Review and
 // finalise runs, finalised, no finalise report or hand-off) and Orchestrate phase.
@@ -12,16 +12,20 @@
 // clarify question), Write the plan (no PR milestone, as execute's Plan phase says), Review and the
 // full pass Finish recommends.
 // Orchestrate phase follows skills/orchestrate/SKILL.md, condensed as execute.ts condenses it: Start
-// (its root and settings already known), Branch, Execute (milestone 3's Manual check is
-// agent-runnable, so no person-only check remains and there is no mode), Commit and review, Each
-// pass, Clean up, Final checks, Agent checks (the 429 check passes first time), yolo's Screenshots
-// step, Raise a PR (a worker following skills/pr/SKILL.md with `ready-state` and the screenshot from
-// yolo's PR step), Finish the plan (left in place) and Report.
+// (its root and settings already known), Branch, Before shots (a run started, with no before-shot
+// step as the work is not a UI fix), Execute (milestone 3's Manual check is agent-runnable, so no
+// person-only check remains and there is no mode), Commit and review, Each pass, Clean up, Final
+// checks, Agent checks (the 429 check passes first time), Screenshots (common.md's after-shot step
+// in the run Before shots started, with no before shots: Linked worktree (the main working tree, so
+// no question), Host check, Record, Capture with after shots only, Restore and Publish-reader
+// check), Raise a PR (a worker following
+// skills/pr/SKILL.md with `ready-state` from yolo's PR step and the attach request), Clean-up (left
+// where written, as `orchestrate.finishedPlan` is `leave`), Finish the plan (left in place) and Report.
 import type { Scenario } from "../events.ts";
 
 const PLAN = ".claude/graft/plans/add-rate-limiting.md";
 const RUN = "2026-11-11 09:30";
-const SHOT = "/tmp/notes-api-shots/notes-429.png";
+const SHOT = "/tmp/notes-api-shots/after-notes-429.png";
 const TITLE = "Add rate limiting to the notes API";
 const BODY = `## What
 
@@ -98,6 +102,7 @@ const scenario: Scenario = {
     "orchestrate.manualChecks": "ask",
     "orchestrate.finishedPlan": "leave",
     "pr.state": "draft",
+    "pr.mode": "manual",
   },
   events: [
     { type: "prompt", text: "/graft:yolo add rate limiting to the notes API" },
@@ -126,7 +131,7 @@ const scenario: Scenario = {
     },
     {
       type: "say",
-      text: `Run started ${RUN}. .claude/graft/ is ignored and the tree is clean, so nothing to include or stash. No PR request in the arguments; yolo raises a ready PR anyway.`,
+      text: `Run started ${RUN}. .claude/graft/ is ignored and the tree is clean, so nothing to include or stash. No PR request in the arguments; yolo reads pr.mode as auto, so it raises a ready PR anyway.`,
     },
     { type: "chapter", id: "yolo-plan", title: "Plan phase" },
     {
@@ -134,7 +139,7 @@ const scenario: Scenario = {
       name: "Bash",
       args: "node ${CLAUDE_SKILL_DIR}/../settings.ts /home/acme/notes-api",
       result:
-        "Defaults: reviewer model opus, 3 questions per round, manual checks ask, pr.state draft",
+        "Defaults: reviewer model opus, 3 questions per round, manual checks ask, pr.state draft, pr.mode manual",
     },
     {
       type: "tool",
@@ -273,7 +278,7 @@ const scenario: Scenario = {
     },
     {
       type: "say",
-      text: "The plan is untracked, so its edits get no commits. Milestone 3's Manual check is agent-runnable, so it runs in Agent checks once the branch is finished, and no person-only check is left to defer. Milestones 1 and 2 touch different files, so two workers run in parallel.",
+      text: "The plan is untracked, so its edits get no commits. Before shots: started a screenshot run; the work adds a 429 reply, not a UI fix, so no before-shot step, and the run records that. Milestone 3's Manual check is agent-runnable, so it runs in Agent checks once the branch is finished, and no person-only check is left to defer. Milestones 1 and 2 touch different files, so two workers run in parallel.",
     },
     {
       type: "agent.start",
@@ -424,6 +429,26 @@ const scenario: Scenario = {
     { type: "tool", name: "Bash", args: "git status --porcelain", result: "(no output)" },
     { type: "chapter", id: "yolo-screenshots", title: "Screenshots" },
     {
+      type: "say",
+      text: "The after-shot step runs in the run Before shots started, which records no before-shot step, so after shots only. Linked worktree: is the repo a linked git worktree?",
+    },
+    {
+      type: "tool",
+      name: "Bash",
+      args: "git -C /home/acme/notes-api rev-parse --absolute-git-dir",
+      result: "/home/acme/notes-api/.git",
+    },
+    {
+      type: "tool",
+      name: "Bash",
+      args: "git -C /home/acme/notes-api rev-parse --path-format=absolute --git-common-dir",
+      result: "/home/acme/notes-api/.git",
+    },
+    {
+      type: "say",
+      text: "It is the main working tree, so no question. Host check: gh is 2.99.0 or later and the repo is on github.com.",
+    },
+    {
       type: "tool",
       name: "Bash",
       args: "gh --version",
@@ -434,6 +459,10 @@ const scenario: Scenario = {
       name: "Bash",
       args: "gh repo view --json url",
       result: '{"url":"https://github.com/acme/notes-api"}',
+    },
+    {
+      type: "say",
+      text: "Record: the branch, tree, HEAD and worktrees, so Restore can put them back.",
     },
     {
       type: "tool",
@@ -458,12 +487,16 @@ const scenario: Scenario = {
       type: "agent.start",
       id: "yolo-worker-shots",
       agent: "graft:worker",
-      description: "Capture the changed screens on the branch",
+      description: "Capture: after shots of the changed screens on the branch",
     },
     {
       type: "agent.done",
       id: "yolo-worker-shots",
-      report: `Started the server from the working tree, sent 100 requests, then opened /notes in a browser and captured the 429 reply with its Retry-After. Wrote ${SHOT} and stopped the server.`,
+      report: `No before shots, so after shots only. Started the server from the working tree, sent 100 requests, then opened /notes in a browser and captured the 429 reply with its Retry-After. Wrote the after shot ${SHOT} and stopped the server.`,
+    },
+    {
+      type: "say",
+      text: "Restore: check the branch, tree, HEAD and worktrees against the record.",
     },
     {
       type: "tool",
@@ -497,14 +530,15 @@ const scenario: Scenario = {
     },
     {
       type: "say",
-      text: "The branch, tree, HEAD and worktrees match the record, so there is nothing to restore. The screenshot is approved.",
+      text: "The branch, tree, HEAD and worktrees match the record, so there is nothing to restore. Publish-reader check: the screenshot is approved, and goes in the pr worker's arguments with a request to attach it.",
     },
     { type: "chapter", id: "yolo-pr", title: "Raise a PR" },
     {
       type: "agent.start",
       id: "yolo-worker-pr",
       agent: "graft:worker",
-      description: "Raise a ready PR with the screenshot as skills/pr/SKILL.md describes",
+      description:
+        "Raise a ready PR as skills/pr/SKILL.md describes, attaching the approved screenshot",
     },
     {
       type: "agent.done",
@@ -528,7 +562,7 @@ const scenario: Scenario = {
     },
     {
       type: "say",
-      text: `Decisions I made without asking (agent ${RUN}): limit key client IP, all /notes routes, a hand-rolled fixed window, 100 requests a minute. The tree was clean: nothing included, stashed or excluded, and no stash left. One screenshot attached.`,
+      text: `Decisions I made without asking (agent ${RUN}): limit key client IP, all /notes routes, a hand-rolled fixed window, 100 requests a minute. The tree was clean: nothing included, stashed or excluded, and no stash left. One screenshot attached to PR #18; orchestrate.finishedPlan is leave, so it stays at ${SHOT}.`,
     },
     {
       type: "say",

@@ -10,7 +10,7 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 
 Compose a short PR from the repo template, push, and create it.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user` and `## Settings`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user` and `## Settings`. Its `## Screenshots` and `## My Graft ignore probe` apply as `## Screenshots` below says.
 
 **Arguments:** $ARGUMENTS
 
@@ -103,6 +103,10 @@ The title and body never mention Claude, AI assistance or attribution. No `Co-Au
 One line, under 70 characters. Says what changed for the user, not what files moved.
 
 Match the repo's style. Read the last 10 commit subjects on the base (`git log -10 --format=%s origin/<base>`). If most start with a conventional-commit prefix (`fix(scope): …`, `feat(scope): …`, `chore: …`), use one, with a type that fits the branch as a whole and a scope the repo already uses. Otherwise write a plain imperative title with no prefix: "Add retake confirmation", not "Added retake confirmation".
+
+## Screenshots
+
+Run this step only for a direct `/graft:pr`: not when a brief marks its Context as orchestrate's, and not when the caller sets `pr.mode` to `manual`. When `pr.mode` is `auto`, run common.md's after-shot step before Create, as a caller with no before state, attach the images it approves as if the arguments asked for screenshots, and follow its **Clean-up** once Create has run. On a branch that already has a PR, run it only when the arguments ask for screenshots.
 
 ## Create
 

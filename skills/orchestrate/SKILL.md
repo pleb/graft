@@ -8,7 +8,7 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/../settings.ts *)
 
 You are the coordinator. Agents do the work. You order it, write the briefs, judge the results, and commit.
 
-Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## GitHub issue reference handling`, `## My Graft ignore probe`, `## Workspace` and `## Settings`.
+Read `${CLAUDE_SKILL_DIR}/../common.md` and follow its sections `## Ask the user`, `## Reviewer model`, `## Find the work`, `## GitHub issue reference handling`, `## My Graft ignore probe`, `## Workspace`, `## Screenshots` and `## Settings`.
 
 **Arguments:** $ARGUMENTS
 
@@ -33,8 +33,8 @@ Applies in common.md's workspace mode. This section changes each section it name
 - **Each pass** and **Clean up**: ranges are per repo. Record each repo's HEAD when Execute starts, or when the repo is added; a repo's first range starts there. A brief lists each repo's absolute path with its range.
 - **Final checks**: run each repo's checks in that repo. The start-commit rerun puts every repo at its start commit (a temporary `git worktree` per repo, laid out as under the root), so a failure in an unchanged repo caused by another repo's change is the run's. `git status --porcelain` is empty in each repo; the root's own files are not checked.
 - **Agent checks**: run each check with every repo on its branch, in the repos its milestone names. Flag a check still failing only on the PRs of the repos its milestone changed. `git status --porcelain` is empty in each repo, as in Final checks.
-- **Raise a PR**: one worker per repo with commits on its branch, using that repo's `pr.state`. Each brief's Context, not its Arguments, names the repo's absolute directory. When there are several, raise them all, then send each worker again with the other PRs' URLs to link them.
-- **Finish the plan**: when the plan is not inside a repo, `ls-files` fails with `not a git repository`; treat that as untracked. For `archive`, `<repo>` is the root's basename.
+- **Raise a PR**: one worker per repo with commits on its branch, using that repo's `pr.state`. Each brief's Context, not its Arguments, names the repo's absolute directory. When there are several, raise them all (pushed-only PRs included), then for each PR read its body with `gh pr view --json body`, put a line linking the other PRs just before its Graft line, replacing any such line already there, keep the rest of the body, and set it with `gh pr edit --body`.
+- **Finish the plan**: when the plan is not inside a repo, `ls-files` fails with `not a git repository`; treat that as untracked.
 - **Report**: branches, commits, ranges and checks per repo.
 
 ## Find the work
@@ -64,6 +64,10 @@ On the default branch, create a feature branch. On any other branch, stay on it.
 When there are issues (the plan's `## References` issue lines and those settled in `## Find the work`), save them on the branch.
 
 Check the commit style once: read the last 10 commit subjects on the default branch (`git log -10 --format=%s <default branch>`). If most start with a conventional-commit prefix (`fix(scope): …`, `feat(scope): …`, `chore: …`), every commit uses one, with a type and scope the repo already uses. Otherwise write a plain imperative subject with no prefix.
+
+## Before shots
+
+When `pr.mode` is `auto`, once `## Branch` has run and before the first worker starts, start a run as common.md's **Run state** says, then decide whether to run common.md's before-shot step: the plan's `## Screenshots` section decides where it says; otherwise run it when the work fixes a UI. Run it for the repos you expect the work to change visibly, with the per-repo steps its **Workspace mode** paragraph names. A repo added later gets no before shots. Write to the run's subfolder whether the before-shot step ran.
 
 ## Execute
 
@@ -117,15 +121,27 @@ Run this step when `## Execute` sorted any check as agent-runnable. A PR milesto
 - Once the PR is raised, push this step's fix commits to the PR's branch. When the checks still failing then differ from those the PR body flags, edit the body with `gh pr edit --body` to flag exactly those.
 - After the checks, `git status --porcelain` is empty. Report or ask (routine) about anything it lists, recommending report and leaving the files as they are.
 
+## Screenshots
+
+When `pr.mode` is `auto`, settle which repos `## Raise a PR` sends a pr worker for, then run common.md's after-shot step once, covering those repos, with the per-repo steps its **Workspace mode** paragraph names, in the run `current` names. Read from that subfolder whether the before-shot step ran; when it did not, the step has no before shots. Clean up the images when its **Clean-up** says.
+
 ## Raise a PR
 
-When the plan or the user asks for a PR, raise it after Agent checks, not during Execute. Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with its common.md at `${CLAUDE_SKILL_DIR}/../common.md`.
+When the plan or the user asks for a PR, or `pr.mode` is `auto`, raise it after Screenshots, not during Execute. In auto mode:
 
-- **Arguments**: the plan's PR request and the user's. The user's wins where they differ.
-- **Context**: the plan file or the work you were given, the motivation from this conversation, each issue from this run with its Resolves or Related split, the effective `pr.state` as the state to use when no argument names one, and each agent check still failing, for the PR body to flag. The brief marks these as context, not arguments.
+- Raise none when the user says not to raise a PR.
+- Give a repo with no GitHub remote (`gh repo view --json url` reports that none of its remotes point to a GitHub host) no PR and a Report line instead of a question. Any other failure of it goes to common.md's `## Command failures`.
+- When no PR was asked for and `gh pr view` shows a PR for the branch, decide whether to only push the new commits with `git push`, leaving the PR's title, body and images as they are, or to send the pr worker as below. Push only when no agent check is still failing and the body names each issue from this run; ask the user when it is unclear. After a push, put the PR in the state the **Arguments** below name, if any, with `gh pr ready` or `gh pr ready --undo`.
+
+Send a `graft:worker` to read `${CLAUDE_SKILL_DIR}/../pr/SKILL.md` and follow it, with its common.md at `${CLAUDE_SKILL_DIR}/../common.md`.
+
+- **Arguments**: the plan's PR request and the user's. The user's wins where they differ. With approved screenshots, add common.md's **Attach request**. On an attach failure, follow common.md's **Attach failure**.
+- **Context**: the plan file or the work you were given, the motivation from this conversation, each issue from this run with its Resolves or Related split, the effective `pr.state` as the state to use when no argument names one, and each agent check still failing, for the PR body to flag. The brief marks these as orchestrate's context, not arguments.
 - **Questions**: the worker answers routine questions as common.md's `## Ask the user` describes. Where it would ask the user, it stops and reports the question. Ask the user, then send the worker again.
 
 In pause mode, a PR milestone's Manual checks pause as `### Commit and review` describes once the PR is raised, before `## Finish the plan`. Fix commits are pushed to the PR's branch.
+
+After any fix commit is pushed to the PR's branch, follow common.md's **Stale images**.
 
 If no PR is raised, say why in Report.
 
@@ -135,13 +151,13 @@ Ask the user when something is ambiguous, needs more than a straightforward deci
 
 ## Finish the plan
 
-Run this step only when the work is a plan file with the Graft footer and every milestone is done, including the PR when one was asked for.
+Run this step only when the work is a plan file with the Graft footer and every milestone is done, including the PR when one was asked for and each PR `## Raise a PR` sends a pr worker for in auto mode.
 
 Run `git -C <plan's directory> ls-files --error-unmatch <plan's absolute path>`. Go on only when it fails with `did not match any file(s) known to git` and the plan is not in a subfolder of `~/.my-graft/.claude/graft/plans/` or `~/.my-graft/.claude/plans/`; otherwise leave the plan in place.
 
 Follow `orchestrate.finishedPlan`:
 
-- `archive`: move the plan to `~/.my-graft/.claude/graft/plans/<repo>/<plan>.md`, creating the folder. Follow `## My Graft ignore probe`, falling back to `~/.my-graft/.claude/plans/<repo>/<plan>.md`. The root is the directory `## Start` found. When `git -C <root> rev-parse --absolute-git-dir` differs from `git -C <root> rev-parse --path-format=absolute --git-common-dir`, `<repo>` is the basename of the path on the first `worktree` line of `git -C <root> worktree list --porcelain`; otherwise it is the basename of the root. `<plan>` is the plan's file name without `.md`. When the target exists, use `<plan>-2.md`, `<plan>-3.md` and so on; never overwrite.
+- `archive`: move the plan to `~/.my-graft/.claude/graft/plans/<repo>/<plan>.md`, creating the folder. Follow `## My Graft ignore probe`, falling back to `~/.my-graft/.claude/plans/<repo>/<plan>.md`. `<repo>` follows common.md's **Repo name**, with the directory `## Start` found as the root. `<plan>` is the plan's file name without `.md`. When the target exists, use `<plan>-2.md`, `<plan>-3.md` and so on; never overwrite.
 - `delete`: delete the plan file.
 - Otherwise, leave the plan in place.
 
@@ -155,5 +171,7 @@ Follow `orchestrate.finishedPlan`:
 - Apart from those, each agent-run check with its result and the commit it ran on, and each check the agent-checks worker reported as person-only.
 - Items the cleanup agents flagged for a decision.
 - Existing branch description lines this run kept but did not decide.
+- Each screenshot attached, with its PR and final path.
+- The commit the before shots show, per repo, and each image dropped.
 - When `## Finish the plan` ran, where the plan went: left in place, archived to `<path>`, deleted, or not moved or deleted and why.
 - Anything left undone.

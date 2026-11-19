@@ -97,6 +97,8 @@ status: draft
 
 ## Out of scope
 
+## Screenshots
+
 ## Milestones
 
 ### 1. <name>
@@ -117,6 +119,8 @@ Record every answer from a round, and every answer to a question a review raised
 Spend words on decisions, risks and contracts. Give routine changes a line.
 
 `## Repos` is written only in `## Workspace`.
+
+`## Screenshots` is written only when the user describes how screenshots should be taken (which screens, how to launch, before shots or not, or none), in their terms.
 
 `## References` is written only when there are references, one line per reference: `- Resolves owner/repo#N: <title>` or `- Related owner/repo#N: <title>` for a GitHub issue or PR, `- Related <URL>` for any other link, and `- Research <path>` for research the plan builds on. Read an issue or PR the conversation brings in, not only one in the arguments, as `## GitHub issue reference handling` describes. An issue References already lists keeps its line. Other issues supplied in the arguments are added as Resolves; other issues, PRs and links are added as Related. The user can move any line between the two.
 
