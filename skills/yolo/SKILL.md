@@ -16,6 +16,7 @@ You run execute, making the calls the user would usually make. Read `${CLAUDE_SK
 - Execute's **Go** or **Plan more** question is not asked.
 - Answer yourself every other question plan, execute, orchestrate, pr or common.md say to ask, with the option you would recommend, except these fixed answers:
   - Common.md's legacy plans question: **Leave them**.
+  - Common.md's linked-worktree question: **Capture here anyway**.
   - A plan name that already exists for a new topic: pick a new name. Never revise the existing plan.
   - Common.md's `## Find the work` rule 5: the word is the work.
   - A draft plan given as the work with no revision named: answer its open questions and finalise.
@@ -33,7 +34,7 @@ Once execute's `## Start` has found the repo, and before anything else reads the
 2. Run `git -C <root> check-ignore -q .claude/graft/.probe.md`, even when `.claude/graft/` exists. When it is not ignored, add `/.claude/graft/` to the file `git -C <root> rev-parse --path-format=absolute --git-path info/exclude` names.
 3. Sort each path `git -C <root> status --porcelain --untracked-files=all` lists, leaving out `.claude/graft/`, `.claude/plans/` and the work's plan file. Add the untracked paths left out to `info/exclude`.
    - A path that looks like a secret (`.env*` other than `*.example`, `*.sample` and `*.template`; key and credential files) is never committed. Listed as `??`, add it to `info/exclude` and leave it in place. Otherwise (tracked, modified or staged), stash it.
-   - A path related to the work is included. Once orchestrate's `## Branch` has run, and before the first milestone, stage only the included paths with `git -C <root> add -- <paths>` and commit them in a commit of their own. The first review range starts before that commit.
+   - A path related to the work is included. Once orchestrate's `## Branch` has run, and before the first plan-edits commit, the before-shot step's Record and the first milestone, stage only the included paths with `git -C <root> add -- <paths>` and commit them in a commit of their own. The first review range starts before that commit.
    - Stash the unrelated paths.
 4. Stash every path the sort stashes in one `git -C <root> stash push --include-untracked -- <paths>`. Run `git rev-parse -q --verify stash@{0}` before and after it. When the push created an entry, keep its SHA (the value after). Otherwise there is no stash to restore.
 
@@ -48,7 +49,7 @@ Applies in common.md's workspace mode, and runs each command in a repo as common
 ## Recording decisions
 
 - Record each decision you make without asking in the plan's `## Decisions`, marked `(agent <run start>)`. Write decisions made before the plan exists once it does.
-- When `git ls-files --error-unmatch <plan>` succeeds, commit your plan edits (the plan phase's, `status: finalised` and the `(agent)` lines) in commits of their own, in the repo's commit style, never on the default branch: once orchestrate's `## Branch` has run and before the first milestone, before `## Final checks`, and once orchestrate's `## Screenshots` step has settled which repos get a pr worker, before common.md's Record step. Commit and push decisions made after the PR is raised to the PR's branch.
+- When `git ls-files --error-unmatch <plan>` succeeds, commit your plan edits (the plan phase's, `status: finalised` and the `(agent)` lines) in commits of their own, in the repo's commit style, never on the default branch: once Start's included-paths commit has run and before the before-shot step's Record and the first milestone; before `## Final checks`; and once orchestrate's `## Screenshots` step has settled which repos get a pr worker, before the after-shot step's Record. Write decisions made during the before-shot step to the plan after its Restore. Commit and push decisions made after the PR is raised to the PR's branch.
 
 ## Stops
 
@@ -79,7 +80,7 @@ Before orchestrate's `## Finish the plan` moves or deletes the plan, read the `(
 - Every decision you made without asking, and every `(default)` entry written during this run.
 - The dirty-tree paths you included, stashed or added to `info/exclude` (the paths left out of the sort among them).
 - Each agent check still failing, with what the worker observed.
-- Whether screenshots were attached, or why not.
+- Whether screenshots were attached, or why not, and in a linked worktree what was captured and what could not be.
 - Any stash left, by SHA.
 
 In workspace mode, list the stashes and paths per repo.

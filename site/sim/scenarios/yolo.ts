@@ -12,11 +12,12 @@
 // clarify question), Write the plan (no PR milestone, as execute's Plan phase says), Review and the
 // full pass Finish recommends.
 // Orchestrate phase follows skills/orchestrate/SKILL.md, condensed as execute.ts condenses it: Start
-// (its root and settings already known), Branch, Execute (milestone 3's Manual check is
-// agent-runnable, so no person-only check remains and there is no mode), Commit and review, Each
-// pass, Clean up, Final checks, Agent checks (the 429 check passes first time), Screenshots
-// (common.md's `## Screenshots`: Host check, Record, Capture with after shots only as the work is a
-// change, not a fix, Restore and Publish-reader check), Raise a PR (a worker following
+// (its root and settings already known), Branch, Before shots (none, as the work is not a UI fix),
+// Execute (milestone 3's Manual check is agent-runnable, so no person-only check remains and there
+// is no mode), Commit and review, Each pass, Clean up, Final checks, Agent checks (the 429 check
+// passes first time), Screenshots (common.md's after-shot step as a caller with no before state: a
+// new run, Linked worktree (the main working tree, so no question), Host check, Record, Capture with
+// after shots only, Restore and Publish-reader check), Raise a PR (a worker following
 // skills/pr/SKILL.md with `ready-state` from yolo's PR step and the attach request), Clean-up (left
 // where written, as `orchestrate.finishedPlan` is `leave`), Finish the plan (left in place) and Report.
 import type { Scenario } from "../events.ts";
@@ -276,7 +277,7 @@ const scenario: Scenario = {
     },
     {
       type: "say",
-      text: "The plan is untracked, so its edits get no commits. Milestone 3's Manual check is agent-runnable, so it runs in Agent checks once the branch is finished, and no person-only check is left to defer. Milestones 1 and 2 touch different files, so two workers run in parallel.",
+      text: "The plan is untracked, so its edits get no commits. The work adds a 429 reply, not a UI fix, so no before shots. Milestone 3's Manual check is agent-runnable, so it runs in Agent checks once the branch is finished, and no person-only check is left to defer. Milestones 1 and 2 touch different files, so two workers run in parallel.",
     },
     {
       type: "agent.start",
@@ -428,7 +429,23 @@ const scenario: Scenario = {
     { type: "chapter", id: "yolo-screenshots", title: "Screenshots" },
     {
       type: "say",
-      text: "Host check: gh is 2.99.0 or later and the repo is on github.com.",
+      text: "The after-shot step, with no before shots, starts a run of its own. Linked worktree: is the repo a linked git worktree?",
+    },
+    {
+      type: "tool",
+      name: "Bash",
+      args: "git -C /home/acme/notes-api rev-parse --absolute-git-dir",
+      result: "/home/acme/notes-api/.git",
+    },
+    {
+      type: "tool",
+      name: "Bash",
+      args: "git -C /home/acme/notes-api rev-parse --path-format=absolute --git-common-dir",
+      result: "/home/acme/notes-api/.git",
+    },
+    {
+      type: "say",
+      text: "It is the main working tree, so no question. Host check: gh is 2.99.0 or later and the repo is on github.com.",
     },
     {
       type: "tool",
@@ -469,12 +486,12 @@ const scenario: Scenario = {
       type: "agent.start",
       id: "yolo-worker-shots",
       agent: "graft:worker",
-      description: "Capture: decide fix or change, then capture the changed screens on the branch",
+      description: "Capture: after shots of the changed screens on the branch",
     },
     {
       type: "agent.done",
       id: "yolo-worker-shots",
-      report: `The 429 reply is new behaviour, not a fix to a UI, so after shots only and no merge-base worktree. Started the server from the working tree, sent 100 requests, then opened /notes in a browser and captured the 429 reply with its Retry-After. Wrote the after shot ${SHOT} and stopped the server.`,
+      report: `No before shots, so after shots only. Started the server from the working tree, sent 100 requests, then opened /notes in a browser and captured the 429 reply with its Retry-After. Wrote the after shot ${SHOT} and stopped the server.`,
     },
     {
       type: "say",

@@ -65,6 +65,10 @@ When there are issues (the plan's `## References` issue lines and those settled 
 
 Check the commit style once: read the last 10 commit subjects on the default branch (`git log -10 --format=%s <default branch>`). If most start with a conventional-commit prefix (`fix(scope): …`, `feat(scope): …`, `chore: …`), every commit uses one, with a type and scope the repo already uses. Otherwise write a plain imperative subject with no prefix.
 
+## Before shots
+
+When `pr.mode` is `auto`, once `## Branch` has run and before the first worker starts, decide whether to run common.md's before-shot step: the plan's `## Screenshots` section decides where it says; otherwise run it when the work fixes a UI. Run it for the repos you expect the work to change visibly, with the per-repo steps its **Workspace mode** paragraph names. A repo added later gets no before shots. Every Capture brief this run sends gets the plan's `## Screenshots` section when it has one.
+
 ## Execute
 
 - When `orchestrate.agentDoesManualChecks` is `true`, sort each milestone's Manual checks before the first worker starts, by the rule in that setting's row: agent-runnable checks run in `## Agent checks`, and the rest are person-only. From here on, a milestone's Manual checks are its person-only ones.
@@ -119,7 +123,7 @@ Run this step when `## Execute` sorted any check as agent-runnable. A PR milesto
 
 ## Screenshots
 
-When `pr.mode` is `auto`, settle which repos `## Raise a PR` sends a pr worker for, then follow common.md's `## Screenshots` once, covering those repos, with the per-repo steps its **Workspace mode** paragraph names. Clean up the images when its **Clean-up** says.
+When `pr.mode` is `auto`, settle which repos `## Raise a PR` sends a pr worker for, then run common.md's after-shot step once, covering those repos, with the per-repo steps its **Workspace mode** paragraph names. Its Capture worker gets the current run's before shots. When `## Before shots` ran no before-shot step, this step is a caller with no before state. Clean up the images when its **Clean-up** says.
 
 ## Raise a PR
 
@@ -168,5 +172,6 @@ Follow `orchestrate.finishedPlan`:
 - Items the cleanup agents flagged for a decision.
 - Existing branch description lines this run kept but did not decide.
 - Each screenshot attached, with its PR and final path.
+- The commit the before shots show, per repo, and each image dropped.
 - When `## Finish the plan` ran, where the plan went: left in place, archived to `<path>`, deleted, or not moved or deleted and why.
 - Anything left undone.

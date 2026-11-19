@@ -109,7 +109,7 @@ Publishes the current branch's changes against the default branch, uncommitted o
 /graft:pr [guidance] [state: draft (default) | ready-state (pr.state: ready)]
 ```
 
-Pushes the branch and opens a pull request, following the repo's PR template when it has one. A new PR opens in the state the arguments name, else in the state [`pr.state`](./settings.md#prstate) sets (draft by default). When the branch already has a PR, Graft rewrites its title and body instead, and changes its state only when the arguments name one. It stops if the working tree has uncommitted changes. Anything else you write is guidance for the description. With [`pr.mode`](./settings.md#prmode) set to `auto`, it attaches screenshots when the work changes a UI it can capture. On a branch that already has a PR, it attaches them only when you ask.
+Pushes the branch and opens a pull request, following the repo's PR template when it has one. A new PR opens in the state the arguments name, else in the state [`pr.state`](./settings.md#prstate) sets (draft by default). When the branch already has a PR, Graft rewrites its title and body instead, and changes its state only when the arguments name one. It stops if the working tree has uncommitted changes. Anything else you write is guidance for the description. With [`pr.mode`](./settings.md#prmode) set to `auto`, it attaches screenshots of the finished branch, with no before shots, when the work changes a UI it can capture. On a branch that already has a PR, it attaches them only when you ask.
 
 ### /graft:review
 
