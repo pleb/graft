@@ -698,6 +698,26 @@ describe("planFromArgs", () => {
   it("gives null without a root", () => {
     expect(planFromArgs("add-cache", null, new Set())).toBeNull();
   });
+
+  it("finds a roadmap and its children", () => {
+    const root = repo([]);
+    const roadmap = (name: string) => join(root, ".claude", "graft", "plans", "ship-app", name);
+    mkdirSync(roadmap(""));
+    writeFileSync(roadmap("roadmap.md"), "");
+    writeFileSync(roadmap("add-login.md"), "");
+    expect(planFromArgs("ship-app", root, new Set())).toBe(roadmap("roadmap.md"));
+    expect(planFromArgs("ship-app/add-login", root, new Set())).toBe(roadmap("add-login.md"));
+    expect(planFromArgs("ship-app/add-login.md", root, new Set())).toBe(roadmap("add-login.md"));
+    expect(planFromArgs("ship-app/gone", root, new Set())).toBe(roadmap("gone.md"));
+    expect(planFromArgs("then ship-app/gone", root, new Set())).toBeUndefined();
+  });
+
+  it("prefers a plan file to a roadmap of the same name", () => {
+    const root = repo(["ship-app"]);
+    mkdirSync(join(root, ".claude", "graft", "plans", "ship-app"));
+    writeFileSync(join(root, ".claude", "graft", "plans", "ship-app", "roadmap.md"), "");
+    expect(planFromArgs("ship-app", root, new Set())).toBe(plan(root, "ship-app"));
+  });
 });
 
 describe("bashPlanPaths", () => {
@@ -711,6 +731,13 @@ describe("bashPlanPaths", () => {
       join(homedir(), ".claude", "plans", "a.md"),
     ]);
     expect(bashPlanPaths("cat .claude/plans/a.md", null)).toEqual(["/.claude/plans/a.md"]);
+  });
+
+  it("resolves roadmap plan paths", () => {
+    expect(
+      bashPlanPaths("cat .claude/graft/plans/r/roadmap.md .claude/graft/plans/r/c.md", "/r"),
+    ).toEqual(["/r/.claude/graft/plans/r/roadmap.md", "/r/.claude/graft/plans/r/c.md"]);
+    expect(bashPlanPaths("cat .claude/graft/plans/r/c/d.md", "/r")).toEqual([]);
   });
 
   it("resolves plan paths under .claude/graft", () => {
@@ -771,6 +798,12 @@ describe("powerShellPlanPaths", () => {
         "C:\\r",
       ),
     ).toEqual(["D:\\abs\\.claude\\graft\\plans\\a.md", "C:\\r\\.claude\\graft\\plans\\b.md"]);
+  });
+
+  it("resolves roadmap plan paths", () => {
+    expect(powerShellPlanPaths("Get-Content .claude\\graft\\plans\\r\\c.md", "C:\\r")).toEqual([
+      "C:\\r\\.claude\\graft\\plans\\r\\c.md",
+    ]);
   });
 
   it("resolves plan paths written with forward slashes", () => {
@@ -1079,6 +1112,33 @@ describe("buildReport", () => {
     const { runs } = await report([transcript("graft-folder", lines)]);
     expect(runs).toMatchObject([
       { cwd, planFiles: [{ path: `${cwd}/.claude/graft/plans/a.md`, actions: ["write", "read"] }] },
+    ]);
+  });
+
+  it("records a roadmap run's parent and child plan files", async () => {
+    const cwd = "/work/repo";
+    const lines = [
+      command("/graft:roadmap", "ship the app", 3, "roadmap-cmd", { cwd }),
+      assistant(2, "roadmap-as", [
+        toolUse("roadmap-parent", "Write", {
+          file_path: `${cwd}/.claude/graft/plans/ship-app/roadmap.md`,
+          content: "x",
+        }),
+        toolUse("roadmap-child", "Write", {
+          file_path: `${cwd}/.claude/graft/plans/ship-app/add-login.md`,
+          content: "x",
+        }),
+      ]),
+    ];
+    const { runs } = await report([transcript("roadmap", lines)]);
+    expect(runs).toMatchObject([
+      {
+        skill: "/graft:roadmap",
+        planFiles: [
+          { path: `${cwd}/.claude/graft/plans/ship-app/roadmap.md`, actions: ["write"] },
+          { path: `${cwd}/.claude/graft/plans/ship-app/add-login.md`, actions: ["write"] },
+        ],
+      },
     ]);
   });
 

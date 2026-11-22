@@ -31,16 +31,17 @@ On another machine, or after `/graft:uninstall`, run the same line. It clones yo
 
 ## Using it
 
-![Graft's flow: /graft:research, /graft:plan and /graft:execute are where you begin. /graft:research works with you, a researcher, an experimenter and an adversarial reviewer to write a research report, which /graft:plan takes as context. /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:execute runs plan and then orchestrate in one session with you deciding. /graft:yolo runs the same with the agent deciding, ending in a ready PR with screenshots. /graft:diff publishes a claude.ai artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/assets/flow.svg)
+![Graft's flow: /graft:research, /graft:plan, /graft:roadmap and /graft:execute are where you begin. /graft:research works with you, a researcher, an experimenter and an adversarial reviewer to write a research report, which /graft:plan and /graft:roadmap take as context. /graft:roadmap works with you and plan's agents to write a roadmap and its child plans, and GitHub issues, for /graft:orchestrate to run. /graft:plan works with you, a researcher and two reviewers to write a plan file. /graft:orchestrate has a worker implement each milestone and commits it, with two reviewers alongside, then comment-editor and docs-editor clean up, leaving commits on a branch. /graft:execute runs plan and then orchestrate in one session with you deciding. /graft:yolo runs the same with the agent deciding, ending in a ready PR with screenshots. /graft:diff publishes a claude.ai artifact for you to review the changes and comment on, then Claude acts on your feedback. /graft:pr pushes the branch and opens a PR.](./docs/assets/flow.svg)
 
 Start from what you know:
 
-| Run               | When                                                     | You end up with                 |
-| ----------------- | -------------------------------------------------------- | ------------------------------- |
-| `/graft:research` | You need facts before deciding                           | A report to plan from           |
-| `/graft:plan`     | You know what you want built                             | A plan file                     |
-| `/graft:execute`  | The job is small enough to plan and build in one session | Commits on a branch             |
-| `/graft:yolo`     | You want Graft to decide for you                         | A pull request ready for review |
+| Run               | When                                                     | You end up with                                                                                      |
+| ----------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `/graft:research` | You need facts before deciding                           | A report to plan from                                                                                |
+| `/graft:plan`     | You know what you want built                             | A plan file                                                                                          |
+| `/graft:roadmap`  | The work is too big for one plan                         | A parent roadmap and child plans that each merge on their own, optionally published as GitHub issues |
+| `/graft:execute`  | The job is small enough to plan and build in one session | Commits on a branch                                                                                  |
+| `/graft:yolo`     | You want Graft to decide for you                         | A pull request ready for review                                                                      |
 
 A plan on its own builds nothing. Run `/clear` so the build starts with an empty context, then `/graft:orchestrate` with the plan's name:
 
@@ -52,6 +53,8 @@ A plan on its own builds nothing. Run `/clear` so the build starts with an empty
 
 Orchestrate works on a branch. A worker agent builds each milestone and Graft commits it, and both reviewers check its milestone commits before the run ends.
 
+A roadmap is built one child at a time. `/graft:orchestrate` with the roadmap's name shows each child's status and runs the one you pick once the children it needs have merged. After the last child merges, it runs the roadmap's end-to-end checks.
+
 Once the branch is done, `/graft:diff` publishes its changes as a private claude.ai artifact you can comment on line by line, and Claude acts on your comments. `/graft:pr` pushes the branch and opens the pull request, or rewrites the title and body of the one it already has. `/graft:review` runs the two reviewers over a PR, or over your branch and its uncommitted changes, and can post the findings you pick to the PR.
 
 Every command and its arguments are in [docs/commands.md](./docs/commands.md).
@@ -60,7 +63,7 @@ Every command and its arguments are in [docs/commands.md](./docs/commands.md).
 
 Describe a mod in plain words, such as `/graft:modify when a plan touches a database, add a rollback milestone`. Graft agrees the change with you, makes it, has both reviewers check it, and pushes it to your `my-graft` repo. Each mod and its intent go in `MODS.md`.
 
-`/graft:tune` finds mods for you. It reads your recent plan, orchestrate, execute and yolo runs (the last two weeks by default) for corrections you keep repeating. A correction only counts when you made it in at least two tasks across at least two sessions, and you pick which findings to keep.
+`/graft:tune` finds mods for you. It reads your recent plan, roadmap, orchestrate, execute and yolo runs (the last two weeks by default) for corrections you keep repeating. A correction only counts when you made it in at least two tasks across at least two sessions, and you pick which findings to keep.
 
 `/graft:update` merges new Graft into your clone from its upstream, the repo it takes updates from: `pleb/graft`, or your organisation's [interstock](#interstocks) (a shared copy of Graft). When a conflict touches a mod, Graft resolves it so the mod still does what you recorded, and asks when it can't. `/graft:modify` and `/graft:update` need Claude Code 2.1.273 or later.
 
@@ -72,7 +75,7 @@ At the start of a session, Graft tells you when your clone is behind its upstrea
 
 ## Working across repos
 
-Research, plan, execute, orchestrate and yolo can also run from a folder of repos. Turn it on in the folder's `.claude/graft-settings.json`:
+Research, plan, roadmap, execute, orchestrate and yolo can also run from a folder of repos. Turn it on in the folder's `.claude/graft-settings.json`:
 
 ```json
 { "plan": { "outsideRepoPlans": "here" } }

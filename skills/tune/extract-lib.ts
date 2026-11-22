@@ -20,19 +20,26 @@ const MIN_NODE_MAJOR = 24;
 const TEXT_LIMIT = 1500;
 const CONTEXT_LIMIT = 600;
 const INPUT_VALUE_LIMIT = 200;
-const SKILLS = new Set(["/graft:plan", "/graft:orchestrate", "/graft:execute", "/graft:yolo"]);
+const SKILLS = new Set([
+  "/graft:plan",
+  "/graft:roadmap",
+  "/graft:orchestrate",
+  "/graft:execute",
+  "/graft:yolo",
+]);
 export const KINDS = ["answer", "message", "rejection", "interrupt"] as const;
 const FILE_TOOLS = new Set(["Write", "Edit", "MultiEdit", "Read"]);
 const INTERRUPTS = new Set([
   "[Request interrupted by user]",
   "[Request interrupted by user for tool use]",
 ]);
-const PLAN_FILE = /[\\/]\.claude[\\/](?:graft[\\/])?plans[\\/][^\\/]+\.md$/;
+// A roadmap keeps its parent and children in a folder: `plans/<roadmap>/roadmap.md` and `plans/<roadmap>/<child>.md`.
+const PLAN_FILE = /[\\/]\.claude[\\/](?:graft[\\/])?plans[\\/](?:[^\\/]+[\\/])?[^\\/]+\.md$/;
 const PLAN_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const BASH_PLAN =
-  /(?:\b[A-Za-z]:)?(?:[\w.~@+-]*\/)*\.claude\/(?:graft\/)?plans\/[\w@+-][\w.@+-]*\.md(?![\w.@+-])/g;
+  /(?:\b[A-Za-z]:)?(?:[\w.~@+-]*\/)*\.claude\/(?:graft\/)?plans\/(?:[\w@+-][\w.@+-]*\/)?[\w@+-][\w.@+-]*\.md(?![\w.@+-])/g;
 const POWERSHELL_PLAN =
-  /(?:\b[A-Za-z]:)?(?:[\w.~@+-]*[\\/])*\.claude[\\/](?:graft[\\/])?plans[\\/][\w@+-][\w.@+-]*\.md(?![\w.@+-])/g;
+  /(?:\b[A-Za-z]:)?(?:[\w.~@+-]*[\\/])*\.claude[\\/](?:graft[\\/])?plans[\\/](?:[\w@+-][\w.@+-]*[\\/])?[\w@+-][\w.@+-]*\.md(?![\w.@+-])/g;
 const WINDOWS_PATH = /^(?:[A-Za-z]:[\\/]|\\\\)/;
 // A plan path after any other character is the tail of a word such as `$root/.claude/graft/plans/x.md`.
 const WORD_START = /[\s'"`=:;|&<>(]/;
@@ -416,6 +423,12 @@ export function planFromArgs(
       .replace(/^@/, "")
       .replace(/[)"'`.,;:!?]+$/, "");
     const first = index === 0;
+    const child = token.replace(/\.md$/, "").split("/");
+    if (child.length === 2 && child.every((part) => PLAN_NAME.test(part)))
+      candidates.push({
+        path: resolveIn(root, `.claude/graft/plans/${child[0]}/${child[1]}.md`),
+        fallback: first && !token.endsWith(".md"),
+      });
     if (token.includes("/") || (WINDOWS_PATH.test(root) && token.includes("\\"))) {
       if (token.endsWith(".md"))
         candidates.push({ path: resolveIn(root, expandHome(token)), fallback: first });
@@ -429,6 +442,7 @@ export function planFromArgs(
         fallback: first && (name.includes("-") || token.endsWith(".md")),
       },
       { path: resolveIn(root, `.claude/plans/${name}.md`), fallback: false },
+      { path: resolveIn(root, `.claude/graft/plans/${name}/roadmap.md`), fallback: false },
     );
   }
   return (

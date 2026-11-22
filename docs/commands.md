@@ -166,7 +166,7 @@ Changes your copy of Graft, one mod at a time. Each mod is recorded with its int
 /graft:tune [guidance] [window: 14 days (default) | <n> days]
 ```
 
-Reads your `/graft:plan`, `/graft:orchestrate`, `/graft:execute` and `/graft:yolo` runs from the last 14 days (or the window you give) for corrections you keep making to how Graft works. A correction counts only when it shows up in at least two tasks across at least two sessions. You pick which findings to keep, and each one becomes a mod through `/graft:modify`.
+Reads your `/graft:plan`, `/graft:roadmap`, `/graft:orchestrate`, `/graft:execute` and `/graft:yolo` runs from the last 14 days (or the window you give) for corrections you keep making to how Graft works. A correction counts only when it shows up in at least two tasks across at least two sessions. You pick which findings to keep, and each one becomes a mod through `/graft:modify`.
 
 ## Settings and removal
 
