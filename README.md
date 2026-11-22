@@ -35,13 +35,13 @@ On another machine, or after `/graft:uninstall`, run the same line. It clones yo
 
 Start from what you know:
 
-| Run               | When                                                     | You end up with                                                                                      |
-| ----------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `/graft:research` | You need facts before deciding                           | A report to plan from                                                                                |
-| `/graft:plan`     | You know what you want built                             | A plan file                                                                                          |
-| `/graft:roadmap`  | The work is too big for one plan                         | A parent roadmap and child plans that each merge on their own, optionally published as GitHub issues |
-| `/graft:execute`  | The job is small enough to plan and build in one session | Commits on a branch                                                                                  |
-| `/graft:yolo`     | You want Graft to decide for you                         | A pull request ready for review                                                                      |
+| Run               | When                                                     | You end up with                                 |
+| ----------------- | -------------------------------------------------------- | ----------------------------------------------- |
+| `/graft:research` | You need facts before deciding                           | A report to plan from                           |
+| `/graft:plan`     | You know what you want built                             | A plan file                                     |
+| `/graft:roadmap`  | The work is too big for one plan                         | A roadmap of plans that each merge on their own |
+| `/graft:execute`  | The job is small enough to plan and build in one session | Commits on a branch                             |
+| `/graft:yolo`     | You want Graft to decide for you                         | A pull request ready for review                 |
 
 A plan on its own builds nothing. Run `/clear` so the build starts with an empty context, then `/graft:orchestrate` with the plan's name:
 
