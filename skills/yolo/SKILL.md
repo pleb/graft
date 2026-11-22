@@ -65,7 +65,7 @@ Follow orchestrate as if `orchestrate.agentDoesManualChecks` were `true`, whatev
 
 ## Roadmap
 
-When the work is a roadmap (orchestrate's `## Roadmap`), run its first runnable child. When every child has merged, run only the Automated end-to-end checks; `## Manual checks` does not apply to them. List every Manual one in Report, leave the parent issue and the issues its `## References` resolves open, leave the folder in place, and go to `## Report`.
+When the work is a roadmap (orchestrate's `## Roadmap`), run its first runnable child. When every child has merged, run only the Automated end-to-end checks; `## Manual checks` does not apply to them. List every Manual one in Report, leave the parent issue and the issues its `## References` resolves open, leave the folder in place, then run `## Restore the stash` and go to `## Report`.
 
 ## PR
 

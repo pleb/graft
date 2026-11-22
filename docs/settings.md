@@ -63,7 +63,7 @@ Which command asks how a plan's [manual checks](#orchestrate) are handled. Appli
 
 ### `plan.outsideRepoPlans`
 
-Where `/graft:plan`, `/graft:roadmap` and `/graft:research` save their files when you run them outside a repo without naming a file.
+Where `/graft:plan` and `/graft:research` save their files when you run them outside a repo without naming a file.
 
 - `ask` (default): ask whether to use `~/.my-graft`.
 - `always`: `~/.my-graft/.claude/graft/`.

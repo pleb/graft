@@ -725,7 +725,13 @@ describe("planFromArgs", () => {
     const recorded = new Set([roadmap("add-login.md")]);
     expect(planFromArgs("ship-app", root, recorded)).toBe(roadmap("roadmap.md"));
     expect(planFromArgs("ship-app.md", root, recorded)).toBe(plan(root, "ship-app"));
-    expect(planFromArgs("ship-app/add-login.md", root, new Set())).toBe(roadmap("add-login.md"));
+    expect(planFromArgs("ship-app/add-login.md", root, new Set([roadmap("roadmap.md")]))).toBe(
+      roadmap("add-login.md"),
+    );
+    expect(planFromArgs("ship-app/add-login", root, new Set())).toBe(roadmap("add-login.md"));
+    expect(planFromArgs("docs/migration.md", root, new Set())).toBe(
+      join(root, "docs", "migration.md"),
+    );
   });
 });
 

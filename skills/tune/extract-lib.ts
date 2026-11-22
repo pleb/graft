@@ -424,11 +424,18 @@ export function planFromArgs(
       .replace(/[)"'`.,;:!?]+$/, "");
     const first = index === 0;
     const child = token.replace(/\.md$/, "").split("/");
-    if (child.length === 2 && child.every((part) => PLAN_NAME.test(part)))
+    if (child.length === 2 && child.every((part) => PLAN_NAME.test(part))) {
+      const folder = resolveIn(root, `.claude/graft/plans/${child[0]}/roadmap.md`).slice(
+        0,
+        -"roadmap.md".length,
+      );
       candidates.push({
         path: resolveIn(root, `.claude/graft/plans/${child[0]}/${child[1]}.md`),
-        fallback: first,
+        fallback:
+          first &&
+          (!token.endsWith(".md") || [...recorded].some((path) => path.startsWith(folder))),
       });
+    }
     if (token.includes("/") || (WINDOWS_PATH.test(root) && token.includes("\\"))) {
       if (token.endsWith(".md"))
         candidates.push({ path: resolveIn(root, expandHome(token)), fallback: first });
