@@ -88,6 +88,8 @@ Builds a finished plan, or a task list you give it, on a branch (a new feature b
 
 To get a PR, ask in the arguments, such as `open a pr`. With [`pr.mode`](./settings.md#prmode) set to `auto` you don't need to ask: it raises one for each changed repo, with screenshots when the work changes a UI. Say so if you want no PR. When the branch already has a PR, it pushes the new commits or updates the PR, and asks when it can't tell which.
 
+Name a roadmap from [`/graft:roadmap`](#graftroadmap) and it shows each child's status, read from its branches and PRs, and offers only the children whose dependencies have merged. The child you pick runs as an ordinary plan on its own `<roadmap>/<child>` branch, started from each repo's recorded base, and a child you stopped part-way carries on from the milestones it already holds. It closes each merged child's issue. Once every child has merged, it runs the roadmap's end-to-end checks on the freshly fetched bases, then closes the roadmap's issue and keeps or removes its folder as [`orchestrate.finishedPlan`](./settings.md#orchestratefinishedplan) says. Run `/clear` before each child.
+
 Run `/clear` between `/graft:plan` and `/graft:orchestrate`, so the build starts with an empty context:
 
 ```text

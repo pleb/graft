@@ -41,27 +41,80 @@ Applies in common.md's workspace mode. This section changes each section it name
 
 The work in this conversation is a plan or task list. Ask when there is none, or more than one.
 
-When the work is research, stop and name `/graft:plan <name>` as the next step. Name `/graft:plan <path>` instead when `<root>/.claude/graft/plans/<name>.md` or `<root>/.claude/plans/<name>.md` exists, or when the report is outside `<root>/.claude/graft/research/`.
+When the work is research, stop and name `/graft:plan <name>` as the next step. Name `/graft:roadmap <name>` instead when `<root>/.claude/graft/plans/<name>/roadmap.md` exists. Otherwise name `/graft:plan <path>` when `<root>/.claude/graft/plans/<name>.md` or `<root>/.claude/plans/<name>.md` exists, or when the report is outside `<root>/.claude/graft/research/`.
 
 When the work is a plan file (including a plan in this conversation written to or read from one), check for the Graft footer: a `Plan by Graft.` line after a thematic break, outside any code fence. It need not be the last line. Skip the check for a plan without it. Otherwise warn when either holds:
 
 - Its `status` is not `finalised`.
 - Its `## Open questions` section lists questions.
 
-Say which holds, list any open questions, and ask whether to continue or stop. When only the status holds, ask it (routine), recommending continue. On stop, name `/graft:plan <name>` as the next step (`/graft:plan <path>` for a plan outside `.claude/graft/plans/`). Never edit the plan.
+Say which holds, list any open questions, and ask whether to continue or stop. When only the status holds, ask it (routine), recommending continue. On stop, name `/graft:plan <name>` as the next step (`/graft:plan <path>` for a plan outside `.claude/graft/plans/`, `/graft:roadmap <roadmap>` for a roadmap or a child of one). Never edit the plan.
 
 When issues were supplied, before Execute:
 
 - With no plan, confirm with the user (routine) the task you take from the issues.
 - For each issue the plan's `## References` does not list, ask the user (routine) whether it is Resolves or Related, recommending Resolves when the work covers all of the issue and Related otherwise.
 
+## Roadmap
+
+Applies when the work is a `roadmap.md` (a roadmap) or a plan beside one (a child). A roadmap's children are the plans its `## Children` lists, in run order. A child's branch is `<roadmap>/<child>`. After compaction, read this section again.
+
+### Status
+
+Once `## Find the work`'s checks pass, find each child's status from git and `gh` alone, checking every repo under the root in workspace mode, else the repo:
+
+- A repo's base and base ref are found as `## Branch` finds them, from the children that record the repo. Run `git fetch origin <base>` for a recorded base.
+- A repo with no GitHub remote (as `## Raise a PR` detects it) is reported and never counts.
+- For each child, read `gh pr list --head <branch> --state all --json state,baseRefName,url`. The repo counts for the child when it has a PR from the branch, or when the local branch (`git branch --list <branch>`) or the `origin` one (`git ls-remote origin refs/heads/<branch>`, then `git fetch origin <branch>`) has commits beyond the base ref (`git rev-list --count <base ref>..<ref>` above 0).
+- When a `gh` command here fails, stop and report it. Never read a failure as no PR.
+
+A child's status is the first that holds:
+
+1. **Not started**: no repo counts.
+2. **Started**: no counted repo has an open or merged PR.
+3. **In review**: a counted repo has an open PR, or no merged PR.
+4. **Merged elsewhere**: a counted repo has no PR merged into its base.
+5. **Merged**: otherwise.
+
+For each merged child whose `## Children` line names an issue, close it with `gh issue close <N> -R owner/repo --reason completed --comment "<PR URLs>"` when `gh issue view <N> -R owner/repo --json state --jq .state` reads `OPEN`.
+
+A child is runnable when it is not started, started or in review, and every child its `## Children` line names after `after` is merged.
+
+### Pick a child
+
+When the work is a roadmap and not every child has merged, show each child's status with its PR URLs, and:
+
+- For a merged-elsewhere child, name its PRs and the way out: revise the roadmap with `/graft:roadmap <roadmap>`, or retarget each PR to its recorded base and merge it there.
+- For each other child that is not runnable and not merged, name the PRs it waits on, or the child when that child has none.
+- Ask which runnable child to run (routine), recommending the first in run order, with **Stop**. With none runnable, stop.
+
+The picked child is then the work, from `## Find the work`'s plan checks on. When the work is a child that is not runnable, say its status and what it waits on, and stop.
+
+### Run a child
+
+A child runs as a plan through the rest of this file, changed only as this list says:
+
+- Its repos are those its `## Repos` lists (the repo, without one), less each repo whose PR from the branch has merged: that repo gets no commits, push or PR. When a milestone needs to change it, stop and name `/graft:roadmap <roadmap>` to plan a fix child.
+- Before `## Branch` switches a repo to the branch, stop when any of the child's repos has staged, unstaged or untracked changes (`git status --porcelain --untracked-files=all`), leaving out `.claude/graft/`, `.claude/plans/` and the paths yolo's `## Start` kept.
+- When the child is started or in review, ask (routine) which milestones it already holds, recommending those whose commits the branch has, and skip them. In each repo, the commit Execute started from is `git merge-base <base ref> HEAD`.
+- Report adds the next step: `/clear`, then `/graft:orchestrate <roadmap>` once its PRs merge.
+
+### Every child merged
+
+When the work is a roadmap and every child has merged:
+
+1. In each repo the children list, run `git fetch origin <base>`, the default branch included. Run the parent's `## End-to-end checks` with each repo at `origin/<base>`, in a temporary `git worktree` per repo set up as `## Final checks` sets up its rerun, then remove the worktrees. Automated checks run through one `graft:worker` briefed as `## Agent checks` briefs. Ask the Manual checks as pause mode asks.
+2. Report each repo's commit checked and each check's result. On a failure, stop and name `/graft:roadmap <roadmap>` to plan a fix child.
+3. Once they pass, close the parent's `issue:` and each issue its `## References` resolves, as a merged child's issue is closed, with the checked commits as the comment.
+4. Follow `orchestrate.finishedPlan` for the roadmap's folder as `## Finish the plan` does for a plan file, with the folder in place of the file. `archive` moves it to `~/.my-graft/.claude/graft/plans/<repo>/<roadmap>/`, using `<roadmap>-2`, `<roadmap>-3` and so on when the target exists.
+
 ## Branch
 
 Find the default branch with `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. If `gh` is unavailable or fails, use `git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'`. The base is the repo's recorded base (`; base <branch>` on its `## Repos` line, else `base:` in the plan's front matter), else the default branch. The base ref is `origin/<base>` for a recorded base, else the default branch.
 
-With a recorded base, run `git fetch origin <base>` first. On the default branch or the base, create a feature branch with `git switch -c <branch> --no-track <base ref>`; never commit on the base. On any other branch, stay on it, except that with a recorded base, when `git merge-base --is-ancestor <base ref> HEAD` fails, ask whether to **Stay and save the base** (Recommended), **Create a feature branch from the base ref**, or **Stay without saving the base**.
+With a recorded base, run `git fetch origin <base>` first. A roadmap child (`## Roadmap`) uses its branch: switch to it when it exists locally; else, when `git ls-remote origin refs/heads/<branch>` lists it, run `git fetch origin <branch>` and switch to it; else create it with `git switch -c <branch> --no-track <base ref>`. Otherwise, on the default branch or the base, create a feature branch with `git switch -c <branch> --no-track <base ref>`; never commit on the base. On any other branch, stay on it, except that with a recorded base, when `git merge-base --is-ancestor <base ref> HEAD` fails, ask whether to **Stay and save the base** (Recommended), **Create a feature branch from the base ref**, or **Stay without saving the base**.
 
-With a recorded base, unless the user chose to stay without saving it, when the branch created or kept has no saved base (`git config branch.<branch>.gh-merge-base` exits 1 with no output), save it with `git config branch.<branch>.gh-merge-base <base>`.
+With a recorded base, unless the user chose to stay without saving it, when the branch created, switched to or kept has no saved base (`git config branch.<branch>.gh-merge-base` exits 1 with no output), save it with `git config branch.<branch>.gh-merge-base <base>`.
 
 When there are issues (the plan's `## References` issue lines and those settled in `## Find the work`), save them on the branch.
 
@@ -153,7 +206,7 @@ Ask the user when something is ambiguous, needs more than a straightforward deci
 
 ## Finish the plan
 
-Run this step only when the work is a plan file with the Graft footer and every milestone is done, including the PR when one was asked for and each PR `## Raise a PR` sends a pr worker for in auto mode.
+Run this step only when the work is a plan file with the Graft footer, not a roadmap child (`## Roadmap`), and every milestone is done, including the PR when one was asked for and each PR `## Raise a PR` sends a pr worker for in auto mode.
 
 Run `git -C <plan's directory> ls-files --error-unmatch <plan's absolute path>`. Go on only when it fails with `did not match any file(s) known to git` and the plan is not in a subfolder of `~/.my-graft/.claude/graft/plans/` or `~/.my-graft/.claude/plans/`; otherwise leave the plan in place.
 
