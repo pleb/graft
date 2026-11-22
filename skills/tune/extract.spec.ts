@@ -718,6 +718,15 @@ describe("planFromArgs", () => {
     writeFileSync(join(root, ".claude", "graft", "plans", "ship-app", "roadmap.md"), "");
     expect(planFromArgs("ship-app", root, new Set())).toBe(plan(root, "ship-app"));
   });
+
+  it("falls back to a roadmap whose folder holds a recorded plan", () => {
+    const root = repo([]);
+    const roadmap = (name: string) => join(root, ".claude", "graft", "plans", "ship-app", name);
+    const recorded = new Set([roadmap("add-login.md")]);
+    expect(planFromArgs("ship-app", root, recorded)).toBe(roadmap("roadmap.md"));
+    expect(planFromArgs("ship-app.md", root, recorded)).toBe(plan(root, "ship-app"));
+    expect(planFromArgs("ship-app/add-login.md", root, new Set())).toBe(roadmap("add-login.md"));
+  });
 });
 
 describe("bashPlanPaths", () => {
@@ -1139,6 +1148,30 @@ describe("buildReport", () => {
           { path: `${cwd}/.claude/graft/plans/ship-app/add-login.md`, actions: ["write"] },
         ],
       },
+    ]);
+  });
+
+  it("resolves an archived roadmap's arguments to the plans another transcript wrote", async () => {
+    const cwd = "/work/archived";
+    const plans = `${cwd}/.claude/graft/plans/ship-app`;
+    const written = transcript("archived-roadmap", [
+      command("/graft:roadmap", "ship the app", 5, "archived-roadmap-cmd", { cwd }),
+      assistant(4, "archived-roadmap-as", [
+        toolUse("archived-parent", "Write", { file_path: `${plans}/roadmap.md`, content: "x" }),
+        toolUse("archived-child", "Write", { file_path: `${plans}/add-login.md`, content: "x" }),
+      ]),
+    ]);
+    const ran = transcript("archived-orchestrate", [
+      command("/graft:orchestrate", "ship-app", 3, "archived-parent-cmd", { cwd }),
+      command("/graft:orchestrate", "ship-app/add-login.md", 2, "archived-child-cmd", { cwd }),
+    ]);
+    const { runs } = await report([ran, written]);
+    expect(
+      runs.map(({ skill, planFiles }) => ({ skill, paths: planFiles.map(({ path }) => path) })),
+    ).toEqual([
+      { skill: "/graft:roadmap", paths: [`${plans}/roadmap.md`, `${plans}/add-login.md`] },
+      { skill: "/graft:orchestrate", paths: [`${plans}/roadmap.md`] },
+      { skill: "/graft:orchestrate", paths: [`${plans}/add-login.md`] },
     ]);
   });
 

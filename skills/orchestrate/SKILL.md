@@ -94,7 +94,7 @@ The picked child is then the work, from `## Find the work`'s plan checks on. Whe
 
 A child runs as a plan through the rest of this file, changed only as this list says:
 
-- Its repos are those its `## Repos` lists (the repo, without one), less each repo whose PR from the branch has merged: that repo gets no commits, push or PR. When a milestone needs to change it, stop and name `/graft:roadmap <roadmap>` to plan a fix child.
+- Its repos are those its `## Repos` lists (the repo, without one), plus in workspace mode every repo Status counted for it, less each repo whose PR from the branch has merged: that repo gets no commits, push or PR. When a milestone needs to change it, stop and name `/graft:roadmap <roadmap>` to plan a fix child. A counted repo no child records uses the default branch as its base.
 - Before `## Branch` switches a repo to the branch, stop when any of the child's repos has staged, unstaged or untracked changes (`git status --porcelain --untracked-files=all`), leaving out `.claude/graft/`, `.claude/plans/` and the paths yolo's `## Start` kept.
 - When the child is started or in review, ask (routine) which milestones it already holds, recommending those whose commits the branch has, and skip them. In each repo, the commit Execute started from is `git merge-base <base ref> HEAD`.
 - Report adds the next step: `/clear`, then `/graft:orchestrate <roadmap>` once its PRs merge.
@@ -103,16 +103,17 @@ A child runs as a plan through the rest of this file, changed only as this list 
 
 When the work is a roadmap and every child has merged:
 
-1. In each repo the children list, run `git fetch origin <base>`, the default branch included. Run the parent's `## End-to-end checks` with each repo at `origin/<base>`, in a temporary `git worktree` per repo set up as `## Final checks` sets up its rerun, then remove the worktrees. Automated checks run through one `graft:worker` briefed as `## Agent checks` briefs. Ask the Manual checks as pause mode asks.
+1. In each repo the children list and each repo Status counted for any child, run `git fetch origin <base>`, the default branch included. Run the parent's `## End-to-end checks` with each repo at `origin/<base>`, in a temporary `git worktree` per repo set up as `## Final checks` sets up its rerun, then remove the worktrees. Automated checks run through one `graft:worker` briefed as `## Agent checks` briefs. Ask the Manual checks as pause mode asks.
 2. Report each repo's commit checked and each check's result. On a failure, stop and name `/graft:roadmap <roadmap>` to plan a fix child.
 3. Once they pass, close the parent's `issue:` and each issue its `## References` resolves, as a merged child's issue is closed, with the checked commits as the comment.
-4. Follow `orchestrate.finishedPlan` for the roadmap's folder as `## Finish the plan` does for a plan file, with the folder in place of the file. `archive` moves it to `~/.my-graft/.claude/graft/plans/<repo>/<roadmap>/`, using `<roadmap>-2`, `<roadmap>-3` and so on when the target exists.
+4. Follow `orchestrate.finishedPlan` for the roadmap's folder as `## Finish the plan` does for a plan file, with the folder in place of the file. `archive` moves it to `~/.my-graft/.claude/graft/plans/<repo>/<roadmap>/`, following `## My Graft ignore probe` with the fallback `~/.my-graft/.claude/plans/<repo>/<roadmap>/`, and using `<roadmap>-2`, `<roadmap>-3` and so on when the target exists.
+5. Go to `## Report`; `## Branch` and the steps after it do not run.
 
 ## Branch
 
 Find the default branch with `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. If `gh` is unavailable or fails, use `git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'`. The base is the repo's recorded base (`; base <branch>` on its `## Repos` line, else `base:` in the plan's front matter), else the default branch. The base ref is `origin/<base>` for a recorded base, else the default branch.
 
-With a recorded base, run `git fetch origin <base>` first. A roadmap child (`## Roadmap`) uses its branch: switch to it when it exists locally; else, when `git ls-remote origin refs/heads/<branch>` lists it, run `git fetch origin <branch>` and switch to it; else create it with `git switch -c <branch> --no-track <base ref>`. Otherwise, on the default branch or the base, create a feature branch with `git switch -c <branch> --no-track <base ref>`; never commit on the base. On any other branch, stay on it, except that with a recorded base, when `git merge-base --is-ancestor <base ref> HEAD` fails, ask whether to **Stay and save the base** (Recommended), **Create a feature branch from the base ref**, or **Stay without saving the base**.
+With a recorded base, run `git fetch origin <base>` first. A roadmap child (`## Roadmap`) uses its branch. When it exists locally, switch to it; then, when `git ls-remote origin refs/heads/<branch>` lists it, run `git fetch origin <branch>`, run `git merge --ff-only origin/<branch>` when `git merge-base --is-ancestor HEAD origin/<branch>` succeeds, and ask the user when neither that nor `git merge-base --is-ancestor origin/<branch> HEAD` succeeds (they have diverged). Else, when `git ls-remote origin refs/heads/<branch>` lists it, run `git fetch origin <branch>` and switch to it; else create it with `git switch -c <branch> --no-track <base ref>`. Otherwise, on the default branch or the base, create a feature branch with `git switch -c <branch> --no-track <base ref>`; never commit on the base. On any other branch, stay on it, except that with a recorded base, when `git merge-base --is-ancestor <base ref> HEAD` fails, ask whether to **Stay and save the base** (Recommended), **Create a feature branch from the base ref**, or **Stay without saving the base**.
 
 With a recorded base, unless the user chose to stay without saving it, when the branch created, switched to or kept has no saved base (`git config branch.<branch>.gh-merge-base` exits 1 with no output), save it with `git config branch.<branch>.gh-merge-base <base>`.
 
@@ -206,7 +207,7 @@ Ask the user when something is ambiguous, needs more than a straightforward deci
 
 ## Finish the plan
 
-Run this step only when the work is a plan file with the Graft footer, not a roadmap child (`## Roadmap`), and every milestone is done, including the PR when one was asked for and each PR `## Raise a PR` sends a pr worker for in auto mode.
+Run this step only when the work is a plan file with the Graft footer, not a roadmap (`roadmap.md`) or a roadmap child (`## Roadmap`), and every milestone is done, including the PR when one was asked for and each PR `## Raise a PR` sends a pr worker for in auto mode.
 
 Run `git -C <plan's directory> ls-files --error-unmatch <plan's absolute path>`. Go on only when it fails with `did not match any file(s) known to git` and the plan is not in a subfolder of `~/.my-graft/.claude/graft/plans/` or `~/.my-graft/.claude/plans/`; otherwise leave the plan in place.
 
@@ -228,5 +229,5 @@ Follow `orchestrate.finishedPlan`:
 - Existing branch description lines this run kept but did not decide.
 - Each screenshot attached, with its PR and final path.
 - The commit the before shots show, per repo, and each image dropped.
-- When `## Finish the plan` ran, where the plan went: left in place, archived to `<path>`, deleted, or not moved or deleted and why.
+- When `## Finish the plan` or `### Every child merged` step 4 ran, where the plan or roadmap folder went: left in place, archived to `<path>`, deleted, or not moved or deleted and why.
 - Anything left undone.

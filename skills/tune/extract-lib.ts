@@ -427,7 +427,7 @@ export function planFromArgs(
     if (child.length === 2 && child.every((part) => PLAN_NAME.test(part)))
       candidates.push({
         path: resolveIn(root, `.claude/graft/plans/${child[0]}/${child[1]}.md`),
-        fallback: first && !token.endsWith(".md"),
+        fallback: first,
       });
     if (token.includes("/") || (WINDOWS_PATH.test(root) && token.includes("\\"))) {
       if (token.endsWith(".md"))
@@ -436,13 +436,16 @@ export function planFromArgs(
     }
     const name = token.replace(/\.md$/, "");
     if (!PLAN_NAME.test(name)) continue;
+    const roadmap = resolveIn(root, `.claude/graft/plans/${name}/roadmap.md`);
+    const folder = roadmap.slice(0, -"roadmap.md".length);
+    const inRoadmap = [...recorded].some((path) => path.startsWith(folder));
     candidates.push(
       {
         path: resolveIn(root, `.claude/graft/plans/${name}.md`),
-        fallback: first && (name.includes("-") || token.endsWith(".md")),
+        fallback: first && (token.endsWith(".md") || (!inRoadmap && name.includes("-"))),
       },
       { path: resolveIn(root, `.claude/plans/${name}.md`), fallback: false },
-      { path: resolveIn(root, `.claude/graft/plans/${name}/roadmap.md`), fallback: false },
+      { path: roadmap, fallback: first && inRoadmap && !token.endsWith(".md") },
     );
   }
   return (
@@ -477,12 +480,18 @@ export function powerShellPlanPaths(command: string, root: string | null): strin
   return commandPlanPaths(command, root, POWERSHELL_PLAN, POWERSHELL_WORD_START);
 }
 
-function addPlanFile(run: Run, path: string | null | undefined, action: string): void {
+function addPlanFile(
+  run: Run,
+  path: string | null | undefined,
+  action: string,
+  first = false,
+): void {
   if (!path) return;
   let entry = run.planFiles.find((plan) => plan.path === path);
   if (!entry) {
     entry = { path, actions: [] };
-    run.planFiles.push(entry);
+    if (first) run.planFiles.unshift(entry);
+    else run.planFiles.push(entry);
   }
   if (!entry.actions.includes(action)) entry.actions.push(action);
 }
@@ -870,12 +879,6 @@ class FileReader {
       agents: [],
       planFiles: [],
     };
-    if (skill === "/graft:orchestrate") {
-      const recorded = new Set(
-        this.runs.flatMap(({ planFiles }) => planFiles.map(({ path }) => path)),
-      );
-      addPlanFile(run, planFromArgs(args, repoRoot(run.cwd), recorded), "argument");
-    }
     this.run = run;
     this.runs.push(run);
   }
@@ -1064,6 +1067,7 @@ export async function buildReport(
 
   const found: { run: Run; bornMs: number }[] = [];
   const entries: CandidateEntry[] = [];
+  const all: Run[] = [];
   let filesRead = 0;
   for (const file of files) {
     const reader = await readFile(file, cutoffMs, stats);
@@ -1072,11 +1076,18 @@ export async function buildReport(
       continue;
     }
     filesRead++;
+    all.push(...reader.runs);
     for (const run of reader.runs) {
       if (Date.parse(String(run.endTime)) < cutoffMs) continue;
       found.push({ run, bornMs: file.bornMs });
     }
     entries.push(...reader.candidates);
+  }
+  // Arguments resolve against every transcript's plan files, since a finished plan may be gone.
+  const recorded = new Set(all.flatMap(({ planFiles }) => planFiles.map(({ path }) => path)));
+  for (const run of all) {
+    if (run.skill === "/graft:orchestrate")
+      addPlanFile(run, planFromArgs(run.args, repoRoot(run.cwd), recorded), "argument", true);
   }
   markCopies(found);
   const runs = found.map(({ run }) => run).sort((a, b) => byTime(a.startTime, b.startTime));
