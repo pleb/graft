@@ -29,7 +29,7 @@ The arguments are guidance and may set the state anywhere, such as `ready-state`
 ## Preconditions
 
 - Working tree clean, every change committed. If not, stop and say what is uncommitted.
-- Branch is not the default branch (`defaultBranchRef.name` from `gh repo view --json defaultBranchRef,nameWithOwner`, whose `nameWithOwner` is the base repo). Base is the existing PR's base (`gh pr view --json baseRefName --jq .baseRefName`) if the branch has one, otherwise the default branch.
+- Branch is not the default branch (`defaultBranchRef.name` from `gh repo view --json defaultBranchRef,nameWithOwner`, whose `nameWithOwner` is the base repo). Base is the existing PR's base (`gh pr view --json baseRefName --jq .baseRefName`) if the branch has one, else the base saved on the branch (`git config branch.<branch>.gh-merge-base`; exit 1 with no output means none), else the default branch.
 - `gh pr view` reports no PR for the branch. If one exists, do not create another: rewrite its title and body and apply them with `gh pr edit`.
 
 ## Body

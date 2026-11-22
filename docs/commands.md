@@ -69,7 +69,7 @@ Works out a plan with you, starting from a one-line topic, a full spec or a rese
 /graft:orchestrate [plan path | plan name | task] [issues] [reviewer model: sonnet | opus (default) | fable]
 ```
 
-Builds a finished plan, or a task list you give it, on a branch (a new feature branch when you start on the default branch). A worker agent implements each milestone and Graft commits it. A reviewer checks the commits as they build up, joined by an adversarial reviewer when a change is risky, and both check every milestone commit before the run ends. Comment and docs editors then tidy the branch, and the repo's tests and other checks run on the result.
+Builds a finished plan, or a task list you give it, on a branch (a new feature branch when you start on the default branch). When the plan records a base branch for a repo, the feature branch starts from that base, and the base is saved on the branch so `/graft:pr` opens the PR against it. A worker agent implements each milestone and Graft commits it. A reviewer checks the commits as they build up, joined by an adversarial reviewer when a change is risky, and both check every milestone commit before the run ends. Comment and docs editors then tidy the branch, and the repo's tests and other checks run on the result.
 
 To get a PR, ask in the arguments, such as `open a pr`. With [`pr.mode`](./settings.md#prmode) set to `auto` you don't need to ask: it raises one for each changed repo, with screenshots when the work changes a UI. Say so if you want no PR. When the branch already has a PR, it pushes the new commits or updates the PR, and asks when it can't tell which.
 
@@ -111,7 +111,7 @@ Publishes the current branch's changes against the default branch, uncommitted o
 /graft:pr [guidance] [state: draft (default) | ready-state (pr.state: ready)]
 ```
 
-Pushes the branch and opens a pull request, following the repo's PR template when it has one. A new PR opens in the state the arguments name, else in the state [`pr.state`](./settings.md#prstate) sets (draft by default). When the branch already has a PR, Graft rewrites its title and body instead, and changes its state only when the arguments name one. It stops if the working tree has uncommitted changes. Anything else you write is guidance for the description. With [`pr.mode`](./settings.md#prmode) set to `auto`, it attaches screenshots of the finished branch (never before shots) when the work changes a UI it can capture. On a branch that already has a PR, it attaches them only when you ask.
+Pushes the branch and opens a pull request, following the repo's PR template when it has one. A new PR targets the base saved on the branch (as `/graft:orchestrate` saves a plan's recorded base), else the default branch. A new PR opens in the state the arguments name, else in the state [`pr.state`](./settings.md#prstate) sets (draft by default). When the branch already has a PR, Graft rewrites its title and body instead, and changes its state only when the arguments name one. It stops if the working tree has uncommitted changes. Anything else you write is guidance for the description. With [`pr.mode`](./settings.md#prmode) set to `auto`, it attaches screenshots of the finished branch (never before shots) when the work changes a UI it can capture. On a branch that already has a PR, it attaches them only when you ask.
 
 ### /graft:review
 

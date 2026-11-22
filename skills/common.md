@@ -243,7 +243,7 @@ Every Capture brief names the work's goal (the plan's or task's goal for orchest
 - Capture the screens the work will change, as they are now.
 - Write the images to the run's subfolder with file names starting `before-`, add a `manifest` line for each, and report their absolute paths, or why you captured none.
 
-**After-shot step.** Run Linked worktree, Host check, Record, Capture, Restore and Publish-reader check. The Capture `graft:worker`'s brief also names the PR's base (the existing PR's base, else the default branch, found as pr's `## Preconditions` finds them; each repo's in workspace mode) and the current run's before shots with their `manifest` lines, and says:
+**After-shot step.** Run Linked worktree, Host check, Record, Capture, Restore and Publish-reader check. The Capture `graft:worker`'s brief also names the PR's base (found as pr's `## Preconditions` finds it; each repo's in workspace mode) and the current run's before shots with their `manifest` lines, and says:
 
 - Decide whether the branch changes something visible that you can capture, and whether a capture would help a reviewer.
 - Capture the changed screens on the branch. For each before shot, capture its screen with the same data and viewport, and report which before shot each after shot matches.

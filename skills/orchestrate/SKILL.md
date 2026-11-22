@@ -57,13 +57,15 @@ When issues were supplied, before Execute:
 
 ## Branch
 
-Find the default branch with `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. If `gh` is unavailable or fails, use `git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'`.
+Find the default branch with `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. If `gh` is unavailable or fails, use `git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'`. The base is the repo's recorded base (`; base <branch>` on its `## Repos` line, else `base:` in the plan's front matter), else the default branch. The base ref is `origin/<base>` for a recorded base, else the default branch.
 
-On the default branch, create a feature branch. On any other branch, stay on it.
+With a recorded base, run `git fetch origin <base>` first. On the default branch or the base, create a feature branch with `git switch -c <branch> <base ref>`; never commit on the base. On any other branch, stay on it, except that with a recorded base, when `git merge-base --is-ancestor <base ref> HEAD` fails, ask whether to create a feature branch from the base ref or stay on it without saving the base.
+
+With a recorded base, when the branch created or kept has no saved base (`git config branch.<branch>.gh-merge-base` exits 1 with no output), save it with `git config branch.<branch>.gh-merge-base <base>`.
 
 When there are issues (the plan's `## References` issue lines and those settled in `## Find the work`), save them on the branch.
 
-Check the commit style once: read the last 10 commit subjects on the default branch (`git log -10 --format=%s <default branch>`). If most start with a conventional-commit prefix (`fix(scope): …`, `feat(scope): …`, `chore: …`), every commit uses one, with a type and scope the repo already uses. Otherwise write a plain imperative subject with no prefix.
+Check the commit style once: read the last 10 commit subjects on the base ref (`git log -10 --format=%s <base ref>`). If most start with a conventional-commit prefix (`fix(scope): …`, `feat(scope): …`, `chore: …`), every commit uses one, with a type and scope the repo already uses. Otherwise write a plain imperative subject with no prefix.
 
 ## Before shots
 
@@ -95,7 +97,7 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 
 ## Clean up
 
-- Once every milestone except a PR milestone is committed and no worker or pause is pending, run a `graft:comment-editor` agent and a `graft:docs-editor` agent on the branch's changes, in parallel.
+- Once every milestone except a PR milestone is committed and no worker or pause is pending, run a `graft:comment-editor` agent and a `graft:docs-editor` agent in parallel, each briefed with the range from the commit Execute started from to HEAD.
 - Check their reports, then commit.
 
 ## Final checks
@@ -103,7 +105,7 @@ A risky change is one that changes a contract, a schema, stored data, security, 
 - Run the repo's checks (tests, typecheck, lint, build, whichever exist) on the whole branch. When the repo has none, note it in Report.
 - Report or ask (routine) about a check the environment cannot run (no database, credentials or network), recommending report. Never send it to a worker to fix.
 - For every other failure, rerun the failing check at the commit Execute started from, in a temporary `git worktree` set up like the main tree (dependencies installed, same setup), then remove the worktree. The cause predates this run only when that rerun fails the same way (same test, same error). Otherwise, including when the worktree cannot run the check, the cause is the branch's.
-- When the cause predates this run, look for an open PR or a newer default-branch commit that fixes it. When there is one, ask the user whether to rely on it or fix it here. To rely on it, record the failure and the PR or commit in Report and go on.
+- When the cause predates this run, look for an open PR or a newer commit on the base ref that fixes it. When there is one, ask the user whether to rely on it or fix it here. To rely on it, record the failure and the PR or commit in Report and go on.
 - Send every failure you do not rely on an upstream fix for to a worker, and commit the fix in the repo's commit style.
 - When the fix is risky by `### Commit and review`'s test, run a pass as `### Each pass` describes, from the commit before this fix to HEAD, with the failing check as its intent; otherwise check the fix yourself. That pass's fixes get no further pass.
 - Then run the checks again. Ask the user about any fixed failure that still fails.
