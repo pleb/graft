@@ -37,6 +37,8 @@ Outside a repo (non-zero exit), skip the ignore check. In common.md's workspace 
 
 ## Find the work
 
+When the work found is a `roadmap.md` or a plan in a folder holding one, stop and name `/graft:roadmap <roadmap>`, where `<roadmap>` is that folder's name.
+
 A plan found is revised. Research found is context for a new plan named after it. Other work is a new topic. Ask when there is none.
 
 ## Check the Graft folder

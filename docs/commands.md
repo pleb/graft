@@ -10,6 +10,7 @@ Your clone is `~/.my-graft`, the local copy of your private `my-graft` repo that
 
 - [`/graft:research`](#graftresearch): investigate a question before planning
 - [`/graft:plan`](#graftplan): write a plan with you
+- [`/graft:roadmap`](#graftroadmap): plan work too big for one plan as a roadmap of child plans
 - [`/graft:orchestrate`](#graftorchestrate): build a plan with agents, reviewed as it goes
 - [`/graft:execute`](#graftexecute): plan and build in one run
 - [`/graft:yolo`](#graftyolo): plan, build and raise a PR, asking only when unclear
@@ -61,6 +62,20 @@ Works out a plan with you, starting from a one-line topic, a full spec or a rese
 
 ```text
 /graft:plan deployment of the static site under /web to an azure static website using bicep
+```
+
+### /graft:roadmap
+
+```text
+/graft:roadmap [roadmap name | plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [publish: local (default) | github]
+```
+
+Plans work too big for one plan as `/graft:plan` does, and never changes code. It writes a parent plan to `.claude/graft/plans/<name>/roadmap.md`, listing the children in run order, the contracts they share and the end-to-end checks to run once every child has merged, and one ordinary plan per child beside it. Each child can merge and be tested on its own, records the base branch of every repo it changes, and ends by raising its PRs. Ask it to research first and it runs `/graft:research` before planning. Name a roadmap, or one of its children as `<roadmap>/<child>`, to revise it. Across repos, run it from the folder that holds them, with [`plan.outsideRepoPlans`](./settings.md#planoutsiderepoplans) set to `here`.
+
+With `github` in the arguments, or [`roadmap.publish`](./settings.md#roadmappublish) set to `github`, it also publishes the plans as a parent issue (the first issue you name, or a new one) with one sub-issue per child, linked by blocked-by. A parent issue you name keeps its text, with the roadmap in a marked section at its end. Publishing needs `gh` 2.94.0 or later.
+
+```text
+/graft:roadmap align the mobile app with the new web designs #42 github
 ```
 
 ### /graft:orchestrate
