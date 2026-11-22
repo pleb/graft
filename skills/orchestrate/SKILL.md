@@ -26,7 +26,7 @@ node ${CLAUDE_SKILL_DIR}/../settings.ts <root>
 
 Applies in common.md's workspace mode. This section changes each section it names; everything else applies as written, and wherever another section says the repo, the branch or the PR, it means each repo's. After compaction, read this section again.
 
-- **Repos**: those the plan's `## Repos` lists, plus any this run adds. With no `## Repos` (a task list), ask the user which repos under the root the work covers. Stop when there are none. Before Branch, add a listed repo that is missing with its recorded command. A milestone that needs a repo not yet listed adds it as common.md's `## Workspace` says, then Branch runs in it.
+- **Repos**: those the plan's `## Repos` lists, plus any this run adds. With no `## Repos` (a task list), ask the user which repos under the root the work covers. Stop when there are none. Before Branch, add a listed repo that is missing with its recorded command (the line's text after the path, before any `; base <branch>`). A milestone that needs a repo not yet listed adds it as common.md's `## Workspace` says, then Branch runs in it.
 - **Settings**: get settings for each repo too (`node ${CLAUDE_SKILL_DIR}/../settings.ts <repo>`). `common.reviewerModel` and `pr.state` come from the repo; the rest from the root.
 - **Branch**: run it in each repo. Save each Resolves issue on one repo's branch only: the repo the issue belongs to, else the one with the most of the work, asking when unclear. Save it as Related on the others.
 - **Execute**: commit a milestone in each repo it changed, staging only its files there.
@@ -59,9 +59,9 @@ When issues were supplied, before Execute:
 
 Find the default branch with `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. If `gh` is unavailable or fails, use `git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'`. The base is the repo's recorded base (`; base <branch>` on its `## Repos` line, else `base:` in the plan's front matter), else the default branch. The base ref is `origin/<base>` for a recorded base, else the default branch.
 
-With a recorded base, run `git fetch origin <base>` first. On the default branch or the base, create a feature branch with `git switch -c <branch> <base ref>`; never commit on the base. On any other branch, stay on it, except that with a recorded base, when `git merge-base --is-ancestor <base ref> HEAD` fails, ask whether to create a feature branch from the base ref or stay on it without saving the base.
+With a recorded base, run `git fetch origin <base>` first. On the default branch or the base, create a feature branch with `git switch -c <branch> --no-track <base ref>`; never commit on the base. On any other branch, stay on it, except that with a recorded base, when `git merge-base --is-ancestor <base ref> HEAD` fails, ask whether to **Stay and save the base** (Recommended), **Create a feature branch from the base ref**, or **Stay without saving the base**.
 
-With a recorded base, when the branch created or kept has no saved base (`git config branch.<branch>.gh-merge-base` exits 1 with no output), save it with `git config branch.<branch>.gh-merge-base <base>`.
+With a recorded base, unless the user chose to stay without saving it, when the branch created or kept has no saved base (`git config branch.<branch>.gh-merge-base` exits 1 with no output), save it with `git config branch.<branch>.gh-merge-base <base>`.
 
 When there are issues (the plan's `## References` issue lines and those settled in `## Find the work`), save them on the branch.
 
