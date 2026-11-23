@@ -49,7 +49,7 @@ Applies in common.md's workspace mode, and runs each command in a repo as common
 ## Recording decisions
 
 - Record each decision you make without asking in the plan's `## Decisions`, marked `(agent <run start>)`. Write decisions made before the plan exists once it does.
-- When `git ls-files --error-unmatch <plan>` succeeds, commit your plan edits (the plan phase's, `status: finalised` and the `(agent)` lines) in commits of their own, in the repo's commit style, never on the default branch: once orchestrate's `## Branch` has run, after Start's included-paths commit when there is one, and before the before-shot step's Record and the first milestone; before `## Final checks`; and once orchestrate's `## Screenshots` step has settled which repos get a pr worker, before the after-shot step's Record. Write decisions made during the before-shot step to the plan after its Restore. Commit and push decisions made after the PR is raised to the PR's branch.
+- When `git ls-files --error-unmatch <plan>` succeeds, commit your plan edits (the plan phase's, `status: finalised` and the `(agent)` lines) in commits of their own, in the repo's commit style, never on the default branch or a recorded base: once orchestrate's `## Branch` has run, after Start's included-paths commit when there is one, and before the before-shot step's Record and the first milestone; before `## Final checks`; and once orchestrate's `## Screenshots` step has settled which repos get a pr worker, before the after-shot step's Record. Write decisions made during the before-shot step to the plan after its Restore. Commit and push decisions made after the PR is raised to the PR's branch.
 
 ## Stops
 
@@ -62,6 +62,10 @@ Applies in common.md's workspace mode, and runs each command in a repo as common
 ## Manual checks
 
 Follow orchestrate as if `orchestrate.agentDoesManualChecks` were `true`, whatever it says. The Manual check mode is Defer, whatever `orchestrate.manualChecks` says. Never answer a question that asks for a check's result.
+
+## Roadmap
+
+When the work is a roadmap (orchestrate's `## Roadmap`), run its first runnable child. When every child has merged, run only the Automated end-to-end checks; `## Manual checks` does not apply to them. List every Manual one in Report, leave the parent issue and the issues its `## References` resolves open, leave the folder in place, then run `## Restore the stash` and go to `## Report`.
 
 ## PR
 

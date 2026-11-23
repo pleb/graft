@@ -70,6 +70,13 @@ Where `/graft:plan` and `/graft:research` save their files when you run them out
 - `here`: this folder's `.claude/graft/`, working across the repos under it ([Working across repos](../README.md#working-across-repos)). Set it in the folder's `.claude/graft-settings.json`.
 - `never`: stop.
 
+### `roadmap.publish`
+
+Whether `/graft:roadmap` also publishes its plans to GitHub when the command doesn't say.
+
+- `local` (default): plan files only.
+- `github`: also a parent issue (the first issue you name, or a new one) with one sub-issue per child plan, linked by blocked-by. Each publish rewrites the issues from the plan files, and edits made on GitHub are never read back. Needs `gh` 2.94.0 or later.
+
 ### `research.steer`
 
 Choosing which leads `/graft:research` follows after each round of agents.

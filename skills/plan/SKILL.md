@@ -27,7 +27,7 @@ Outside a repo (non-zero exit), skip the ignore check. In common.md's workspace 
 ## Workspace
 
 - Record each repo the work changes with the command that adds it, as common.md's `## Workspace` says (for a repo that does not exist anywhere yet, the user's create command), even when it is already under the root; orchestrate runs it before Branch when the repo is missing. `existing` is only for a repo under the root that no add command covers. Run that command yourself only for a repo that exists elsewhere and whose code you need to read (including a repo the work only reads, which `## Repos` does not list), then read it under the root. Otherwise record it without running it.
-- The plan's `## Repos` lists each repo the work changes, one line per repo: its path relative to the root, then the command that adds it, or `existing`. Each milestone names the repos it changes.
+- The plan's `## Repos` lists each repo the work changes, one line per repo: its path relative to the root, then the command that adds it, or `existing`, then `; base <branch>` when the repo's work starts from a branch other than its default (as the user or the repo's instructions say). Each milestone names the repos it changes.
 
 ## Outside a repo
 
@@ -36,6 +36,8 @@ Outside a repo (non-zero exit), skip the ignore check. In common.md's workspace 
 - Agent briefs name the cwd as the code to read. The plan records the cwd under `## Goal`.
 
 ## Find the work
+
+When the work found is a `roadmap.md` or a plan in a folder holding one, stop and name `/graft:roadmap <roadmap>`, where `<roadmap>` is that folder's name.
 
 A plan found is revised. Research found is context for a new plan named after it. Other work is a new topic. Ask when there is none.
 
@@ -74,9 +76,9 @@ Work in rounds. Each round is one `AskUserQuestion` call with up to `plan.questi
 
 Write the plan once the goal is clear, usually after the first round. Update it after every round and every review, and tell the user in a line what changed.
 
-A plan from Find the work is revised in place. For a new topic, write to `<root>/.claude/graft/plans/<name>.md`, where the name says what the plan does in kebab case (for example `add-plan-skill`), with no date prefix. If that file or `<root>/.claude/plans/<name>.md` exists, ask whether to revise it or pick a new name.
+A plan from Find the work is revised in place. For a new topic, write to `<root>/.claude/graft/plans/<name>.md`, where the name says what the plan does in kebab case (for example `add-plan-skill`), with no date prefix. If that file or `<root>/.claude/plans/<name>.md` exists, ask whether to revise it or pick a new name. When `<root>/.claude/graft/plans/<name>/` exists, pick a new name.
 
-When the plan outgrows its name, rename it to a name that covers what it now is, and tell the user the old and new names. Ask first when either file above exists for the new name. Rename with `mv`, never while a review pass is running. A plan given by file path keeps that path.
+When the plan outgrows its name, rename it to a name that covers what it now is, and tell the user the old and new names. Ask first when either file above exists for the new name, and pick another name when `<root>/.claude/graft/plans/<name>/` exists. Rename with `mv`, never while a review pass is running. A plan given by file path keeps that path.
 
 ```markdown
 ---
@@ -118,7 +120,7 @@ Record every answer from a round, and every answer to a question a review raised
 
 Spend words on decisions, risks and contracts. Give routine changes a line.
 
-`## Repos` is written only in `## Workspace`.
+`## Repos` is written only in `## Workspace`. Outside it, record such a base as `base: <branch>` in the front matter.
 
 `## Screenshots` is written only when the user describes how screenshots should be taken (which screens, how to launch, before shots or not, or none), in their terms.
 

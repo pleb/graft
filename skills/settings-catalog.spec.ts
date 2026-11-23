@@ -37,6 +37,7 @@ describe("parseCatalog", () => {
       "plan.manualChecksQuestion",
       "plan.finishQuestion",
       "plan.clearQuestions",
+      "roadmap.publish",
       "research.artifact",
       "research.uncommittedChanges",
       "research.steer",
@@ -68,6 +69,7 @@ describe("parseCatalog", () => {
       },
       { skill: "plan", name: "finishQuestion", values: ["skip"], defaultValue: "ask" },
       { skill: "plan", name: "clearQuestions", values: ["default"], defaultValue: "ask" },
+      { skill: "roadmap", name: "publish", values: ["github"], defaultValue: "local" },
       { skill: "research", name: "artifact", values: ["true"], defaultValue: "false" },
       {
         skill: "research",

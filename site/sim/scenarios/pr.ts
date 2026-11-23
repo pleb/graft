@@ -43,6 +43,12 @@ const scenario: Scenario = {
       args: "gh pr view",
       result: 'no pull requests found for branch "add-rate-limiting"',
     },
+    {
+      type: "tool",
+      name: "Bash",
+      args: "git config branch.add-rate-limiting.gh-merge-base",
+      result: "(exit 1, no output)",
+    },
     { type: "tool", name: "Glob", args: "**/pull_request_template.md", result: "No files found" },
     {
       type: "tool",

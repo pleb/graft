@@ -10,6 +10,7 @@ Your clone is `~/.my-graft`, the local copy of your private `my-graft` repo that
 
 - [`/graft:research`](#graftresearch): investigate a question before planning
 - [`/graft:plan`](#graftplan): write a plan with you
+- [`/graft:roadmap`](#graftroadmap): plan work too big for one plan as a roadmap of child plans
 - [`/graft:orchestrate`](#graftorchestrate): build a plan with agents, reviewed as it goes
 - [`/graft:execute`](#graftexecute): plan and build in one run
 - [`/graft:yolo`](#graftyolo): plan, build and raise a PR, asking only when unclear
@@ -63,15 +64,31 @@ Works out a plan with you, starting from a one-line topic, a full spec or a rese
 /graft:plan deployment of the static site under /web to an azure static website using bicep
 ```
 
+### /graft:roadmap
+
+```text
+/graft:roadmap [roadmap name | plan path | plan name | research path | research name | topic] [issues] [reviewer model: sonnet | opus (default) | fable] [publish: local (default) | github]
+```
+
+Plans work too big for one plan, working with you as `/graft:plan` does, and never changes code. It writes a parent plan to `.claude/graft/plans/<name>/roadmap.md` and one plan per child beside it. The parent lists the children in run order, the contracts they share, and the end-to-end checks to run once every child has merged. Each child can merge and be tested on its own, records the base branch of every repo it changes, and ends by raising its PRs. Ask it to research first and it runs `/graft:research` before planning. Name a roadmap, or one of its children as `<roadmap>/<child>`, to revise it. Across repos, run it from the folder that holds them, with [`plan.outsideRepoPlans`](./settings.md#planoutsiderepoplans) set to `here`.
+
+With `github` in the arguments, or [`roadmap.publish`](./settings.md#roadmappublish) set to `github`, it also publishes the plans as a parent issue (the first issue you name, or a new one) with one sub-issue per child, linked by blocked-by. A parent issue you name keeps its text, with the roadmap in a marked section at its end. Publishing needs `gh` 2.94.0 or later.
+
+```text
+/graft:roadmap align the mobile app with the new web designs #42 github
+```
+
 ### /graft:orchestrate
 
 ```text
 /graft:orchestrate [plan path | plan name | task] [issues] [reviewer model: sonnet | opus (default) | fable]
 ```
 
-Builds a finished plan, or a task list you give it, on a branch (a new feature branch when you start on the default branch). A worker agent implements each milestone and Graft commits it. A reviewer checks the commits as they build up, joined by an adversarial reviewer when a change is risky, and both check every milestone commit before the run ends. Comment and docs editors then tidy the branch, and the repo's tests and other checks run on the result.
+Builds a finished plan, or a task list you give it, on a branch (a new feature branch when you start on the default branch). When the plan records a base branch for a repo, the feature branch starts from that base, and the base is saved on the branch so `/graft:pr` opens the PR against it. A worker agent implements each milestone and Graft commits it. A reviewer checks the commits as they build up, joined by an adversarial reviewer when a change is risky, and both check every milestone commit before the run ends. Comment and docs editors then tidy the branch, and the repo's tests and other checks run on the result.
 
 To get a PR, ask in the arguments, such as `open a pr`. With [`pr.mode`](./settings.md#prmode) set to `auto` you don't need to ask: it raises one for each changed repo, with screenshots when the work changes a UI. Say so if you want no PR. When the branch already has a PR, it pushes the new commits or updates the PR, and asks when it can't tell which.
+
+Name a roadmap from [`/graft:roadmap`](#graftroadmap) and it shows each child's status and offers only the children whose dependencies have merged. The child you pick runs as an ordinary plan on its own `<roadmap>/<child>` branch, started from each repo's recorded base, and a child you stopped part-way carries on from the milestones it already holds. It closes each merged child's issue. Once every child has merged, it runs the roadmap's end-to-end checks on each repo's latest base, then closes the roadmap's issue and keeps or removes its folder as [`orchestrate.finishedPlan`](./settings.md#orchestratefinishedplan) says. Run `/clear` before each child.
 
 Run `/clear` between `/graft:plan` and `/graft:orchestrate`, so the build starts with an empty context:
 
@@ -111,7 +128,7 @@ Publishes the current branch's changes against the default branch, uncommitted o
 /graft:pr [guidance] [state: draft (default) | ready-state (pr.state: ready)]
 ```
 
-Pushes the branch and opens a pull request, following the repo's PR template when it has one. A new PR opens in the state the arguments name, else in the state [`pr.state`](./settings.md#prstate) sets (draft by default). When the branch already has a PR, Graft rewrites its title and body instead, and changes its state only when the arguments name one. It stops if the working tree has uncommitted changes. Anything else you write is guidance for the description. With [`pr.mode`](./settings.md#prmode) set to `auto`, it attaches screenshots of the finished branch (never before shots) when the work changes a UI it can capture. On a branch that already has a PR, it attaches them only when you ask.
+Pushes the branch and opens a pull request, following the repo's PR template when it has one. A new PR targets the base saved on the branch (as `/graft:orchestrate` saves a plan's recorded base), else the default branch. A new PR opens in the state the arguments name, else in the state [`pr.state`](./settings.md#prstate) sets (draft by default). When the branch already has a PR, Graft rewrites its title and body instead, and changes its state only when the arguments name one. It stops if the working tree has uncommitted changes. Anything else you write is guidance for the description. With [`pr.mode`](./settings.md#prmode) set to `auto`, it attaches screenshots of the finished branch (never before shots) when the work changes a UI it can capture. On a branch that already has a PR, it attaches them only when you ask.
 
 ### /graft:review
 
@@ -149,7 +166,7 @@ Changes your copy of Graft, one mod at a time. Each mod is recorded with its int
 /graft:tune [guidance] [window: 14 days (default) | <n> days]
 ```
 
-Reads your `/graft:plan`, `/graft:orchestrate`, `/graft:execute` and `/graft:yolo` runs from the last 14 days (or the window you give) for corrections you keep making to how Graft works. A correction counts only when it shows up in at least two tasks across at least two sessions. You pick which findings to keep, and each one becomes a mod through `/graft:modify`.
+Reads your `/graft:plan`, `/graft:roadmap`, `/graft:orchestrate`, `/graft:execute` and `/graft:yolo` runs from the last 14 days (or the window you give) for corrections you keep making to how Graft works. A correction counts only when it shows up in at least two tasks across at least two sessions. You pick which findings to keep, and each one becomes a mod through `/graft:modify`.
 
 ## Settings and removal
 
