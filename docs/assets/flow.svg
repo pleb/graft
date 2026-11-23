@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 921" width="830" height="921" role="img" aria-labelledby="flow-title flow-desc">
   <title id="flow-title">How Graft's flow works</title>
-  <desc id="flow-desc">/graft:roadmap, /graft:research, /graft:plan and /graft:execute carry a start tab: they are where you begin. /graft:roadmap and /graft:research sit side by side on top, roadmap on the left, then three steps from left to right, and one row below them. /graft:roadmap: you answer questions and plan's agents research and review; it writes .claude/graft/plans/&lt;name&gt;/ with roadmap.md and a &lt;child&gt;.md per child. Arrows run from roadmap down to /graft:plan, whose phase roadmap runs, and to /graft:research, whose phase roadmap can run. /graft:research: you steer, researcher finds facts, experimenter runs experiments, and adversarial-reviewer challenges the findings; it writes .claude/graft/research/&lt;name&gt;/report.md, which /graft:plan takes as context. /graft:plan: you answer questions, researcher finds facts, and reviewer and adversarial-reviewer review; it writes .claude/graft/plans/&lt;name&gt;.md. /graft:orchestrate: for each milestone, worker implements and then the change is committed, with reviewer and adversarial-reviewer reviewing beside the loop; then comment-editor and docs-editor clean up; it produces commits on a branch. /graft:pr: push and open a PR; it produces a PR. Below plan and orchestrate, one block holds /graft:execute and /graft:yolo, which both run plan and then orchestrate in one session: in /graft:execute you decide, and in /graft:yolo the agent decides and produces a ready PR with screenshots. Beside that block, /graft:diff publishes a claude.ai artifact of the commits on a branch for you to review and comment on, then Claude acts on your feedback. A key at the bottom shows that the start tab marks where you begin.</desc>
+  <desc id="flow-desc">/graft:roadmap, /graft:research, /graft:plan and /graft:execute carry a start tab: they are where you begin. /graft:roadmap and /graft:research sit side by side on top, roadmap on the left, then three steps from left to right, and one row below them. /graft:roadmap: you answer questions and plan's agents research and review; it writes .claude/graft/plans/&lt;name&gt;/ with roadmap.md and a &lt;child&gt;.md per child. Arrows run from roadmap down to /graft:plan, whose phase roadmap runs, and a dotted, optional arrow to /graft:research, whose phase roadmap can run. /graft:research: you steer, researcher finds facts, experimenter runs experiments, and adversarial-reviewer challenges the findings; it writes .claude/graft/research/&lt;name&gt;/report.md, which /graft:plan takes as context. /graft:plan: you answer questions, researcher finds facts, and reviewer and adversarial-reviewer review; it writes .claude/graft/plans/&lt;name&gt;.md. /graft:orchestrate: for each milestone, worker implements and then the change is committed, with reviewer and adversarial-reviewer reviewing beside the loop; then comment-editor and docs-editor clean up; it produces commits on a branch. /graft:pr: push and open a PR; it produces a PR. Below plan and orchestrate, one block holds /graft:execute and /graft:yolo, which both run plan and then orchestrate in one session: in /graft:execute you decide, and in /graft:yolo the agent decides and produces a ready PR with screenshots. Beside that block, /graft:diff publishes a claude.ai artifact of the commits on a branch for you to review and comment on, then Claude acts on your feedback. A key at the bottom shows that the start tab marks where you begin and a dotted arrow is optional.</desc>
   <style>
     text { font-size: 14px; fill: #1f2328; text-anchor: middle; }
     .sans { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
@@ -8,6 +8,7 @@
     .head { font-size: 15px; font-weight: bold; fill: #ffffff; }
     .key { text-anchor: start; }
     .arrow { fill: none; stroke: #6e7781; stroke-width: 2; }
+    .optional { stroke-dasharray: 2 4; stroke-linecap: round; }
   </style>
   <defs>
     <marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
@@ -43,7 +44,7 @@
     </g>
   </g>
 
-  <path class="arrow" d="M219,28 H244" marker-end="url(#arrowhead)"/>
+  <path class="arrow optional" d="M219,28 H244" marker-end="url(#arrowhead)"/>
   <path class="arrow" d="M108,253 V275" marker-end="url(#arrowhead)"/>
 
   <g>
@@ -259,5 +260,8 @@
     <rect x="9" y="890" width="50" height="22" rx="11" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
     <text x="34" y="906" class="sans">start</text>
     <text x="69" y="906" class="sans key">where you begin</text>
+    <rect x="201" y="883" width="140" height="36" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
+    <path class="arrow optional" d="M211,901 H249" marker-end="url(#arrowhead)"/>
+    <text x="261" y="906" class="sans key">optional</text>
   </g>
 </svg>
