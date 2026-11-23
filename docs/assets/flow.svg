@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 1071" width="830" height="1071" role="img" aria-labelledby="flow-title flow-desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 1081" width="830" height="1081" role="img" aria-labelledby="flow-title flow-desc">
   <title id="flow-title">How Graft's flow works</title>
-  <desc id="flow-desc">/graft:research, /graft:plan, /graft:roadmap and /graft:execute carry a start tab: they are where you begin. /graft:research on top, /graft:roadmap below it, then three steps from left to right, and one row below them. /graft:research: you steer, researcher finds facts, experimenter runs experiments, and adversarial-reviewer challenges the findings; it writes .claude/graft/research/&lt;name&gt;/report.md, which /graft:plan and /graft:roadmap take as context. /graft:roadmap: you answer questions and plan's agents research and review; it writes .claude/graft/plans/&lt;name&gt;/ with roadmap.md and a &lt;child&gt;.md per child, and GitHub issues, which /graft:orchestrate runs. /graft:plan: you answer questions, researcher finds facts, and reviewer and adversarial-reviewer review; it writes .claude/graft/plans/&lt;name&gt;.md. /graft:orchestrate: for each milestone, worker implements and then the change is committed, with reviewer and adversarial-reviewer reviewing beside the loop; then comment-editor and docs-editor clean up; it produces commits on a branch. /graft:pr: push and open a PR; it produces a PR. Below plan and orchestrate, one block holds /graft:execute and /graft:yolo, which both run plan and then orchestrate in one session: in /graft:execute you decide, and in /graft:yolo the agent decides and produces a ready PR with screenshots. Beside that block, /graft:diff publishes a claude.ai artifact of the commits on a branch for you to review and comment on, then Claude acts on your feedback. A key at the bottom shows that the start tab marks where you begin.</desc>
+  <desc id="flow-desc">/graft:roadmap, /graft:research, /graft:plan and /graft:execute carry a start tab: they are where you begin. /graft:roadmap is a band across the top, /graft:research below it on the right, then three steps from left to right, and one row below them. /graft:roadmap: you answer questions and plan's agents research and review; it writes GitHub issues and .claude/graft/plans/&lt;name&gt;/ with roadmap.md and a &lt;child&gt;.md per child. One arrow runs from the band to /graft:plan, whose phase roadmap runs, and one to /graft:research, whose phase roadmap can run; a third runs from the plans folder down the right side to /graft:orchestrate, which runs the child plans. /graft:research: you steer, researcher finds facts, experimenter runs experiments, and adversarial-reviewer challenges the findings; it writes .claude/graft/research/&lt;name&gt;/report.md, which /graft:plan and /graft:roadmap take as context. /graft:plan: you answer questions, researcher finds facts, and reviewer and adversarial-reviewer review; it writes .claude/graft/plans/&lt;name&gt;.md. /graft:orchestrate: for each milestone, worker implements and then the change is committed, with reviewer and adversarial-reviewer reviewing beside the loop; then comment-editor and docs-editor clean up; it produces commits on a branch. /graft:pr: push and open a PR; it produces a PR. Below plan and orchestrate, one block holds /graft:execute and /graft:yolo, which both run plan and then orchestrate in one session: in /graft:execute you decide, and in /graft:yolo the agent decides and produces a ready PR with screenshots. Beside that block, /graft:diff publishes a claude.ai artifact of the commits on a branch for you to review and comment on, then Claude acts on your feedback. A key at the bottom shows that the start tab marks where you begin.</desc>
   <style>
     text { font-size: 14px; fill: #1f2328; text-anchor: middle; }
     .sans { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
@@ -16,81 +16,82 @@
   </defs>
 
   <g>
-    <rect x="1" y="1" width="828" height="190" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
+    <rect x="1" y="1" width="828" height="122" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
     <g>
       <rect x="11" y="11" width="808" height="34" rx="6" fill="#0969da"/>
-      <text x="415" y="33" class="mono head">/graft:research</text>
+      <text x="415" y="33" class="mono head">/graft:roadmap</text>
       <rect x="17" y="17" width="50" height="22" rx="11" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
       <text x="42" y="33" class="sans">start</text>
     </g>
     <g>
-      <rect x="11" y="61" width="808" height="64" rx="10" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+      <rect x="11" y="61" width="322" height="52" rx="10" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
       <g>
-        <rect x="17" y="67" width="190" height="52" rx="17" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
-        <text x="112" y="88" class="sans">you</text>
-        <text x="112" y="107" class="sans">steer</text>
+        <rect x="17" y="70" width="150" height="34" rx="17" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
+        <text x="92" y="92" class="sans">you · questions</text>
       </g>
       <g>
-        <rect x="219" y="67" width="190" height="52" rx="17" fill="#ddf4ff" stroke="#54aeff" stroke-width="1"/>
-        <text x="314" y="88" class="mono">researcher</text>
-        <text x="314" y="107" class="sans">facts</text>
-      </g>
-      <g>
-        <rect x="421" y="67" width="190" height="52" rx="17" fill="#ddf4ff" stroke="#54aeff" stroke-width="1"/>
-        <text x="516" y="88" class="mono">experimenter</text>
-        <text x="516" y="107" class="sans">experiments</text>
-      </g>
-      <g>
-        <rect x="623" y="67" width="190" height="52" rx="17" fill="#ddf4ff" stroke="#54aeff" stroke-width="1"/>
-        <text x="718" y="88" class="mono">adversarial-reviewer</text>
-        <text x="718" y="107" class="sans">challenge</text>
+        <rect x="177" y="70" width="150" height="34" rx="17" fill="#ddf4ff" stroke="#54aeff" stroke-width="1"/>
+        <text x="252" y="92" class="sans">plan's agents</text>
       </g>
     </g>
-    <path class="arrow" d="M108,125 V141" marker-end="url(#arrowhead)"/>
+    <path class="arrow" d="M333,78 H383" marker-end="url(#arrowhead)"/>
+    <path class="arrow" d="M333,104 H553" marker-end="url(#arrowhead)"/>
     <g>
-      <rect x="11" y="147" width="360" height="34" rx="6" fill="#dafbe1" stroke="#4ac26b" stroke-width="1"/>
-      <text x="191" y="169" class="mono">.claude/graft/research/&lt;name&gt;/report.md</text>
+      <rect x="389" y="61" width="138" height="34" rx="6" fill="#dafbe1" stroke="#4ac26b" stroke-width="1"/>
+      <text x="458" y="83" class="sans">GitHub issues</text>
+    </g>
+    <g>
+      <rect x="559" y="61" width="260" height="52" rx="6" fill="#dafbe1" stroke="#4ac26b" stroke-width="1"/>
+      <text x="689" y="82" class="mono">.claude/graft/plans/&lt;name&gt;/</text>
+      <text x="689" y="101" class="mono">roadmap.md, &lt;child&gt;.md</text>
     </g>
   </g>
 
-  <path class="arrow" d="M108,181 V424" marker-end="url(#arrowhead)"/>
-  <path class="arrow" d="M310,181 V209" marker-end="url(#arrowhead)"/>
+  <path class="arrow" d="M108,123 V435" marker-end="url(#arrowhead)"/>
+  <path class="arrow" d="M290,123 V147" marker-end="url(#arrowhead)"/>
+  <path class="arrow" d="M766,113 V423 H600 V435" marker-end="url(#arrowhead)"/>
 
-  <g transform="translate(0,215)">
-    <rect x="250" y="1" width="418" height="190" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
+  <g transform="translate(0,152)">
+    <rect x="245" y="1" width="435" height="252" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
     <g>
-      <rect x="260" y="11" width="398" height="34" rx="6" fill="#0969da"/>
-      <text x="459" y="33" class="mono head">/graft:roadmap</text>
-      <rect x="266" y="17" width="50" height="22" rx="11" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
-      <text x="291" y="33" class="sans">start</text>
+      <rect x="255" y="11" width="415" height="34" rx="6" fill="#0969da"/>
+      <text x="462.5" y="33" class="mono head">/graft:research</text>
+      <rect x="261" y="17" width="50" height="22" rx="11" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
+      <text x="286" y="33" class="sans">start</text>
     </g>
     <g>
-      <rect x="260" y="61" width="398" height="46" rx="10" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
+      <rect x="255" y="61" width="415" height="126" rx="10" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
       <g>
-        <rect x="266" y="67" width="188" height="34" rx="17" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
-        <text x="360" y="89" class="sans">you · questions</text>
+        <rect x="261" y="67" width="197" height="52" rx="17" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
+        <text x="359.5" y="88" class="sans">you</text>
+        <text x="359.5" y="107" class="sans">steer</text>
       </g>
       <g>
-        <rect x="464" y="67" width="188" height="34" rx="17" fill="#ddf4ff" stroke="#54aeff" stroke-width="1"/>
-        <text x="558" y="89" class="sans">plan's agents</text>
+        <rect x="467" y="67" width="197" height="52" rx="17" fill="#ddf4ff" stroke="#54aeff" stroke-width="1"/>
+        <text x="565.5" y="88" class="mono">researcher</text>
+        <text x="565.5" y="107" class="sans">facts</text>
+      </g>
+      <g>
+        <rect x="261" y="129" width="197" height="52" rx="17" fill="#ddf4ff" stroke="#54aeff" stroke-width="1"/>
+        <text x="359.5" y="150" class="mono">experimenter</text>
+        <text x="359.5" y="169" class="sans">experiments</text>
+      </g>
+      <g>
+        <rect x="467" y="129" width="197" height="52" rx="17" fill="#ddf4ff" stroke="#54aeff" stroke-width="1"/>
+        <text x="565.5" y="150" class="mono">adversarial-reviewer</text>
+        <text x="565.5" y="169" class="sans">challenge</text>
       </g>
     </g>
-    <path class="arrow" d="M385,107 V123" marker-end="url(#arrowhead)"/>
-    <path class="arrow" d="M589,107 V123" marker-end="url(#arrowhead)"/>
+    <path class="arrow" d="M359.5,187 V203" marker-end="url(#arrowhead)"/>
     <g>
-      <rect x="260" y="129" width="250" height="52" rx="6" fill="#dafbe1" stroke="#4ac26b" stroke-width="1"/>
-      <text x="385" y="150" class="mono">.claude/graft/plans/&lt;name&gt;/</text>
-      <text x="385" y="169" class="mono">roadmap.md, &lt;child&gt;.md</text>
-    </g>
-    <g>
-      <rect x="520" y="129" width="138" height="52" rx="6" fill="#dafbe1" stroke="#4ac26b" stroke-width="1"/>
-      <text x="589" y="160" class="sans">GitHub issues</text>
+      <rect x="255" y="209" width="360" height="34" rx="6" fill="#dafbe1" stroke="#4ac26b" stroke-width="1"/>
+      <text x="435" y="231" class="mono">.claude/graft/research/&lt;name&gt;/report.md</text>
     </g>
   </g>
 
-  <path class="arrow" d="M385,396 V424" marker-end="url(#arrowhead)"/>
+  <path class="arrow" d="M255,378 H180 V435" marker-end="url(#arrowhead)"/>
 
-  <g transform="translate(0,430)">
+  <g transform="translate(0,440)">
     <g>
       <rect x="1" y="1" width="214" height="370" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
       <g>
@@ -260,9 +261,9 @@
   </g>
 
   <g>
-    <rect x="1" y="1033" width="190" height="36" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
-    <rect x="9" y="1040" width="50" height="22" rx="11" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
-    <text x="34" y="1056" class="sans">start</text>
-    <text x="69" y="1056" class="sans key">where you begin</text>
+    <rect x="1" y="1043" width="190" height="36" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
+    <rect x="9" y="1050" width="50" height="22" rx="11" fill="#fff8c5" stroke="#d4a72c" stroke-width="1"/>
+    <text x="34" y="1066" class="sans">start</text>
+    <text x="69" y="1066" class="sans key">where you begin</text>
   </g>
 </svg>
